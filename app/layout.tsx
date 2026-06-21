@@ -1,10 +1,13 @@
-import PlayerEngine from "@/components/player/PlayerEngine";
-import BottomPlayer from "@/components/player/BottomPlayer";
-import { Sidebar } from "@/components/layout/Sidebar";
-
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+
 import "./globals.css";
+
+import Navbar from "@/components/layout/Navbar";
+import DatabaseLoader from "@/components/DatabaseLoader";
+
+import PlayerEngine from "@/components/player/PlayerEngine";
+import BottomPlayer from "@/components/player/BottomPlayer";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -32,18 +35,16 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-screen bg-black text-white">
-        <div className="flex min-h-screen">
+        <DatabaseLoader />
 
-          <Sidebar />
+        <Navbar />
 
-          <main className="flex-1 overflow-auto">
-            {children}
-          </main>
-
-        </div>
+        <main className="pb-28">
+          {children}
+        </main>
 
         <PlayerEngine />
-<BottomPlayer />
+        <BottomPlayer />
       </body>
     </html>
   );

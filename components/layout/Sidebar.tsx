@@ -1,32 +1,37 @@
 'use client'
 // src/components/layout/Sidebar.tsx
-
+import { List } from "lucide-react";
+import { usePlayerStore } from "@/store/player-store";
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
   Home, Search, Heart, ListMusic, Clock, Settings,
-  Music2, Plus, ChevronRight
+  Music2, Plus, ChevronRight, Compass
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const NAV_ITEMS = [
-  { href: '/',               icon: Home,       label: 'Home' },
-  { href: '/search',         icon: Search,     label: 'Search' },
-  { href: '/liked',          icon: Heart,      label: 'Liked Songs' },
-  { href: '/playlists',      icon: ListMusic,  label: 'Playlists' },
-  { href: '/recently-played',icon: Clock,      label: 'Recently Played' },
-]
+  { href: '/', icon: Home, label: 'Home' },
 
-// Example playlists — replace with your Zustand store data
-const PLAYLISTS = [
-  { id: '1', name: 'Chill Vibes', count: 24 },
-  { id: '2', name: 'Workout Hits', count: 18 },
-  { id: '3', name: 'Late Night Lo-fi', count: 31 },
-  { id: '4', name: 'Road Trip', count: 45 },
-]
+{
+  href: "/explore",
+  icon: Compass,
+  label: "Explore",
+},
 
+  
+  { href: '/liked', icon: Heart, label: 'Liked Songs' },
+  { href: '/playlists', icon: ListMusic, label: 'Playlists' },
+  { href: '/recently-played', icon: Clock, label: 'Recently Played' },
+  {
+    href: "/queue",
+    icon: List,
+    label: "Queue",
+  },
+]
 export function Sidebar() {
   const pathname = usePathname()
+  const { playlists } = usePlayerStore();
 
   return (
     <>
@@ -76,17 +81,19 @@ export function Sidebar() {
           </div>
 
           <ul role="list" className="mf-sidebar__playlists">
-            {PLAYLISTS.map((pl) => (
+            {playlists.map((pl: any) => (
               <li key={pl.id}>
                 <Link
-                  href={`/playlist/${pl.id}`}
+                  href={`/playlists/${pl.id}`}
                   className={cn(
                     'mf-playlist-link',
-                    pathname === `/playlist/${pl.id}` && 'mf-playlist-link--active'
+                    pathname === `/playlists/${pl.id}` && 'mf-playlist-link--active'
                   )}
                 >
                   <span className="mf-playlist-link__name">{pl.name}</span>
-                  <span className="mf-playlist-link__count">{pl.count}</span>
+                  <span className="mf-playlist-link__count">
+  {pl.songs.length}
+</span>
                 </Link>
               </li>
             ))}

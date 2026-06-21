@@ -5,19 +5,24 @@ export async function GET(request: NextRequest) {
   const query = request.nextUrl.searchParams.get("q");
 
   if (!query) {
-    return NextResponse.json([]);
+    return NextResponse.json({
+      results: [],
+    });
   }
 
   try {
     const results = await searchSongs(query);
 
-    return NextResponse.json(results);
+    return NextResponse.json({
+      results,
+    });
   } catch (error) {
-    console.error(error);
+    console.error("Search API Error:", error);
 
     return NextResponse.json(
       {
         error: "Search failed",
+        results: [],
       },
       {
         status: 500,

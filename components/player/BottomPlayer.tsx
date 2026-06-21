@@ -9,6 +9,7 @@ import {
   Heart, Repeat, Shuffle, List, Mic2, Maximize2
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import QueueDrawer from "./QueueDrawer";
 // 👇 Replace with your actual Zustand store hook
 // import { usePlayerStore } from '@/store/playerStore'
 
@@ -21,28 +22,52 @@ function formatTime(secs: number) {
 }
 
 export default function BottomPlayer() {
-  const {
-  title,
-  artist,
-  thumbnail,
-  nextTrack,
-  prevTrack,
-} = usePlayerStore();
-const currentSong = {
-  title,
-  artist,
-  thumbnail,
-};
 const {
+  videoId,
+  title,
+  artist,
+  thumbnail,
+isQueueOpen,
+toggleQueue,
   isPlaying,
   setIsPlaying,
+
+  currentTime,
+  duration,
+
   player,
+
+  likedSongs,
+  toggleLike,
+
+  nextTrack,
+  prevTrack,
+
+  isShuffle,
+  toggleShuffle,
+  isRepeat,
+toggleRepeat,
 } = usePlayerStore();
-const isLiked = false;
-const isMuted = false;
+
+const currentTrack = {
+  videoId,
+  title,
+  artist,
+  thumbnail,
+  duration,
+};
+const currentSong = currentTrack;
+const isLiked = likedSongs.some(
+  (song) => song.videoId === videoId
+);
+const [isMuted, setIsMuted] =
+  useState(false);
 const [isMobileExpanded, setIsMobileExpanded] = useState(false)
-const [progress, setProgress] = useState(0);
-const [volume, setVolume] = useState(80);
+const progress =
+  duration > 0
+    ? (currentTime / duration) * 100
+    : 0;
+const [volume, setVolumeState] = useState(80);
 
 const togglePlay = () => {
   if (!player) return;
@@ -55,16 +80,29 @@ const togglePlay = () => {
     setIsPlaying(true);
   }
 };
-const toggleLike = () => {};
-const toggleMute = () => {};
+const toggleMute = () => {
+  if (!player) return;
+
+  if (isMuted) {
+    player.unMute();
+    setIsMuted(false);
+  } else {
+    player.mute();
+    setIsMuted(true);
+  }
+};
 
 const playNext = nextTrack;
 const playPrev = prevTrack;
+const setVolume = (value: number) => {
+  setVolumeState(value);
 
+  if (player) {
+    player.setVolume(value);
+  }
+};
   const progressRef = useRef<HTMLInputElement>(null)
 
-const currentTime = 0;
-const totalTime = 180;
   const progressStyle = `linear-gradient(to right, var(--mf-brand) ${progress}%, var(--mf-bg-overlay) ${progress}%)`
   const volumeStyle   = `linear-gradient(to right, var(--mf-text-primary) ${isMuted ? 0 : volume}%, var(--mf-bg-overlay) ${isMuted ? 0 : volume}%)`
 if (!title) return null
@@ -96,7 +134,9 @@ if (!title) return null
             <p className="mf-player__artist">{currentSong.artist}</p>
           </div>
           <button
-            onClick={toggleLike}
+            onClick={() =>
+  toggleLike(currentTrack)
+}
             className={cn('mf-player__icon-btn', isLiked && 'mf-player__icon-btn--active')}
             aria-label={isLiked ? 'Remove from liked songs' : 'Add to liked songs'}
             aria-pressed={isLiked}
@@ -108,9 +148,21 @@ if (!title) return null
         {/* Center — controls + progress */}
         <div className="mf-player__center">
           <div className="mf-player__controls">
-            <button className="mf-player__icon-btn" aria-label="Shuffle">
-              <Shuffle size={15} />
-            </button>
+           <button
+  onClick={toggleShuffle}
+  className="mf-player__icon-btn"
+  style={{
+    color: isShuffle
+      ? "#22c55e"
+      : undefined,
+    filter: isShuffle
+      ? "drop-shadow(0 0 8px #22c55e)"
+      : "none",
+  }}
+  aria-label="Shuffle"
+>
+  <Shuffle size={15} />
+</button>
             <button onClick={playPrev} className="mf-player__icon-btn" aria-label="Previous">
               <SkipBack size={18} fill="currentColor" />
             </button>
@@ -127,9 +179,21 @@ if (!title) return null
             <button onClick={playNext} className="mf-player__icon-btn" aria-label="Next">
               <SkipForward size={18} fill="currentColor" />
             </button>
-            <button className="mf-player__icon-btn" aria-label="Repeat">
-              <Repeat size={15} />
-            </button>
+            <button
+  onClick={toggleRepeat}
+  className="mf-player__icon-btn"
+  style={{
+    color: isRepeat
+      ? "#22c55e"
+      : undefined,
+    filter: isRepeat
+      ? "drop-shadow(0 0 8px #22c55e)"
+      : "none",
+  }}
+  aria-label="Repeat"
+>
+  <Repeat size={15} />
+</button>
           </div>
 
           <div className="mf-player__progress-wrap" aria-label="Song progress">
@@ -140,12 +204,23 @@ if (!title) return null
   min={0}
   max={100}
   value={progress}
-  onChange={(e) => setProgress(Number(e.target.value))}
+  onChange={(e) => {
+  if (!player) return;
+
+  const value = Number(e.target.value);
+
+  player.seekTo(
+    (value / 100) * duration,
+    true
+  );
+}}
   className="mf-player__progress"
   style={{ background: progressStyle }}
   aria-label="Seek"
 />
-            <span className="mf-player__time">{formatTime(totalTime)}</span>
+            <span className="mf-player__time">
+  {formatTime(duration)}
+</span>
           </div>
         </div>
 
@@ -154,9 +229,13 @@ if (!title) return null
           <button className="mf-player__icon-btn" aria-label="Lyrics">
             <Mic2 size={16} />
           </button>
-          <button className="mf-player__icon-btn" aria-label="Queue">
-            <List size={16} />
-          </button>
+          <button
+  className="mf-player__icon-btn"
+  aria-label="Queue"
+  onClick={toggleQueue}
+>
+  <List size={16} />
+</button>
           <button onClick={toggleMute} className="mf-player__icon-btn" aria-label={isMuted ? 'Unmute' : 'Mute'}>
             {isMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
           </button>
@@ -258,7 +337,9 @@ if (!title) return null
 
 </div>
 )}
-
+{isQueueOpen && (
+  <QueueDrawer />
+)}
 <style>{`
         /* ======= Desktop Player ======= */
         .mf-player {

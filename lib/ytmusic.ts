@@ -8,6 +8,7 @@ export async function initializeYTMusic() {
   if (!initialized) {
     await ytmusic.initialize();
     initialized = true;
+    console.log("YTMusic initialized");
   }
 }
 
@@ -16,16 +17,21 @@ export async function searchSongs(query: string) {
 
   const results = await ytmusic.searchSongs(query);
 
-  console.log("FIRST RESULT:");
-console.log(results[0]);
-
-return results.map((song: any) => ({
-  title: song.name,
-  artist: song.artist?.name,
-  videoId: song.videoId,
-  thumbnail:
-    song.thumbnails?.[0]?.url ||
-    song.thumbnail?.[0]?.url ||
-    null,
-}));
+  return results.map((song: any) => ({
+    videoId: song.videoId,
+    title: song.name || song.title || "Unknown",
+    artist:
+      song.artist?.name ||
+      song.artist ||
+      "Unknown Artist",
+    duration:
+      song.duration ||
+      song.duration_seconds ||
+      0,
+    thumbnail:
+      song.thumbnails?.[
+        song.thumbnails.length - 1
+      ]?.url ||
+      "",
+  }));
 }
