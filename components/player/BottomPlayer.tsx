@@ -122,8 +122,8 @@ if (!title) return null
     "https://placehold.co/100x100/png"
   }
               alt={`${currentSong.title} album art`}
-              width={52}
-              height={52}
+              width={64}
+              height={64}
               className="mf-player__art"
               unoptimized
             />
@@ -305,17 +305,19 @@ if (!title) return null
           </button>
 
 <div className="mf-fullscreen-player__art-wrap">
-  <Image
-    src={
-      currentSong.thumbnail ||
-      "https://placehold.co/300x300/png"
-    }
-    alt={`${currentSong.title} album art`}
-    width={280}
-    height={280}
-    className="mf-fullscreen-player__art"
-    unoptimized
-  />
+<Image
+  src={
+    currentSong.thumbnail ||
+    "https://placehold.co/100x100/png"
+  }
+  alt={`${currentSong.title} album art`}
+  width={70}
+  height={70}
+  className={`mf-player__art ${
+    isPlaying ? "mf-player__art--spin" : ""
+  }`}
+  unoptimized
+/>
 
 <div
   className="mf-fullscreen-player__art-glow"
@@ -342,37 +344,77 @@ if (!title) return null
 )}
 <style>{`
         /* ======= Desktop Player ======= */
-        .mf-player {
-          position: fixed;
-          bottom: 0; left: 0; right: 0;
-          height: var(--mf-player-height);
-          background: var(--mf-glass-bg);
-          backdrop-filter: blur(20px);
-          -webkit-backdrop-filter: blur(20px);
-          border-top: 1px solid var(--mf-glass-border);
-          z-index: 50;
-          display: grid;
-          grid-template-columns: 280px 1fr 280px;
-          align-items: center;
-          padding: 0 24px;
-          gap: 16px;
-        }
+.mf-player {
+  position: fixed;
+
+  left: 12px;
+  right: 12px;
+  bottom: 12px;
+
+  height: 90px;
+
+  display: grid;
+
+  grid-template-columns:
+    280px
+    1fr
+    250px;
+
+  align-items: center;
+
+  padding: 0 20px;
+
+  border-radius: 20px;
+
+  background: rgba(15,15,15,.92);
+
+  backdrop-filter: blur(25px);
+
+  -webkit-backdrop-filter: blur(25px);
+
+  border: 1px solid rgba(255,255,255,.08);
+
+  box-shadow:
+    0 10px 40px rgba(0,0,0,.45);
+
+  z-index: 999;
+}
 
         /* Left */
         .mf-player__left {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          min-width: 0;
-        }
+  display: flex;
+
+  align-items: center;
+
+  gap: 12px;
+
+  min-width: 0;
+}
         .mf-player__art-wrap { position: relative; flex-shrink: 0; }
-        .mf-player__art {
-          width: 52px;
-          height: 52px;
-          border-radius: var(--mf-radius-md);
-          object-fit: cover;
-          display: block;
-        }
+      .mf-player__art {
+  width: 64px;
+  height: 64px;
+
+  border-radius: 12px;
+
+  object-fit: cover;
+
+  display: block;
+}
+
+.mf-player__art--spin {
+  animation: spinAlbum 8s linear infinite;
+}
+
+@keyframes spinAlbum {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
+}
         .mf-player__art-glow {
           position: absolute;
           inset: 0;
@@ -400,24 +442,35 @@ if (!title) return null
         }
 
         /* Center */
-        .mf-player__center {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          gap: 8px;
-        }
+       .mf-player__center {
+  display: flex;
+
+  flex-direction: column;
+
+  justify-content: center;
+
+  align-items: center;
+
+  gap: 10px;
+
+  width: 100%;
+}
         .mf-player__controls {
           display: flex;
           align-items: center;
           gap: 8px;
         }
-        .mf-player__progress-wrap {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          width: 100%;
-          max-width: 480px;
-        }
+       .mf-player__progress-wrap {
+  display: flex;
+
+  align-items: center;
+
+  gap: 10px;
+
+  width: 100%;
+
+  max-width: 650px;
+}
         .mf-player__time {
           font-size: 11px;
           color: var(--mf-text-muted);
@@ -427,6 +480,8 @@ if (!title) return null
           flex-shrink: 0;
         }
         .mf-player__progress {
+        box-shadow:
+  0 0 15px rgba(168,85,247,.3);
           flex: 1;
           appearance: none;
           -webkit-appearance: none;
@@ -451,13 +506,18 @@ if (!title) return null
         .mf-player__progress-wrap:hover .mf-player__progress::-webkit-slider-thumb { opacity: 1; }
 
         /* Right */
-        .mf-player__right {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          justify-content: flex-end;
-        }
+       .mf-player__right {
+  display: flex;
+
+  justify-content: flex-end;
+
+  align-items: center;
+
+  gap: 10px;
+}
         .mf-player__volume {
+        box-shadow:
+  0 0 15px rgba(168,85,247,.6);
           width: 80px;
           appearance: none;
           -webkit-appearance: none;
@@ -501,7 +561,9 @@ if (!title) return null
           display: flex;
           align-items: center;
           justify-content: center;
-          width: 36px; height: 36px;
+          width: 54px; height: 54px;
+          box-shadow:
+0 0 20px rgba(168,85,247,.4);
           border-radius: 50%;
           background: var(--mf-text-primary);
           color: var(--mf-text-inverse);
@@ -521,7 +583,7 @@ if (!title) return null
           display: none;
           position: fixed;
           bottom: 56px; left: 8px; right: 8px;
-          height: var(--mf-player-height-mobile);
+          height: 84px;
           background: var(--mf-bg-overlay);
           border: 1px solid var(--mf-border);
           border-radius: var(--mf-radius-xl);
