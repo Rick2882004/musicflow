@@ -108,13 +108,6 @@ const isPlayingSong =
     artist: song.artist,
     thumbnail: song.thumbnail,
   });
-
-  toggleLike({
-  videoId: song.id,
-  title: song.title,
-  artist: song.artist,
-  thumbnail: song.thumbnail,
-});
 }}
           aria-label={isLiked ? 'Unlike' : 'Like'}
           aria-pressed={isLiked}
@@ -141,7 +134,14 @@ const isPlayingSong =
           cursor: pointer;
           border-radius: var(--mf-radius-lg);
           padding: 12px;
-          background: var(--mf-bg-card);
+          background: rgba(255,255,255,0.08);
+backdrop-filter: blur(20px);
+-webkit-backdrop-filter: blur(20px);
+
+border: 1px solid rgba(255,255,255,0.12);
+
+box-shadow:
+  0 8px 32px rgba(0,0,0,0.3);
           border: 1px solid var(--mf-border);
           transition:
             background var(--mf-duration-base) var(--mf-ease),
@@ -150,11 +150,19 @@ const isPlayingSong =
           outline: none;
         }
         .mf-song-card:hover,
-        .mf-song-card:focus-visible {
-          background: var(--mf-bg-overlay);
-          border-color: var(--mf-border-hover);
-          transform: translateY(-2px);
-        }
+.mf-song-card:focus-visible {
+  background: rgba(255,255,255,0.12);
+
+  border-color:
+    rgba(255,255,255,0.25);
+
+  transform:
+    translateY(-6px);
+
+  box-shadow:
+    0 12px 40px
+    rgba(124,58,237,0.35);
+}
         .mf-song-card:focus-visible { outline: 2px solid var(--mf-brand); }
 
         .mf-song-card__thumb-wrap {
@@ -171,7 +179,7 @@ const isPlayingSong =
           display: block;
           transition: transform var(--mf-duration-slow) var(--mf-ease);
         }
-        .mf-song-card:hover .mf-song-card__thumb { transform: scale(1.04); }
+        .mf-song-card:hover .mf-song-card__thumb { transform: scale(1.12); }
 
         .mf-song-card__rank {
           position: absolute;
@@ -200,7 +208,7 @@ const isPlayingSong =
         .mf-song-card__overlay--visible { opacity: 1; }
 
         .mf-song-card__play {
-          width: 44px; height: 44px;
+          width: 56px; height: 56px;
           border-radius: 50%;
           background: var(--mf-brand);
           border: none;
@@ -271,8 +279,14 @@ const isPlayingSong =
 .mf-equalizer span {
   width: 3px;
   height: 12px;
+
   border-radius: 999px;
+
   background: #22c55e;
+
+  box-shadow:
+    0 0 10px #22c55e;
+
   animation: eq 1s infinite;
 }
 

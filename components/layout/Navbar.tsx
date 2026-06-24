@@ -6,14 +6,13 @@ export default function Navbar() {
   return (
     <header
       className="
-        sticky
-        top-0
-        z-50
-        bg-black/90
-        backdrop-blur
-        border-b
-        border-zinc-800
-      "
+glass
+sticky
+top-0
+z-50
+mx-4
+mt-3
+"
     >
       <div
         className="
