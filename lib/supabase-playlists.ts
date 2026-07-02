@@ -1,4 +1,5 @@
 import { supabase } from "./supabase";
+import { auth } from "../src/lib/firebase";
 
 export async function savePlaylist(
   name: string
@@ -8,8 +9,9 @@ export async function savePlaylist(
       .from("playlists")
       .insert([
         {
-          name,
-        },
+  user_uid: auth.currentUser?.uid,
+  name,
+}
       ])
       .select()
       .single();
@@ -32,7 +34,8 @@ export async function deletePlaylistDB(
     await supabase
       .from("playlists")
       .delete()
-      .eq("id", playlistId);
+.eq("id", playlistId)
+.eq("user_uid", auth.currentUser?.uid)
 
   if (error) {
     console.log(

@@ -1,48 +1,36 @@
 import { supabase } from "./supabase";
+import { auth } from "../src/lib/firebase";
 
-export async function saveLikedSong(
-  song: any
-) {
-  const { error } =
-    await supabase
-      .from("liked_songs")
-      .insert([
-        {
-          video_id:
-            song.videoId,
-          title:
-            song.title,
-          artist:
-            song.artist,
-          thumbnail:
-            song.thumbnail,
-        },
-      ]);
+export async function saveLikedSong(song: any) {
+  const uid = auth.currentUser?.uid;
 
-  if (error) {
-    console.log(
-      "LIKE ERROR:"
-    );
-    console.log(error);
-  }
+  if (!uid) return;
+
+  const { error } = await supabase
+    .from("liked_songs")
+    .insert([
+      {
+        user_uid: uid,
+        video_id: song.videoId,
+        title: song.title,
+        artist: song.artist,
+        thumbnail: song.thumbnail,
+      },
+    ]);
+
+  if (error) console.log(error);
 }
 
-export async function removeLikedSong(
-  videoId: string
-) {
-  const { error } =
-    await supabase
-      .from("liked_songs")
-      .delete()
-      .eq(
-        "video_id",
-        videoId
-      );
+export async function removeLikedSong(videoId: string) {
+  const uid = auth.currentUser?.uid;
 
-  if (error) {
-    console.log(
-      "UNLIKE ERROR:"
-    );
-    console.log(error);
-  }
+  if (!uid) return;
+
+  const { error } = await supabase
+    .from("liked_songs")
+    .delete()
+    .eq("user_uid", uid)
+    .eq("video_id", videoId);
+
+  if (error) console.log(error);
 }

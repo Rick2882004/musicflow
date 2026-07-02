@@ -1,28 +1,18 @@
 import { supabase } from "./supabase";
+import { auth } from "../src/lib/firebase";
 
-export async function saveRecentSong(
-  song: any
-) {
-  const { error } =
-    await supabase
-      .from("recently_played")
-      .insert([
-        {
-          video_id:
-            song.videoId,
-          title:
-            song.title,
-          artist:
-            song.artist,
-          thumbnail:
-            song.thumbnail,
-        },
-      ]);
+export async function saveRecentSong(song: any) {
+  const uid = auth.currentUser?.uid;
 
-  if (error) {
-    console.log(
-      "RECENT ERROR:"
-    );
-    console.log(error);
-  }
+  if (!uid) return;
+
+  await supabase.from("recently_played").insert([
+    {
+      user_uid: uid,
+      video_id: song.videoId,
+      title: song.title,
+      artist: song.artist,
+      thumbnail: song.thumbnail,
+    },
+  ]);
 }

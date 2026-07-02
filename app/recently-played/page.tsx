@@ -2,6 +2,7 @@
 
 import { usePlayerStore } from "@/store/player-store";
 import { SongCard } from "@/components/ui/SongCard";
+import ProtectedRoute from "../../src/components/auth/ProtectedRoute";
 
 export default function RecentlyPlayedPage() {
   const {
@@ -10,6 +11,7 @@ export default function RecentlyPlayedPage() {
   } = usePlayerStore();
 
   return (
+  <ProtectedRoute>
     <main className="min-h-screen bg-black text-white p-8 pb-32">
       <h1 className="text-5xl font-bold mb-8">
         Recently Played
@@ -51,6 +53,7 @@ export default function RecentlyPlayedPage() {
           )}
         </div>
       )}
-    </main>
+        </main>
+  </ProtectedRoute>
   );
 }

@@ -9,6 +9,8 @@ import DatabaseLoader from "@/components/DatabaseLoader";
 import PlayerEngine from "@/components/player/PlayerEngine";
 import BottomPlayer from "@/components/player/BottomPlayer";
 
+import { AuthProvider } from "../src/context/AuthContext";
+
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
@@ -26,25 +28,27 @@ export const metadata: Metadata = {
 
 export default function RootLayout({
   children,
-}: {
+}: Readonly<{
   children: React.ReactNode;
-}) {
+}>) {
   return (
     <html
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-screen bg-black text-white">
-        <DatabaseLoader />
+        <AuthProvider>
+          <DatabaseLoader />
 
-        <Navbar />
+          <Navbar />
 
-        <main className="pb-28">
-          {children}
-        </main>
+          <main className="pb-28">
+            {children}
+          </main>
 
-        <PlayerEngine />
-        <BottomPlayer />
+          <PlayerEngine />
+          <BottomPlayer />
+        </AuthProvider>
       </body>
     </html>
   );

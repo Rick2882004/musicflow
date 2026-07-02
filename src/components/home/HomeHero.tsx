@@ -421,12 +421,11 @@ shadow-xl
   className="
     hidden xl:block
     absolute
-    right-12
-    top-12
-    w-48
-    opacity-30
-    object-contain
-    pointer-events-none
+    right-16
+    top-1/2
+    -translate-y-1/2
+    w-[320px]
+    opacity-10
   "
 />
     </section>

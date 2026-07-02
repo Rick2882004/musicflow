@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { usePlayerStore } from "@/store/player-store";
+import ProtectedRoute from "../../src/components/auth/ProtectedRoute";
 
 export default function PlaylistsPage() {
   const [name, setName] = useState("");
@@ -13,6 +14,7 @@ export default function PlaylistsPage() {
   } = usePlayerStore();
 
   return (
+  <ProtectedRoute>
     <main className="min-h-screen bg-black text-white p-6">
       <div className="mb-10 rounded-3xl p-8 bg-gradient-to-r from-purple-600 via-fuchsia-500 to-blue-500">
   <h1 className="text-5xl font-bold mb-3">
@@ -142,6 +144,7 @@ border-zinc-800
   </Link>
 ))}
       </div>
-    </main>
+        </main>
+  </ProtectedRoute>
   );
 }

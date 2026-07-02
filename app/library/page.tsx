@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { usePlayerStore } from "@/store/player-store";
 import { SongCard } from "@/components/ui/SongCard";
+import ProtectedRoute from "../../src/components/auth/ProtectedRoute";
+
 export default function LibraryPage() {
   const {
     likedSongs,
@@ -20,6 +22,7 @@ export default function LibraryPage() {
 );
 
   return (
+  <ProtectedRoute>
     <main className="min-h-screen bg-black text-white p-8">
 
       <div className="flex items-center justify-between mb-10">
@@ -248,6 +251,7 @@ export default function LibraryPage() {
 </section>
       </section>
 
-    </main>
+        </main>
+  </ProtectedRoute>
   );
 }
