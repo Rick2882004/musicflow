@@ -1,0 +1,18 @@
+{
+  "name": "MusicFlow",
+  "short_name": "MusicFlow",
+  "description": "Premium Music Streaming Platform",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#07070a",
+  "theme_color": "#6C63FF",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

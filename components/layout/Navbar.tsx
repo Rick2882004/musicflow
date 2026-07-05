@@ -1,313 +1,173 @@
 "use client";
 
 import Link from "next/link";
-import {
-  useRouter,
-  usePathname,
-} from "next/navigation";
-import {
-  useState,
-  useEffect,
-  useRef,
-} from "react";
-
+import { useRouter, usePathname } from "next/navigation";
+import { useState, useEffect, useRef } from "react";
+import { ChevronLeft, ChevronRight, Settings, Shield, User as UserIcon, LogOut, Sparkles } from "lucide-react";
 import { signOut } from "firebase/auth";
 import { auth } from "../../src/lib/firebase";
 import { useAuth } from "../../src/context/AuthContext";
+import { motion, AnimatePresence } from "framer-motion";
 
 export default function Navbar() {
   const router = useRouter();
   const pathname = usePathname();
-
   const { user, loading } = useAuth();
-
   const [open, setOpen] = useState(false);
-
-  const dropdownRef =
-    useRef<HTMLDivElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    function handleClickOutside(
-      event: MouseEvent
-    ) {
-      if (
-        dropdownRef.current &&
-        !dropdownRef.current.contains(
-          event.target as Node
-        )
-      ) {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setOpen(false);
       }
     }
-
-    document.addEventListener(
-      "mousedown",
-      handleClickOutside
-    );
-
-    return () =>
-      document.removeEventListener(
-        "mousedown",
-        handleClickOutside
-      );
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
   const logout = async () => {
     await signOut(auth);
+    setOpen(false);
     router.push("/login");
   };
 
-  const navLink = (
-    href: string,
-    label: string
-  ) => (
-    <Link
-      href={href}
-      className={`
-        px-4
-        py-2
-        rounded-full
-        transition-all
-        duration-300
-        ${
-          pathname === href
-            ? "bg-purple-600/20 text-purple-400"
-            : "text-zinc-300 hover:text-white hover:bg-white/5"
-        }
-      `}
-    >
-      {label}
-    </Link>
-  );
+  // Determine breadcrumb based on path
+  const getBreadcrumb = () => {
+    if (pathname === "/") return "Discover";
+    if (pathname === "/explore") return "Explore";
+    if (pathname === "/search") return "Search";
+    if (pathname === "/library") return "My Library";
+    if (pathname === "/liked") return "Liked Songs";
+    if (pathname === "/playlists") return "Playlists";
+    if (pathname === "/recently-played") return "Recently Played";
+    if (pathname === "/queue") return "Queue";
+    if (pathname === "/settings") return "Settings";
+    if (pathname === "/profile") return "My Profile";
+    if (pathname.startsWith("/playlists/")) return "Playlist View";
+    if (pathname.startsWith("/album/")) return "Album View";
+    if (pathname.startsWith("/artist/")) return "Artist Profile";
+    return "MusicFlow";
+  };
 
   return (
-    <header
-      className="
-        sticky
-        top-0
-        z-50
-        backdrop-blur-3xl
-        bg-black/40
-        border-b
-        border-white/10
-      "
-    >
-      <div
-        className="
-          max-w-7xl
-          mx-auto
-          h-20
-          px-8
-          flex
-          items-center
-          justify-between
-        "
-      >
-        {/* Logo */}
-
-        <Link
-          href="/"
-          className="
-            flex
-            items-center
-            gap-3
-          "
-        >
-          <img
-            src="/logo.png"
-            className="w-11 h-11"
-            alt="MusicFlow"
-          />
-
-          <span
-            className="
-              text-3xl
-              font-black
-              bg-gradient-to-r
-              from-purple-400
-              to-pink-500
-              bg-clip-text
-              text-transparent
-            "
+    <header className="sticky top-0 z-30 h-16 w-full glass-header-panel border-b border-white/5 px-6 flex items-center justify-between shrink-0">
+      {/* Navigation Arrows & Page Title */}
+      <div className="flex items-center gap-5">
+        <div className="hidden sm:flex items-center gap-2">
+          <button
+            onClick={() => router.back()}
+            className="w-8 h-8 rounded-full bg-black/40 hover:bg-black/60 flex items-center justify-center border border-white/5 hover:border-white/10 transition text-zinc-300 hover:text-white"
+            aria-label="Go back"
           >
-            MusicFlow
-          </span>
-        </Link>
+            <ChevronLeft size={16} />
+          </button>
+          <button
+            onClick={() => router.forward()}
+            className="w-8 h-8 rounded-full bg-black/40 hover:bg-black/60 flex items-center justify-center border border-white/5 hover:border-white/10 transition text-zinc-300 hover:text-white"
+            aria-label="Go forward"
+          >
+            <ChevronRight size={16} />
+          </button>
+        </div>
 
-        {/* Navigation */}
+        {/* Dynamic Title / Breadcrumb */}
+        <h2 className="text-sm font-bold text-zinc-200 uppercase tracking-widest bg-gradient-to-r from-zinc-100 to-zinc-400 bg-clip-text text-transparent select-none">
+          {getBreadcrumb()}
+        </h2>
+      </div>
 
-        <nav className="flex items-center gap-3">
-          {navLink("/", "Home")}
-          {navLink("/search", "Search")}
-          {navLink("/library", "Library")}
-          {navLink("/liked", "Liked")}
-        </nav>
-
-        {/* Right */}
+      {/* User Actions */}
+      <div className="flex items-center gap-4">
+        {/* VIP Promo tag */}
+        {user && (
+          <div className="hidden lg:flex items-center gap-1 bg-gradient-to-r from-purple-500/10 to-pink-500/10 border border-purple-500/20 rounded-full px-3 py-1 text-[11px] font-semibold text-purple-300">
+            <Sparkles size={11} className="text-purple-400 animate-pulse" />
+            Premium Account
+          </div>
+        )}
 
         {loading ? (
-          <div className="w-12 h-12 rounded-full bg-zinc-800 animate-pulse" />
+          <div className="w-9 h-9 rounded-full bg-white/5 animate-pulse" />
         ) : user ? (
-          <div
-            className="relative"
-            ref={dropdownRef}
-          >
+          <div className="relative" ref={dropdownRef}>
             <button
-              onClick={() =>
-                setOpen(!open)
-              }
-              className="
-                flex
-                items-center
-                gap-3
-                bg-zinc-900
-                border
-                border-white/10
-                rounded-full
-                px-3
-                py-2
-                hover:border-purple-500
-                transition
-              "
+              onClick={() => setOpen(!open)}
+              className="flex items-center gap-2 hover:bg-white/5 rounded-full p-1 transition border border-transparent hover:border-white/5"
             >
               <img
                 src={
                   user.photoURL ||
                   `https://ui-avatars.com/api/?background=7c3aed&color=fff&name=${
-                    user.displayName ||
-                    user.email
+                    user.displayName || user.email
                   }`
                 }
-                alt=""
-                className="w-10 h-10 rounded-full"
+                alt={user.displayName || "User Avatar"}
+                className="w-8 h-8 rounded-full object-cover shadow-md"
               />
-
-              <div className="hidden lg:block text-left">
-                <p className="font-semibold">
-                  {user.displayName ||
-                    "MusicFlow"}
-                </p>
-
-                <p className="text-xs text-zinc-400">
-                  {user.email}
-                </p>
-              </div>
+              <span className="hidden sm:inline text-xs font-semibold text-zinc-300 pr-2">
+                {user.displayName || "User"}
+              </span>
             </button>
 
-            {open && (
-              <div
-                className="
-                  absolute
-                  right-0
-                  mt-3
-                  w-64
-                  rounded-3xl
-                  bg-zinc-900/95
-                  backdrop-blur-3xl
-                  border
-                  border-white/10
-                  overflow-hidden
-                  shadow-2xl
-                "
-              >
-                <button
-                  onClick={() => {
-                    router.push(
-                      "/profile"
-                    );
-                    setOpen(false);
-                  }}
-                  className="w-full text-left px-6 py-4 hover:bg-white/5 transition"
+            {/* Dropdown Menu */}
+            <AnimatePresence>
+              {open && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                  transition={{ duration: 0.15, ease: "easeOut" }}
+                  className="absolute right-0 mt-2 w-52 rounded-2xl bg-zinc-950/95 backdrop-blur-2xl border border-white/10 overflow-hidden shadow-2xl p-1.5 space-y-0.5"
                 >
-                  👤 Profile
-                </button>
+                  <Link
+                    href="/profile"
+                    onClick={() => setOpen(false)}
+                    className="flex items-center gap-3 px-4 py-2.5 rounded-xl text-xs text-zinc-300 hover:text-white hover:bg-white/5 transition"
+                  >
+                    <UserIcon size={14} className="text-zinc-400" />
+                    Profile
+                  </Link>
 
-                <button
-                  onClick={() => {
-                    router.push(
-                      "/library"
-                    );
-                    setOpen(false);
-                  }}
-                  className="w-full text-left px-6 py-4 hover:bg-white/5 transition"
-                >
-                  📚 Library
-                </button>
+                  <Link
+                    href="/settings"
+                    onClick={() => setOpen(false)}
+                    className="flex items-center gap-3 px-4 py-2.5 rounded-xl text-xs text-zinc-300 hover:text-white hover:bg-white/5 transition"
+                  >
+                    <Settings size={14} className="text-zinc-400" />
+                    Settings
+                  </Link>
 
-                <button
-                  onClick={() => {
-                    router.push(
-                      "/liked"
-                    );
-                    setOpen(false);
-                  }}
-                  className="w-full text-left px-6 py-4 hover:bg-white/5 transition"
-                >
-                  ❤️ Liked Songs
-                </button>
+                  {/* Admin link for management */}
+                  <Link
+                    href="/admin"
+                    onClick={() => setOpen(false)}
+                    className="flex items-center gap-3 px-4 py-2.5 rounded-xl text-xs text-purple-300 hover:text-purple-100 hover:bg-purple-500/10 transition"
+                  >
+                    <Shield size={14} className="text-purple-400" />
+                    Admin Panel
+                  </Link>
 
-                <button
-                  onClick={() => {
-                    router.push(
-                      "/playlists"
-                    );
-                    setOpen(false);
-                  }}
-                  className="w-full text-left px-6 py-4 hover:bg-white/5 transition"
-                >
-                  🎵 Playlists
-                </button>
+                  <div className="h-px bg-white/5 my-1" />
 
-                <button
-                  onClick={() => {
-                    router.push(
-                      "/settings"
-                    );
-                    setOpen(false);
-                  }}
-                  className="w-full text-left px-6 py-4 hover:bg-white/5 transition"
-                >
-                  ⚙️ Settings
-                </button>
-
-                <div className="border-t border-white/10" />
-
-                <button
-                  onClick={logout}
-                  className="
-                    w-full
-                    text-left
-                    px-6
-                    py-4
-                    text-red-400
-                    hover:bg-red-500/10
-                    transition
-                  "
-                >
-                  🚪 Logout
-                </button>
-              </div>
-            )}
+                  <button
+                    onClick={logout}
+                    className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-xs text-red-400 hover:text-red-200 hover:bg-red-500/10 transition"
+                  >
+                    <LogOut size={14} />
+                    Logout
+                  </button>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         ) : (
-          <button
-            onClick={() =>
-              router.push("/login")
-            }
-            className="
-              px-7
-              py-3
-              rounded-full
-              bg-gradient-to-r
-              from-purple-600
-              to-blue-600
-              font-semibold
-              hover:scale-105
-              transition
-            "
+          <Link
+            href="/login"
+            className="px-5 py-2 text-xs rounded-full bg-gradient-to-r from-purple-600 to-pink-500 hover:from-purple-500 hover:to-pink-400 font-bold hover:scale-105 shadow-md shadow-purple-500/20 active:scale-95 transition"
           >
             Login
-          </button>
+          </Link>
         )}
       </div>
     </header>

@@ -1,10 +1,20 @@
 import { supabase } from "./supabase";
 import { auth } from "../src/lib/firebase";
+import { Track } from "@/types/music";
 
-export async function saveLikedSong(song: any) {
+export async function saveLikedSong(song: Track) {
   const uid = auth.currentUser?.uid;
 
   if (!uid) return;
+
+  const { data: existing } = await supabase
+    .from("liked_songs")
+    .select("id")
+    .eq("user_uid", uid)
+    .eq("video_id", song.videoId)
+    .single();
+
+  if (existing) return;
 
   const { error } = await supabase
     .from("liked_songs")

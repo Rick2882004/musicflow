@@ -36,8 +36,8 @@ export default function LoginForm() {
       alert("Login Successful 🎉");
 
       router.push("/");
-    } catch (error: any) {
-      alert(error.message);
+    } catch (error: unknown) {
+      alert((error as Error).message);
     } finally {
       setLoading(false);
     }
@@ -104,16 +104,16 @@ export default function LoginForm() {
         {loading ? "Logging in..." : "Login"}
       </button>
       <div className="text-center pt-2">
-  <p className="text-zinc-400">
-    Don't have an account?{" "}
-    <Link
-      href="/signup"
-      className="text-purple-400 hover:text-purple-300 font-semibold"
-    >
-      Create one
-    </Link>
-  </p>
-</div>
+        <p className="text-zinc-400">
+          Don&apos;t have an account?{" "}
+          <Link
+            href="/signup"
+            className="text-purple-400 hover:text-purple-300 font-semibold"
+          >
+            Create one
+          </Link>
+        </p>
+      </div>
     </form>
   );
 }

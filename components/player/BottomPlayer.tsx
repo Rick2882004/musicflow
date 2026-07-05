@@ -1,736 +1,581 @@
-'use client'
-// src/components/player/BottomPlayer.tsx
-// Connects to YOUR existing Zustand store — adjust import path as needed
+"use client";
+
 import { usePlayerStore } from "@/store/player-store";
-import { useState, useRef } from 'react'
-import Image from 'next/image'
+import { useShallow } from "zustand/react/shallow";
+import { useState, useEffect, useRef } from "react";
+import Image from "next/image";
+import { motion, AnimatePresence } from "framer-motion";
 import {
-  Play, Pause, SkipBack, SkipForward, Volume2, VolumeX,
-  Heart, Repeat, Shuffle, List, Mic2, Maximize2
-} from 'lucide-react'
-import { cn } from '@/lib/utils'
+  Play,
+  Pause,
+  SkipBack,
+  SkipForward,
+  Volume2,
+  VolumeX,
+  Heart,
+  Repeat,
+  Shuffle,
+  List,
+  Mic2,
+  Maximize2,
+  Gauge,
+  Timer
+} from "lucide-react";
+import { cn } from "@/lib/utils";
 import QueueDrawer from "./QueueDrawer";
-// 👇 Replace with your actual Zustand store hook
-// import { usePlayerStore } from '@/store/playerStore'
-
-
 
 function formatTime(secs: number) {
-  const m = Math.floor(secs / 60)
-  const s = Math.floor(secs % 60)
-  return `${m}:${s.toString().padStart(2, '0')}`
+  const m = Math.floor(secs / 60);
+  const s = Math.floor(secs % 60);
+  return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
 export default function BottomPlayer() {
-const {
-  videoId,
-  title,
-  artist,
-  thumbnail,
-isQueueOpen,
-toggleQueue,
-  isPlaying,
-  setIsPlaying,
+  const {
+    videoId,
+    title,
+    artist,
+    thumbnail,
+    isQueueOpen,
+    toggleQueue,
+    isPlaying,
+    setIsPlaying,
+    currentTime,
+    setCurrentTime,
+    duration,
+    setDuration,
+    player,
+    likedSongs,
+    toggleLike,
+    nextTrack,
+    prevTrack,
+    isShuffle,
+    toggleShuffle,
+    isRepeat,
+    toggleRepeat,
+    playbackSpeed,
+    setPlaybackSpeed,
+    sleepTimer,
+    setSleepTimer,
+  } = usePlayerStore(
+    useShallow((s) => ({
+      videoId: s.videoId,
+      title: s.title,
+      artist: s.artist,
+      thumbnail: s.thumbnail,
+      isQueueOpen: s.isQueueOpen,
+      toggleQueue: s.toggleQueue,
+      isPlaying: s.isPlaying,
+      setIsPlaying: s.setIsPlaying,
+      currentTime: s.currentTime,
+      setCurrentTime: s.setCurrentTime,
+      duration: s.duration,
+      setDuration: s.setDuration,
+      player: s.player,
+      likedSongs: s.likedSongs,
+      toggleLike: s.toggleLike,
+      nextTrack: s.nextTrack,
+      prevTrack: s.prevTrack,
+      isShuffle: s.isShuffle,
+      toggleShuffle: s.toggleShuffle,
+      isRepeat: s.isRepeat,
+      toggleRepeat: s.toggleRepeat,
+      playbackSpeed: s.playbackSpeed,
+      setPlaybackSpeed: s.setPlaybackSpeed,
+      sleepTimer: s.sleepTimer,
+      setSleepTimer: s.setSleepTimer,
+    }))
+  );
 
-  currentTime,
-  duration,
+  const currentTrack = { videoId, title, artist, thumbnail, duration };
+  const isLiked = likedSongs.some((song) => song.videoId === videoId);
 
-  player,
+  const [isMuted, setIsMuted] = useState(false);
+  const [isMobileExpanded, setIsMobileExpanded] = useState(false);
+  const [volume, setVolumeState] = useState(80);
+  const [showSpeedMenu, setShowSpeedMenu] = useState(false);
+  const [showTimerMenu, setShowTimerMenu] = useState(false);
 
-  likedSongs,
-  toggleLike,
+  const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
+  const progressRef = useRef<HTMLInputElement>(null);
 
-  nextTrack,
-  prevTrack,
+  // Sleep Timer Countdown Logic
+  useEffect(() => {
+    if (sleepTimer === null) return;
+    if (sleepTimer <= 0) {
+      if (player && isPlaying) {
+        player.pauseVideo();
+        setIsPlaying(false);
+      }
+      setSleepTimer(null);
+      alert("Sleep timer finished. Playback stopped.");
+      return;
+    }
 
-  isShuffle,
-  toggleShuffle,
-  isRepeat,
-toggleRepeat,
-} = usePlayerStore();
+    const timer = setTimeout(() => {
+      setSleepTimer(sleepTimer - 1);
+    }, 60000);
 
-const currentTrack = {
-  videoId,
-  title,
-  artist,
-  thumbnail,
-  duration,
-};
-const currentSong = currentTrack;
-const isLiked = likedSongs.some(
-  (song) => song.videoId === videoId
-);
-const [isMuted, setIsMuted] =
-  useState(false);
-const [isMobileExpanded, setIsMobileExpanded] = useState(false)
-const progress =
-  duration > 0
-    ? (currentTime / duration) * 100
-    : 0;
-const [volume, setVolumeState] = useState(80);
+    return () => clearTimeout(timer);
+  }, [sleepTimer, player, isPlaying, setSleepTimer, setIsPlaying]);
 
-const togglePlay = () => {
-  if (!player) return;
+  // Player Polling Logic
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (player && typeof player.getCurrentTime === "function") {
+        setCurrentTime(player.getCurrentTime());
+        setDuration(player.getDuration());
+      }
+    }, 1000);
 
-  if (isPlaying) {
-    player.pauseVideo();
-    setIsPlaying(false);
-  } else {
-    player.playVideo();
-    setIsPlaying(true);
-  }
-};
-const toggleMute = () => {
-  if (!player) return;
+    return () => clearInterval(interval);
+  }, [player, setCurrentTime, setDuration]);
 
-  if (isMuted) {
-    player.unMute();
-    setIsMuted(false);
-  } else {
-    player.mute();
-    setIsMuted(true);
-  }
-};
+  // Keyboard Shortcuts Handler
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      // Ignore if user is typing in input or textarea
+      if (
+        document.activeElement?.tagName === "INPUT" ||
+        document.activeElement?.tagName === "TEXTAREA"
+      ) {
+        return;
+      }
 
-const playNext = nextTrack;
-const playPrev = prevTrack;
-const setVolume = (value: number) => {
-  setVolumeState(value);
+      switch (e.code) {
+        case "Space":
+          e.preventDefault();
+          togglePlay();
+          break;
+        case "ArrowLeft":
+          e.preventDefault();
+          seekDelta(-5);
+          break;
+        case "ArrowRight":
+          e.preventDefault();
+          seekDelta(5);
+          break;
+        case "ArrowUp":
+          e.preventDefault();
+          adjustVolume(5);
+          break;
+        case "ArrowDown":
+          e.preventDefault();
+          adjustVolume(-5);
+          break;
+        case "KeyL":
+          e.preventDefault();
+          toggleLike(currentTrack);
+          break;
+        case "KeyN":
+          e.preventDefault();
+          nextTrack();
+          break;
+        case "KeyP":
+          e.preventDefault();
+          prevTrack();
+          break;
+        default:
+          break;
+      }
+    }
 
-  if (player) {
-    player.setVolume(value);
-  }
-};
-  const progressRef = useRef<HTMLInputElement>(null)
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [videoId, player, isPlaying, volume, isMuted, likedSongs]);
 
-  const progressStyle = `linear-gradient(to right, var(--mf-brand) ${progress}%, var(--mf-bg-overlay) ${progress}%)`
-  const volumeStyle   = `linear-gradient(to right, var(--mf-text-primary) ${isMuted ? 0 : volume}%, var(--mf-bg-overlay) ${isMuted ? 0 : volume}%)`
-if (!title) return null
-  
+  const togglePlay = () => {
+    if (!player) return;
+    if (isPlaying) {
+      player.pauseVideo();
+      setIsPlaying(false);
+    } else {
+      player.playVideo();
+      setIsPlaying(true);
+    }
+  };
+
+  const seekDelta = (delta: number) => {
+    if (!player) return;
+    const current = player.getCurrentTime();
+    const dest = Math.min(Math.max(current + delta, 0), duration);
+    player.seekTo(dest, true);
+  };
+
+  const adjustVolume = (delta: number) => {
+    const nextVolume = Math.min(Math.max(volume + delta, 0), 100);
+    setVolume(nextVolume);
+  };
+
+  const toggleMute = () => {
+    if (!player) return;
+    if (isMuted) {
+      player.unMute();
+      setIsMuted(false);
+    } else {
+      player.mute();
+      setIsMuted(true);
+    }
+  };
+
+  const setVolume = (value: number) => {
+    setVolumeState(value);
+    if (player) {
+      player.setVolume(value);
+    }
+  };
+
+  const speedOptions = [0.5, 1.0, 1.25, 1.5, 2.0];
+  const timerOptions = [
+    { label: "Off", value: null },
+    { label: "5 Min", value: 5 },
+    { label: "15 Min", value: 15 },
+    { label: "30 Min", value: 30 },
+    { label: "60 Min", value: 60 },
+  ];
+
+  const progressStyle = `linear-gradient(to right, #9333ea ${progress}%, rgba(255,255,255,0.06) ${progress}%)`;
+  const volumeStyle = `linear-gradient(to right, #ffffff ${isMuted ? 0 : volume}%, rgba(255,255,255,0.06) ${isMuted ? 0 : volume}%)`;
+
+  if (!title) return null;
 
   return (
     <>
-      {/* ---- Desktop / Tablet Player ---- */}
-      <div className="mf-player" role="region" aria-label="Music player">
+      {/* ---- Desktop/Tablet Player ---- */}
+      <div className="hidden md:grid fixed left-4 right-4 bottom-4 h-24 grid-cols-3 items-center px-6 rounded-3xl bg-zinc-950/90 backdrop-blur-2xl border border-white/5 shadow-2xl z-50 select-none">
 
-        {/* Left — song info */}
-        <div className="mf-player__left">
-          <div className="mf-player__art-wrap">
-         <Image
-  src={
-    currentSong.thumbnail ||
-    "https://placehold.co/100x100/png"
-  }
-              alt={`${currentSong.title} album art`}
-              width={64}
-              height={64}
-              className="mf-player__art"
-              unoptimized
+        {/* Left Side: Track Info */}
+        <div className="flex items-center gap-4 min-w-0">
+          <div className="relative w-14 h-14 rounded-xl overflow-hidden shadow-md border border-white/5 shrink-0">
+            <img
+              src={thumbnail || "https://placehold.co/100x100/png"}
+              alt={title}
+              className="w-full h-full object-cover"
             />
-            <div className="mf-player__art-glow" aria-hidden="true" />
           </div>
-          <div className="mf-player__meta">
-            <p className="mf-player__title">{currentSong.title}</p>
-            <p className="mf-player__artist">{currentSong.artist}</p>
+          <div className="min-w-0">
+            <h3 className="text-sm font-semibold text-zinc-100 truncate">{title}</h3>
+            <p className="text-xs text-zinc-400 truncate mt-0.5">{artist}</p>
           </div>
           <button
-            onClick={() =>
-  toggleLike(currentTrack)
-}
-            className={cn('mf-player__icon-btn', isLiked && 'mf-player__icon-btn--active')}
-            aria-label={isLiked ? 'Remove from liked songs' : 'Add to liked songs'}
-            aria-pressed={isLiked}
+            onClick={() => toggleLike(currentTrack)}
+            className="text-zinc-400 hover:text-pink-500 transition shrink-0 p-1.5"
+            aria-label={isLiked ? "Unlike song" : "Like song"}
           >
-            <Heart size={16} fill={isLiked ? 'var(--mf-brand)' : 'none'} />
+            <Heart size={16} fill={isLiked ? "#ec4899" : "none"} className={isLiked ? "text-pink-500" : ""} />
           </button>
         </div>
 
-        {/* Center — controls + progress */}
-        <div className="mf-player__center">
-          <div className="mf-player__controls">
-           <button
-  onClick={toggleShuffle}
-  className="mf-player__icon-btn"
-  style={{
-    color: isShuffle
-      ? "#22c55e"
-      : undefined,
-    filter: isShuffle
-      ? "drop-shadow(0 0 8px #22c55e)"
-      : "none",
-  }}
-  aria-label="Shuffle"
->
-  <Shuffle size={15} />
-</button>
-            <button onClick={playPrev} className="mf-player__icon-btn" aria-label="Previous">
+        {/* Center Side: Media Controls */}
+        <div className="flex flex-col items-center gap-2">
+          <div className="flex items-center gap-4">
+            <button
+              onClick={toggleShuffle}
+              className={cn("p-1.5 rounded transition text-zinc-400 hover:text-white", isShuffle && "text-green-400 hover:text-green-300")}
+              aria-label="Shuffle"
+            >
+              <Shuffle size={15} />
+            </button>
+            <button
+              onClick={prevTrack}
+              className="p-1.5 text-zinc-400 hover:text-white transition"
+              aria-label="Previous"
+            >
               <SkipBack size={18} fill="currentColor" />
             </button>
             <button
               onClick={togglePlay}
-              className="mf-player__play-btn"
-              aria-label={isPlaying ? 'Pause' : 'Play'}
+              className="w-10 h-10 rounded-full bg-white hover:scale-105 text-black flex items-center justify-center transition active:scale-95 shadow-md"
+              aria-label={isPlaying ? "Pause" : "Play"}
             >
-              {isPlaying
-                ? <Pause size={18} fill="currentColor" />
-                : <Play  size={18} fill="currentColor" />
-              }
+              {isPlaying ? <Pause size={16} fill="currentColor" /> : <Play size={16} fill="currentColor" className="ml-0.5" />}
             </button>
-            <button onClick={playNext} className="mf-player__icon-btn" aria-label="Next">
+            <button
+              onClick={nextTrack}
+              className="p-1.5 text-zinc-400 hover:text-white transition"
+              aria-label="Next"
+            >
               <SkipForward size={18} fill="currentColor" />
             </button>
             <button
-  onClick={toggleRepeat}
-  className="mf-player__icon-btn"
-  style={{
-    color: isRepeat
-      ? "#22c55e"
-      : undefined,
-    filter: isRepeat
-      ? "drop-shadow(0 0 8px #22c55e)"
-      : "none",
-  }}
-  aria-label="Repeat"
->
-  <Repeat size={15} />
-</button>
+              onClick={toggleRepeat}
+              className={cn("p-1.5 rounded transition text-zinc-400 hover:text-white", isRepeat && "text-green-400 hover:text-green-300")}
+              aria-label="Repeat"
+            >
+              <Repeat size={15} />
+            </button>
           </div>
 
-          <div className="mf-player__progress-wrap" aria-label="Song progress">
-            <span className="mf-player__time">{formatTime(currentTime)}</span>
-           <input
-  ref={progressRef}
-  type="range"
-  min={0}
-  max={100}
-  value={progress}
-  onChange={(e) => {
-  if (!player) return;
-
-  const value = Number(e.target.value);
-
-  player.seekTo(
-    (value / 100) * duration,
-    true
-  );
-}}
-  className="mf-player__progress"
-  style={{ background: progressStyle }}
-  aria-label="Seek"
-/>
-            <span className="mf-player__time">
-  {formatTime(duration)}
-</span>
+          {/* Progress Timeline Slider */}
+          <div className="flex items-center gap-3 w-full max-w-xl text-[10px] text-zinc-500 font-bold">
+            <span className="w-8 text-right font-mono">{formatTime(currentTime)}</span>
+            <input
+              ref={progressRef}
+              type="range"
+              min={0}
+              max={100}
+              value={progress}
+              onChange={(e) => {
+                if (!player) return;
+                const pct = Number(e.target.value);
+                player.seekTo((pct / 100) * duration, true);
+              }}
+              className="flex-1 h-1.5 rounded-full appearance-none bg-zinc-800 outline-none cursor-pointer"
+              style={{ background: progressStyle }}
+            />
+            <span className="w-8 font-mono">{formatTime(duration)}</span>
           </div>
         </div>
 
-        {/* Right — volume + extras */}
-        <div className="mf-player__right">
-          <button className="mf-player__icon-btn" aria-label="Lyrics">
-            <Mic2 size={16} />
-          </button>
+        {/* Right Side: Extras Controls */}
+        <div className="flex items-center justify-end gap-3.5">
+          {/* Playback speed trigger */}
+          <div className="relative">
+            <button
+              onClick={() => {
+                setShowSpeedMenu(!showSpeedMenu);
+                setShowTimerMenu(false);
+              }}
+              className={cn("p-1.5 text-zinc-400 hover:text-white transition rounded-lg hover:bg-white/5", showSpeedMenu && "text-purple-400 bg-white/5")}
+              aria-label="Playback speed"
+            >
+              <Gauge size={16} />
+            </button>
+            {showSpeedMenu && (
+              <div className="absolute bottom-10 right-0 bg-zinc-950 border border-white/10 rounded-xl overflow-hidden shadow-2xl p-1 w-24">
+                {speedOptions.map((opt) => (
+                  <button
+                    key={opt}
+                    onClick={() => {
+                      setPlaybackSpeed(opt);
+                      setShowSpeedMenu(false);
+                    }}
+                    className={cn("w-full text-center py-1.5 text-[10px] rounded-lg text-zinc-400 hover:text-white hover:bg-white/5 transition font-semibold", playbackSpeed === opt && "text-purple-400 bg-purple-500/10")}
+                  >
+                    {opt}x
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Sleep Timer Trigger */}
+          <div className="relative">
+            <button
+              onClick={() => {
+                setShowTimerMenu(!showTimerMenu);
+                setShowSpeedMenu(false);
+              }}
+              className={cn("p-1.5 text-zinc-400 hover:text-white transition rounded-lg hover:bg-white/5 flex items-center gap-1", sleepTimer !== null && "text-purple-400 bg-white/5")}
+              aria-label="Sleep timer"
+            >
+              <Timer size={16} />
+              {sleepTimer !== null && <span className="text-[9px] font-bold">{sleepTimer}m</span>}
+            </button>
+            {showTimerMenu && (
+              <div className="absolute bottom-10 right-0 bg-zinc-950 border border-white/10 rounded-xl overflow-hidden shadow-2xl p-1 w-24">
+                {timerOptions.map((opt) => (
+                  <button
+                    key={opt.label}
+                    onClick={() => {
+                      setSleepTimer(opt.value);
+                      setShowTimerMenu(false);
+                    }}
+                    className={cn("w-full text-center py-1.5 text-[10px] rounded-lg text-zinc-400 hover:text-white hover:bg-white/5 transition font-semibold", sleepTimer === opt.value && "text-purple-400 bg-purple-500/10")}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
           <button
-  className="mf-player__icon-btn"
-  aria-label="Queue"
-  onClick={toggleQueue}
->
-  <List size={16} />
-</button>
-          <button onClick={toggleMute} className="mf-player__icon-btn" aria-label={isMuted ? 'Unmute' : 'Mute'}>
-            {isMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
+            onClick={toggleQueue}
+            className={cn("p-1.5 text-zinc-400 hover:text-white transition rounded-lg hover:bg-white/5", isQueueOpen && "text-purple-400 bg-white/5")}
+            aria-label="Open queue drawer"
+          >
+            <List size={16} />
           </button>
-       <input
-  type="range"
-  min={0}
-  max={100}
-  value={isMuted ? 0 : volume}
-  onChange={(e) => setVolume(Number(e.target.value))}
-  className="mf-player__volume"
-  style={{ background: volumeStyle }}
-  aria-label="Volume"
-/>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={toggleMute}
+              className="text-zinc-400 hover:text-white transition p-1.5"
+              aria-label={isMuted ? "Unmute" : "Mute"}
+            >
+              {isMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
+            </button>
+            <input
+              type="range"
+              min={0}
+              max={100}
+              value={isMuted ? 0 : volume}
+              onChange={(e) => setVolume(Number(e.target.value))}
+              className="w-20 h-1 rounded-full appearance-none bg-zinc-800 outline-none cursor-pointer"
+              style={{ background: volumeStyle }}
+              aria-label="Volume slider"
+            />
+          </div>
         </div>
       </div>
 
-      {/* ---- Mobile mini-player ---- */}
+      {/* ---- Mobile Mini Player ---- */}
       <div
-        className="mf-mini-player"
-        role="region"
-        aria-label="Music player"
+        className="md:hidden fixed bottom-16 left-2 right-2 h-16 rounded-2xl glass border border-white/5 p-2 flex items-center justify-between z-40 select-none shadow-xl cursor-pointer"
         onClick={() => setIsMobileExpanded(true)}
       >
-        <div className="mf-mini-player__left">
-          <Image
-  src={
-    currentSong.thumbnail ||
-    "https://placehold.co/100x100/png"
-  }
+        <div className="flex items-center gap-2.5 min-w-0">
+          <img
+            src={thumbnail || "/logo.png"}
             alt=""
-            width={42}
-            height={42}
-            className="mf-mini-player__art"
-            unoptimized
+            className="w-10 h-10 rounded-xl object-cover"
           />
-          <div>
-            <p className="mf-mini-player__title">{currentSong.title}</p>
-            <p className="mf-mini-player__artist">{currentSong.artist}</p>
+          <div className="min-w-0">
+            <h4 className="text-xs font-bold text-zinc-200 truncate">{title}</h4>
+            <p className="text-[10px] text-zinc-500 truncate">{artist}</p>
           </div>
         </div>
-        <div className="mf-mini-player__actions" onClick={e => e.stopPropagation()}>
-          <button onClick={playPrev} className="mf-player__icon-btn" aria-label="Previous">
-            <SkipBack size={18} fill="currentColor" />
+
+        <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+          <button
+            onClick={togglePlay}
+            className="p-2 text-zinc-200 hover:text-white"
+          >
+            {isPlaying ? <Pause size={18} fill="currentColor" /> : <Play size={18} fill="currentColor" />}
           </button>
-          <button onClick={togglePlay} className="mf-player__icon-btn" aria-label={isPlaying ? 'Pause' : 'Play'}>
-            {isPlaying ? <Pause size={22} fill="currentColor" /> : <Play size={22} fill="currentColor" />}
-          </button>
-          <button onClick={playNext} className="mf-player__icon-btn" aria-label="Next">
+          <button
+            onClick={nextTrack}
+            className="p-2 text-zinc-200 hover:text-white"
+          >
             <SkipForward size={18} fill="currentColor" />
           </button>
         </div>
-        {/* Progress bar underline */}
-        <div className="mf-mini-player__bar" aria-hidden="true">
-          <div className="mf-mini-player__bar-fill" style={{ width: `${progress}%` }} />
+
+        {/* Underline progress bar indicator */}
+        <div className="absolute bottom-0 left-0 right-0 h-[2.5px] bg-white/5 overflow-hidden rounded-b-2xl">
+          <div className="h-full bg-purple-600 rounded-full" style={{ width: `${progress}%` }} />
         </div>
       </div>
 
-      {/* ---- Mobile full-screen player ---- */}
-      {isMobileExpanded && (
-        <div className="mf-fullscreen-player" role="dialog" aria-label="Full screen player" aria-modal="true">
-          <button
-            className="mf-fullscreen-player__close"
-            onClick={() => setIsMobileExpanded(false)}
-            aria-label="Minimize player"
+      {/* ---- Mobile Full Screen Player View ---- */}
+      <AnimatePresence>
+        {isMobileExpanded && (
+          <motion.div
+            initial={{ y: "100%" }}
+            animate={{ y: 0 }}
+            exit={{ y: "100%" }}
+            transition={{ type: "spring", damping: 25, stiffness: 220 }}
+            className="md:hidden fixed inset-0 bg-[#07070a] z-50 flex flex-col justify-between p-8 select-none"
           >
-            <Maximize2 size={18} style={{ transform: 'rotate(180deg)' }} />
-          </button>
+            {/* Header / Minimize button */}
+            <div className="flex items-center justify-between border-b border-white/5 pb-4">
+              <button
+                onClick={() => setIsMobileExpanded(false)}
+                className="text-zinc-500 hover:text-white p-2"
+                aria-label="Minimize"
+              >
+                <Maximize2 size={16} className="rotate-180" />
+              </button>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-purple-400">Now Playing</span>
+              <div className="w-8" />
+            </div>
 
-<div className="mf-fullscreen-player__art-wrap">
-<Image
-  src={
-    currentSong.thumbnail ||
-    "https://placehold.co/100x100/png"
-  }
-  alt={`${currentSong.title} album art`}
-  width={70}
-  height={70}
-  className={`mf-player__art ${
-    isPlaying ? "mf-player__art--spin" : ""
-  }`}
-  unoptimized
-/>
+            {/* Album Cover art */}
+            <div className="flex-grow flex items-center justify-center py-6">
+              <div className="relative w-64 h-64 sm:w-72 sm:h-72 rounded-3xl overflow-hidden shadow-2xl border border-white/5 animate-pulse-slow">
+                <img
+                  src={thumbnail || "/logo.png"}
+                  alt=""
+                  className="w-full h-full object-cover"
+                />
+              </div>
+            </div>
 
-<div
-  className="mf-fullscreen-player__art-glow"
-  aria-hidden="true"
-/>
-</div>
+            {/* Metadata & Liked Song button */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="min-w-0 flex-grow pr-4">
+                  <h2 className="text-xl font-bold text-white truncate">{title}</h2>
+                  <p className="text-sm text-zinc-400 truncate mt-1">{artist}</p>
+                </div>
+                <button
+                  onClick={() => toggleLike(currentTrack)}
+                  className="text-zinc-400 p-2"
+                >
+                  <Heart size={20} fill={isLiked ? "#ec4899" : "none"} className={isLiked ? "text-pink-500" : ""} />
+                </button>
+              </div>
 
-<div className="mf-fullscreen-player__meta">
-  <div>
-    <p className="mf-fullscreen-player__title">
-      {currentSong.title}
-    </p>
+              {/* Progress Slider */}
+              <div className="space-y-2 text-[10px] text-zinc-500 font-bold">
+                <input
+                  type="range"
+                  min={0}
+                  max={100}
+                  value={progress}
+                  onChange={(e) => {
+                    if (!player) return;
+                    const pct = Number(e.target.value);
+                    player.seekTo((pct / 100) * duration, true);
+                  }}
+                  className="w-full h-1 rounded-full appearance-none bg-zinc-800 outline-none cursor-pointer"
+                  style={{ background: progressStyle }}
+                />
+                <div className="flex justify-between font-mono">
+                  <span>{formatTime(currentTime)}</span>
+                  <span>{formatTime(duration)}</span>
+                </div>
+              </div>
 
-    <p className="mf-fullscreen-player__artist">
-      {currentSong.artist}
-    </p>
-  </div>
-</div>
+              {/* Media Controls */}
+              <div className="flex items-center justify-around py-4">
+                <button
+                  onClick={toggleShuffle}
+                  className={cn("p-2", isShuffle ? "text-green-400" : "text-zinc-500")}
+                >
+                  <Shuffle size={18} />
+                </button>
+                <button onClick={prevTrack} className="p-2 text-white">
+                  <SkipBack size={22} fill="currentColor" />
+                </button>
+                <button
+                  onClick={togglePlay}
+                  className="w-14 h-14 rounded-full bg-white text-black flex items-center justify-center shadow-lg active:scale-95 transition"
+                >
+                  {isPlaying ? <Pause size={24} fill="currentColor" /> : <Play size={24} fill="currentColor" className="ml-1" />}
+                </button>
+                <button onClick={nextTrack} className="p-2 text-white">
+                  <SkipForward size={22} fill="currentColor" />
+                </button>
+                <button
+                  onClick={toggleRepeat}
+                  className={cn("p-2", isRepeat ? "text-green-400" : "text-zinc-500")}
+                >
+                  <Repeat size={18} />
+                </button>
+              </div>
 
-</div>
-)}
-{isQueueOpen && (
-  <QueueDrawer />
-)}
-<style>{`
-        /* ======= Desktop Player ======= */
-.mf-player {
-  position: fixed;
+              {/* Playback speed trigger */}
+              <div className="flex items-center justify-between border-t border-white/5 pt-4 text-xs font-semibold text-zinc-400">
+                <div className="flex items-center gap-1">
+                  <Gauge size={14} />
+                  Speed: {playbackSpeed}x
+                </div>
+                {sleepTimer !== null && (
+                  <div className="flex items-center gap-1 text-purple-400">
+                    <Timer size={14} />
+                    Timer: {sleepTimer}m
+                  </div>
+                )}
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-  left: 12px;
-  right: 12px;
-  bottom: 12px;
-
-  height: 90px;
-
-  display: grid;
-
-  grid-template-columns:
-    280px
-    1fr
-    250px;
-
-  align-items: center;
-
-  padding: 0 20px;
-
-  border-radius: 20px;
-
-  background: rgba(15,15,15,.92);
-
-  backdrop-filter: blur(25px);
-
-  -webkit-backdrop-filter: blur(25px);
-
-  border: 1px solid rgba(255,255,255,.08);
-
-  box-shadow:
-    0 10px 40px rgba(0,0,0,.45);
-
-  z-index: 999;
-}
-
-        /* Left */
-        .mf-player__left {
-  display: flex;
-
-  align-items: center;
-
-  gap: 12px;
-
-  min-width: 0;
-}
-        .mf-player__art-wrap { position: relative; flex-shrink: 0; }
-      .mf-player__art {
-  width: 64px;
-  height: 64px;
-
-  border-radius: 12px;
-
-  object-fit: cover;
-
-  display: block;
-}
-
-.mf-player__art--spin {
-  animation: spinAlbum 8s linear infinite;
-}
-
-@keyframes spinAlbum {
-  from {
-    transform: rotate(0deg);
-  }
-
-  to {
-    transform: rotate(360deg);
-  }
-}
-        .mf-player__art-glow {
-          position: absolute;
-          inset: 0;
-          border-radius: var(--mf-radius-md);
-          box-shadow: 0 0 20px rgba(108,99,255,0.3);
-          pointer-events: none;
-        }
-        .mf-player__meta { min-width: 0; }
-        .mf-player__title {
-          font-size: 13px;
-          font-weight: 600;
-          color: var(--mf-text-primary);
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
-          margin: 0;
-        }
-        .mf-player__artist {
-          font-size: 11px;
-          color: var(--mf-text-secondary);
-          margin: 2px 0 0;
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
-        }
-
-        /* Center */
-       .mf-player__center {
-  display: flex;
-
-  flex-direction: column;
-
-  justify-content: center;
-
-  align-items: center;
-
-  gap: 10px;
-
-  width: 100%;
-}
-        .mf-player__controls {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-        }
-       .mf-player__progress-wrap {
-  display: flex;
-
-  align-items: center;
-
-  gap: 10px;
-
-  width: 100%;
-
-  max-width: 650px;
-}
-        .mf-player__time {
-          font-size: 11px;
-          color: var(--mf-text-muted);
-          font-variant-numeric: tabular-nums;
-          min-width: 28px;
-          text-align: center;
-          flex-shrink: 0;
-        }
-        .mf-player__progress {
-        box-shadow:
-  0 0 15px rgba(168,85,247,.3);
-          flex: 1;
-          appearance: none;
-          -webkit-appearance: none;
-          height: 3px;
-          border-radius: var(--mf-radius-full);
-          cursor: pointer;
-          outline: none;
-          border: none;
-          transition: height var(--mf-duration-fast);
-        }
-        .mf-player__progress-wrap:hover .mf-player__progress { height: 4px; }
-        .mf-player__progress::-webkit-slider-thumb {
-          -webkit-appearance: none;
-          width: 12px; height: 12px;
-          border-radius: 50%;
-          background: var(--mf-text-primary);
-          opacity: 0;
-          transition: opacity var(--mf-duration-fast);
-          cursor: pointer;
-          margin-top: -4px;
-        }
-        .mf-player__progress-wrap:hover .mf-player__progress::-webkit-slider-thumb { opacity: 1; }
-
-        /* Right */
-       .mf-player__right {
-  display: flex;
-
-  justify-content: flex-end;
-
-  align-items: center;
-
-  gap: 10px;
-}
-        .mf-player__volume {
-        box-shadow:
-  0 0 15px rgba(168,85,247,.6);
-          width: 80px;
-          appearance: none;
-          -webkit-appearance: none;
-          height: 3px;
-          border-radius: var(--mf-radius-full);
-          cursor: pointer;
-          outline: none;
-          border: none;
-        }
-        .mf-player__volume::-webkit-slider-thumb {
-          -webkit-appearance: none;
-          width: 10px; height: 10px;
-          border-radius: 50%;
-          background: var(--mf-text-primary);
-          cursor: pointer;
-          margin-top: -3.5px;
-        }
-
-        /* Shared icon button */
-        .mf-player__icon-btn {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          background: none;
-          border: none;
-          cursor: pointer;
-          color: var(--mf-text-secondary);
-          padding: 6px;
-          border-radius: var(--mf-radius-sm);
-          transition:
-            color var(--mf-duration-fast) var(--mf-ease),
-            transform var(--mf-duration-fast) var(--mf-ease-spring);
-          flex-shrink: 0;
-        }
-        .mf-player__icon-btn:hover { color: var(--mf-text-primary); }
-        .mf-player__icon-btn:active { transform: scale(0.9); }
-        .mf-player__icon-btn--active { color: var(--mf-brand) !important; }
-
-        /* Play button */
-        .mf-player__play-btn {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          width: 54px; height: 54px;
-          box-shadow:
-0 0 20px rgba(168,85,247,.4);
-          border-radius: 50%;
-          background: var(--mf-text-primary);
-          color: var(--mf-text-inverse);
-          border: none;
-          cursor: pointer;
-          transition:
-            transform var(--mf-duration-fast) var(--mf-ease-spring),
-            background var(--mf-duration-fast);
-          flex-shrink: 0;
-        }
-        .mf-player__play-btn:hover { transform: scale(1.06); background: white; }
-        .mf-player__play-btn:active { transform: scale(0.94); }
-        .mf-player__play-btn--lg { width: 56px; height: 56px; }
-
-        /* ======= Mobile mini-player ======= */
-        .mf-mini-player {
-          display: none;
-          position: fixed;
-          bottom: 56px; left: 8px; right: 8px;
-          height: 84px;
-          background: var(--mf-bg-overlay);
-          border: 1px solid var(--mf-border);
-          border-radius: var(--mf-radius-xl);
-          z-index: 45;
-          align-items: center;
-          justify-content: space-between;
-          padding: 0 12px;
-          cursor: pointer;
-          overflow: hidden;
-        }
-        .mf-mini-player__left {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-          min-width: 0;
-        }
-        .mf-mini-player__art {
-          width: 40px; height: 40px;
-          border-radius: var(--mf-radius-md);
-          object-fit: cover;
-          flex-shrink: 0;
-        }
-        .mf-mini-player__title {
-          font-size: 13px;
-          font-weight: 600;
-          color: var(--mf-text-primary);
-          margin: 0;
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
-          max-width: 140px;
-        }
-        .mf-mini-player__artist {
-          font-size: 11px;
-          color: var(--mf-text-secondary);
-          margin: 1px 0 0;
-        }
-        .mf-mini-player__actions {
-          display: flex;
-          align-items: center;
-          gap: 4px;
-        }
-        .mf-mini-player__bar {
-          position: absolute;
-          bottom: 0; left: 0; right: 0;
-          height: 2px;
-          background: var(--mf-border);
-        }
-        .mf-mini-player__bar-fill {
-          height: 100%;
-          background: var(--mf-brand);
-          border-radius: var(--mf-radius-full);
-          transition: width 0.5s linear;
-        }
-
-        /* ======= Mobile full-screen player ======= */
-        .mf-fullscreen-player {
-          position: fixed;
-          inset: 0;
-          z-index: 100;
-          background: var(--mf-bg-base);
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          justify-content: space-between;
-          padding: 48px 32px 48px;
-          overflow: hidden;
-        }
-        .mf-fullscreen-player::before {
-          content: '';
-          position: absolute;
-          inset: 0;
-          background: radial-gradient(ellipse at 50% 20%, rgba(108,99,255,0.15) 0%, transparent 70%);
-          pointer-events: none;
-        }
-        .mf-fullscreen-player__close {
-          position: absolute;
-          top: 16px; left: 16px;
-          background: none; border: none;
-          color: var(--mf-text-secondary);
-          cursor: pointer;
-          padding: 8px;
-        }
-        .mf-fullscreen-player__art-wrap {
-          position: relative;
-          margin-top: 24px;
-        }
-        .mf-fullscreen-player__art {
-          width: 280px; height: 280px;
-          border-radius: var(--mf-radius-2xl);
-          object-fit: cover;
-          display: block;
-        }
-        .mf-fullscreen-player__art-glow {
-          position: absolute;
-          inset: 0;
-          border-radius: var(--mf-radius-2xl);
-          box-shadow: 0 20px 60px rgba(108,99,255,0.35);
-          pointer-events: none;
-        }
-        .mf-fullscreen-player__meta {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          width: 100%;
-          max-width: 320px;
-          margin-top: 32px;
-        }
-        .mf-fullscreen-player__title {
-          font-size: 22px;
-          font-family: var(--mf-font-display);
-          font-weight: 700;
-          color: var(--mf-text-primary);
-          margin: 0;
-        }
-        .mf-fullscreen-player__artist {
-          font-size: 15px;
-          color: var(--mf-text-secondary);
-          margin: 4px 0 0;
-        }
-        .mf-fullscreen-player__progress-wrap {
-          width: 100%;
-          max-width: 320px;
-          margin-top: 24px;
-        }
-        .mf-fullscreen-player__times {
-          display: flex;
-          justify-content: space-between;
-          margin-top: 6px;
-        }
-        .mf-fullscreen-player__times span {
-          font-size: 11px;
-          color: var(--mf-text-muted);
-        }
-
-        /* ======= Responsive ======= */
-        @media (max-width: 767px) {
-          .mf-player { display: none; }
-          .mf-mini-player { display: flex; }
-        }
-        @media (max-width: 900px) and (min-width: 768px) {
-          .mf-player {
-            grid-template-columns: 200px 1fr 160px;
-          }
-        }
-      `}</style>
-      
+      {/* Queue Drawer Component */}
+      {isQueueOpen && <QueueDrawer />}
     </>
-  )
+  );
 }

@@ -1,8 +1,9 @@
 import { supabase } from "./supabase";
+import { Track } from "@/types/music";
 
 export async function saveSongToPlaylist(
   playlistId: number,
-  song: any
+  song: Track
 ) {
   const { error } = await supabase
     .from("playlist_songs")

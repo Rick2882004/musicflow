@@ -1,483 +1,296 @@
 "use client";
-import { ARTISTS } from "@/lib/artists";
+
 import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { SongCard } from "@/components/ui/SongCard";
 import { usePlayerStore } from "@/store/player-store";
-import { getArtistPhoto } from "@/lib/wiki";
+import { useShallow } from "zustand/react/shallow";
+import { motion } from "framer-motion";
+import { Play, Shuffle, Heart, Share2, Award, Calendar, Users } from "lucide-react";
+import { Track, Artist } from "@/types/music";
 
 export default function ArtistPage() {
   const params = useParams();
+  const router = useRouter();
 
-  const artistName = decodeURIComponent(
-    params.name as string
-  );
+  const artistName = decodeURIComponent(params.name as string);
 
-  const [songs, setSongs] = useState<any[]>([]);
-  const [isFollowing, setIsFollowing] =
-    useState(false);
+  const [artist, setArtist] = useState<Artist | null>(null);
+  const [isFollowing, setIsFollowing] = useState(false);
+  const [loading, setLoading] = useState(true);
 
-  const {
-    setQueue,
-    setTrack,
-  } = usePlayerStore();
+  const { setQueue, setTrack } = usePlayerStore(useShallow((s) => ({
+    setQueue: s.setQueue,
+    setTrack: s.setTrack,
+  })));
 
   useEffect(() => {
-    loadSongs();
+    async function loadArtistData() {
+      setLoading(true);
+      try {
+        const res = await fetch(`/api/artist?name=${encodeURIComponent(artistName)}`);
+        if (!res.ok) throw new Error("Failed to load artist details");
+        const data = await res.json();
+        setArtist(data);
+      } catch (err) {
+        console.error("Artist profile fetch error:", err);
+      } finally {
+        setLoading(false);
+      }
+    }
 
-    const followed =
-      localStorage.getItem(
-        `artist-${artistName}`
-      );
+    loadArtistData();
 
-    setIsFollowing(
-      followed === "true"
+    const followed = localStorage.getItem(`artist-${artistName}`);
+    setIsFollowing(followed === "true");
+  }, [artistName]);
+
+  const toggleFollow = () => {
+    const nextState = !isFollowing;
+    setIsFollowing(nextState);
+    localStorage.setItem(`artist-${artistName}`, String(nextState));
+  };
+
+  const shareArtist = () => {
+    if (typeof window === "undefined") return;
+    navigator.clipboard.writeText(window.location.href);
+    alert("Artist link copied to clipboard! 🔗");
+  };
+
+  const playAll = () => {
+    if (!artist?.songs || artist.songs.length === 0) return;
+    setQueue(artist.songs);
+    const first = artist.songs[0];
+    setTrack(first.videoId, first.title, first.artist, first.thumbnail, 0);
+  };
+
+  const shufflePlay = () => {
+    if (!artist?.songs || artist.songs.length === 0) return;
+    const shuffled = [...artist.songs].sort(() => Math.random() - 0.5);
+    setQueue(shuffled);
+    const first = shuffled[0];
+    setTrack(first.videoId, first.title, first.artist, first.thumbnail, 0);
+  };
+
+  if (loading) {
+    return (
+      <div className="space-y-8 animate-pulse">
+        {/* Banner Skeleton */}
+        <div className="h-[250px] w-full bg-white/5 rounded-3xl" />
+        {/* Controls skeleton */}
+        <div className="flex gap-4">
+          <div className="h-12 w-28 bg-white/5 rounded-full" />
+          <div className="h-12 w-28 bg-white/5 rounded-full" />
+          <div className="h-12 w-12 bg-white/5 rounded-full" />
+        </div>
+        {/* Tracks List Skeleton */}
+        <div className="space-y-3">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="h-16 bg-white/5 rounded-xl w-full" />
+          ))}
+        </div>
+      </div>
     );
-  }, []);
-
-async function loadSongs() {
-  try {
-    const res = await fetch(
-      `/api/search?q=${encodeURIComponent(
-        artistName
-      )}`
-    );
-
-    const data = await res.json();
-
-    setSongs(data.results || []);
-  } catch (error) {
-    console.error(error);
-    setSongs([]);
   }
-}
 
+  if (!artist) {
+    return <main className="p-8 text-zinc-400">Artist details not found</main>;
+  }
 
-const artistData =
-  ARTISTS[artistName as keyof typeof ARTISTS];
-
-const artistImage =
-  artistData?.image ||
-  songs?.[0]?.thumbnail;
-
-const artistBanner =
-  artistData?.banner ||
-  artistImage;
-
-const monthlyListeners =
-  artistData?.monthlyListeners ||
-  (
-    songs.length * 127345
-  ).toLocaleString();
-
-const albums = Array.isArray(songs)
-  ? songs.slice(0, 6)
-  : [];
-const relatedArtists = [
-  {
-    name: "Armaan Malik",
-    image:
-      "https://i.scdn.co/image/ab6761610000e5ebc6f5c1f57d5db1f2d6a1b6a4",
-  },
-  {
-    name: "Atif Aslam",
-    image:
-      "https://i.scdn.co/image/ab6761610000e5eb0d8d1ec2e0c7a0d6f4b7c4f9",
-  },
-  {
-    name: "Jubin Nautiyal",
-    image:
-      "https://i.scdn.co/image/ab6761610000e5eb6d5df0b4c9df0f87e0c6cb95",
-  },
-  {
-    name: "Sonu Nigam",
-    image:
-      "https://i.scdn.co/image/ab6761610000e5eb58f5b7c4d68c4e42f51a3c24",
-  },
-  {
-    name: "Shreya Ghoshal",
-    image:
-      "https://i.scdn.co/image/ab6761610000e5eb4cb5f0e7f22db91f6a52aca5",
-  },
-];
+  const artistImage = artist.image || artist.thumbnails?.[artist.thumbnails.length - 1]?.url || "/logo.png";
+  const bioSummary = artist.description || artist.bio || `${artist.name} is a verified artist on MusicFlow. Stream their latest tracks and explore their dynamic music library below.`;
 
   return (
-    <main className="min-h-screen bg-black text-white p-8 pb-32">
-
-      {/* HERO */}
-
-      <div className="relative overflow-hidden rounded-3xl mb-10">
-
+    <main className="space-y-12">
+      {/* 1. Artist Hero Banner */}
+      <div className="relative overflow-hidden rounded-3xl">
         <div
-          className="absolute inset-0 bg-cover bg-center blur-sm scale-110 opacity-30"
-          style={{
-          backgroundImage: `url(${artistBanner})`,
-          }}
+          className="absolute inset-0 bg-cover bg-center blur-md scale-110 opacity-20 pointer-events-none"
+          style={{ backgroundImage: `url(${artistImage})` }}
         />
+        <div className="relative bg-gradient-to-r from-purple-900/40 via-zinc-950/80 to-[#07070a] border border-white/5 p-8 md:p-10 flex flex-col md:flex-row items-center gap-8 shadow-2xl">
+          <motion.img
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ duration: 0.5 }}
+            src={artistImage}
+            alt={artist.name}
+            className="w-40 h-40 md:w-48 md:h-48 rounded-full object-cover border-4 border-white/10 shadow-2xl shrink-0"
+          />
 
-        <div className="relative bg-gradient-to-r from-purple-600/90 via-fuchsia-500/90 to-blue-500/90 p-10">
+          <div className="space-y-4 text-center md:text-left min-w-0">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-purple-500/10 border border-purple-500/20 text-purple-300 text-xs font-bold uppercase tracking-wider select-none">
+              <Award size={12} />
+              Verified Artist
+            </span>
 
-          <div className="flex items-center gap-8">
+            <h1 className="text-4xl md:text-6xl font-black tracking-tight text-white leading-none truncate">
+              {artist.name}
+            </h1>
 
-            <img
-              src={artistImage}
-              alt={artistName}
-              className="w-44 h-44 rounded-full object-cover border-4 border-white/20 shadow-2xl"
-            />
-
-            <div>
-
-              <p className="uppercase text-sm flex items-center gap-2">
-                ✔ Verified Artist
-              </p>
-
-              <h1 className="text-7xl font-bold mt-2">
-                {artistName}
-              </h1>
-
-              <div className="flex gap-4 mt-4 text-white/90">
-
-                <span>
-                  {songs.length} songs
-                </span>
-
-                <span>
-                  •
-                </span>
-
-                <span>
-                  {monthlyListeners}
-                  {" "}
-                  monthly listeners
-                </span>
-
-              </div>
-
+            <div className="flex flex-wrap items-center justify-center md:justify-start gap-4 text-xs text-zinc-400 font-semibold">
+              <span className="flex items-center gap-1.5">
+                <Users size={12} className="text-zinc-500" />
+                {artist.monthlyListeners || "22M"} Monthly Listeners
+              </span>
+              <span>•</span>
+              <span>{artist.songs?.length || 0} Tracks available</span>
             </div>
-
           </div>
-
         </div>
-
       </div>
 
-      {/* CONTROLS */}
-
-      <div className="flex flex-wrap gap-4 mb-12">
-
+      {/* 2. Primary Actions row */}
+      <div className="flex items-center flex-wrap gap-4 select-none">
         <button
-          onClick={() => {
-            if (!songs.length)
-              return;
-
-            setQueue(songs);
-
-            const first =
-              songs[0];
-
-            setTrack(
-              first.videoId,
-              first.title,
-              first.artist,
-              first.thumbnail,
-              0
-            );
-          }}
-          className="bg-green-500 hover:bg-green-400 text-black px-8 py-4 rounded-full font-bold"
+          onClick={playAll}
+          className="px-8 py-3.5 rounded-full bg-gradient-to-r from-purple-600 to-pink-500 hover:from-purple-500 hover:to-pink-400 text-white font-bold text-sm flex items-center gap-2 hover:scale-105 active:scale-95 transition shadow-lg shadow-purple-600/25"
         >
-          ▶ Play All
+          <Play size={16} fill="white" className="text-white" />
+          Play All
         </button>
 
         <button
-          onClick={() => {
-            if (!songs.length)
-              return;
-
-            const shuffled =
-              [...songs].sort(
-                () =>
-                  Math.random() -
-                  0.5
-              );
-
-            setQueue(shuffled);
-
-            const first =
-              shuffled[0];
-
-            setTrack(
-              first.videoId,
-              first.title,
-              first.artist,
-              first.thumbnail,
-              0
-            );
-          }}
-          className="bg-zinc-800 hover:bg-zinc-700 px-8 py-4 rounded-full"
+          onClick={shufflePlay}
+          className="px-6 py-3.5 rounded-full bg-white/5 border border-white/10 hover:bg-white/10 hover:border-white/20 text-zinc-200 hover:text-white font-bold text-xs flex items-center gap-2 transition"
         >
-          🔀 Shuffle
+          <Shuffle size={14} />
+          Shuffle
         </button>
 
         <button
-          onClick={() => {
-            const value =
-              !isFollowing;
-
-            setIsFollowing(
-              value
-            );
-
-            localStorage.setItem(
-              `artist-${artistName}`,
-              String(value)
-            );
-          }}
-          className={`px-8 py-4 rounded-full font-semibold ${
+          onClick={toggleFollow}
+          className={`px-6 py-3.5 rounded-full text-xs font-bold flex items-center gap-2 transition ${
             isFollowing
-              ? "bg-pink-500"
-              : "bg-zinc-800"
+              ? "bg-pink-600/10 border border-pink-500/30 text-pink-300 hover:bg-pink-600/20"
+              : "bg-white/5 border border-white/10 text-zinc-400 hover:text-white hover:border-white/20"
           }`}
         >
-          {isFollowing
-            ? "❤️ Following"
-            : "🤍 Follow"}
+          <Heart size={14} fill={isFollowing ? "currentColor" : "none"} />
+          {isFollowing ? "Following" : "Follow"}
         </button>
 
+        <button
+          onClick={shareArtist}
+          className="p-3 rounded-full bg-white/5 border border-white/10 hover:bg-white/10 hover:border-white/20 text-zinc-400 hover:text-white transition"
+          aria-label="Share artist"
+        >
+          <Share2 size={14} />
+        </button>
       </div>
 
-      {/* TOP TRACKS */}
-
-      <h2 className="text-3xl font-bold mb-6">
-        Top Tracks
-      </h2>
-
-      <div className="space-y-3 mb-16">
-
-        {songs
-          .slice(0, 5)
-          .map(
-            (
-              song: any,
-              index: number
-            ) => (
+      {/* 3. Popular Songs list */}
+      {artist.songs && artist.songs.length > 0 && (
+        <section>
+          <h2 className="text-xl md:text-2xl font-bold tracking-tight text-white mb-6">Popular Tracks</h2>
+          <div className="space-y-2.5">
+            {artist.songs.slice(0, 5).map((song, index) => (
               <div
-                key={index}
+                key={song.videoId}
                 onClick={() => {
-                  setQueue(
-                    songs
-                  );
-
-                  setTrack(
-                    song.videoId,
-                    song.title,
-                    song.artist,
-                    song.thumbnail,
-                    index
-                  );
-                }}
-                className="bg-zinc-900 hover:bg-zinc-800 cursor-pointer rounded-xl p-4 flex items-center gap-4"
-              >
-                <div className="w-8 text-zinc-400">
-                  {index + 1}
-                </div>
-
-                <img
-                  src={
-                    song.thumbnail
+                  if (artist.songs) {
+                    setQueue(artist.songs);
+                    setTrack(song.videoId, song.title, song.artist, song.thumbnail, index);
                   }
-                  alt=""
-                  className="w-14 h-14 rounded-lg object-cover"
-                />
-
-                <div className="flex-1">
-
-                  <p className="font-semibold">
-                    {song.title}
-                  </p>
-
-                  <p className="text-zinc-400 text-sm">
-                    {song.artist}
-                  </p>
-
-                </div>
-
-                <div className="text-zinc-500 text-sm">
-                  {Math.floor(
-                    Math.random() *
-                      10 +
-                      1
-                  )}
-                  M
-                </div>
-
-              </div>
-            )
-          )}
-
-      </div>
-
-      {/* SONG GRID */}
-
-      <h2 className="text-3xl font-bold mb-6">
-        Popular Songs
-      </h2>
-
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-5 mb-16">
-
-        {songs.map(
-          (
-            song: any,
-            index: number
-          ) => (
-            <div
-              key={index}
-              onClick={() => {
-                setQueue(
-                  songs
-                );
-
-                setTrack(
-                  song.videoId,
-                  song.title,
-                  song.artist,
-                  song.thumbnail,
-                  index
-                );
-              }}
-            >
-              <SongCard
-                song={{
-                  id: song.videoId,
-                  title:
-                    song.title,
-                  artist:
-                    song.artist,
-                  thumbnail:
-                    song.thumbnail,
-                  duration:
-                    song.duration ||
-                    0,
                 }}
-              />
-            </div>
-          )
-        )}
-</div>
+                className="flex items-center justify-between p-3.5 rounded-2xl bg-white/[0.02] hover:bg-white/[0.05] border border-white/5 hover:border-white/10 transition cursor-pointer group"
+              >
+                <div className="flex items-center gap-4 min-w-0">
+                  <span className="w-6 text-center text-xs font-bold text-zinc-600 group-hover:text-purple-400 transition-colors">
+                    {index + 1}
+                  </span>
+                  <img
+                    src={song.thumbnail}
+                    alt={song.title}
+                    className="w-14 h-14 rounded-xl object-cover shrink-0"
+                  />
+                  <div className="min-w-0">
+                    <h3 className="text-sm font-semibold text-zinc-200 group-hover:text-purple-300 transition-colors truncate">
+                      {song.title}
+                    </h3>
+                    <p className="text-xs text-zinc-400 truncate">{song.artist}</p>
+                  </div>
+                </div>
+                <div className="text-zinc-500 text-xs font-semibold">
+                  {song.duration
+                    ? `${Math.floor(song.duration / 60)}:${String(song.duration % 60).padStart(2, "0")}`
+                    : "3:40"}
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
-{/* ALBUMS */}
+      {/* 4. Albums & Singles section */}
+      {artist.albums && artist.albums.length > 0 && (
+        <section>
+          <h2 className="text-xl md:text-2xl font-bold tracking-tight text-white mb-6">Albums</h2>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-5">
+            {artist.albums.slice(0, 6).map((album) => (
+              <a
+                key={album.albumId}
+                href={`/album/${album.albumId}`}
+                className="bg-white/[0.02] border border-white/5 hover:border-white/10 hover:bg-white/[0.05] rounded-2xl p-4 transition-all duration-300 flex flex-col group shadow-md"
+              >
+                <img
+                  src={album.thumbnail}
+                  alt={album.name}
+                  className="w-full aspect-square object-cover rounded-xl shadow-md group-hover:scale-[1.02] transition duration-300"
+                />
+                <h3 className="text-xs font-semibold mt-4 text-zinc-200 group-hover:text-white transition-colors truncate">
+                  {album.name}
+                </h3>
+                {album.year && (
+                  <p className="text-[10px] text-zinc-500 mt-1 flex items-center gap-1">
+                    <Calendar size={10} />
+                    {album.year}
+                  </p>
+                )}
+              </a>
+            ))}
+          </div>
+        </section>
+      )}
 
-<h2 className="text-3xl font-bold mb-6">
-  Albums
-</h2>
+      {/* 5. Biography / About Card */}
+      <section>
+        <h2 className="text-xl md:text-2xl font-bold tracking-tight text-white mb-6">About</h2>
+        <div className="glass p-6 md:p-8 rounded-3xl border border-white/5 bg-zinc-950/40 space-y-4">
+          <p className="text-zinc-300 text-sm md:text-base leading-relaxed" dangerouslySetInnerHTML={{ __html: bioSummary }} />
+        </div>
+      </section>
 
-<div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-5 mb-16">
-
-  {albums.map(
-    (album: any, index: number) => (
-      <a
-  key={index}
-  href={`/album/${album.videoId}`}
-  className="bg-zinc-900 hover:bg-zinc-800 rounded-2xl p-4 transition block"
->
-
-        <img
-          src={album.thumbnail}
-          alt=""
-          className="w-full aspect-square object-cover rounded-xl mb-4"
-        />
-
-        <h3 className="font-semibold truncate">
-          {album.title}
-        </h3>
-
-        <p className="text-zinc-400 text-sm mt-1">
-          Album
-        </p>
-
-        <p className="text-zinc-500 text-xs">
-          {2018 + (index % 6)}
-        </p>
-
-      </a>
-    )
-  )}
-      </div>
-
-      {/* RELATED ARTISTS */}
-
-     <h2 className="text-3xl font-bold mb-6">
-  Fans Also Like
-</h2>
-
-<div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-5">
-
-  {relatedArtists.map(
-    (artist, index) => (
-      <a
-        key={index}
-        href={`/artist/${encodeURIComponent(
-          artist.name
-        )}`}
-        className="bg-zinc-900 hover:bg-zinc-800 rounded-2xl p-4 transition"
-      >
-
-        <img
-          src={artist.image}
-          alt={artist.name}
-          className="w-full aspect-square rounded-full object-cover mb-4"
-        />
-
-        <h3 className="font-semibold text-center">
-          {artist.name}
-        </h3>
-
-        <p className="text-zinc-500 text-sm text-center mt-1">
-          Artist
-        </p>
-
-      </a>
-    )
-  )}
-      </div>
-{/* ABOUT */}
-
-<h2 className="text-3xl font-bold mt-16 mb-6">
-  About
-</h2>
-
-<div className="bg-zinc-900 rounded-3xl p-8">
-
-  <div className="flex items-center gap-6 mb-6">
-
-    <img
-      src={artistImage}
-      alt=""
-      className="w-28 h-28 rounded-full object-cover"
-    />
-
-    <div>
-
-      <h3 className="text-2xl font-bold">
-        {artistName}
-      </h3>
-
-      <p className="text-zinc-400 mt-2">
-        {monthlyListeners} monthly listeners
-      </p>
-
-    </div>
-
-  </div>
-
-  <p className="text-zinc-300 leading-8">
-    {artistName} is one of the most popular
-    artists on MusicFlow. Discover hit songs,
-    playlists, albums and fan favorites.
-    Listen to the latest releases and enjoy
-    an endless collection of music.
-  </p>
-
-</div>
+      {/* 6. Related Artists ("Fans Also Like") */}
+      {artist.similarArtists && artist.similarArtists.length > 0 && (
+        <section>
+          <h2 className="text-xl md:text-2xl font-bold tracking-tight text-white mb-6">Fans Also Like</h2>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-5">
+            {artist.similarArtists.slice(0, 5).map((sim) => {
+              const simImage = sim.thumbnails?.[sim.thumbnails.length - 1]?.url || "/logo.png";
+              return (
+                <div
+                  key={sim.artistId}
+                  onClick={() => router.push(`/artist/${encodeURIComponent(sim.name)}`)}
+                  className="cursor-pointer bg-white/[0.02] border border-white/5 hover:border-white/10 hover:bg-white/[0.05] rounded-2xl p-4 transition duration-300 flex flex-col items-center shadow-md group"
+                >
+                  <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full overflow-hidden border border-white/10 shadow-inner">
+                    <img
+                      src={simImage}
+                      alt={sim.name}
+                      className="w-full h-full object-cover group-hover:scale-105 transition duration-500"
+                    />
+                  </div>
+                  <h3 className="text-xs font-semibold mt-3 text-zinc-200 truncate w-full text-center group-hover:text-white">
+                    {sim.name}
+                  </h3>
+                  <p className="text-[10px] text-zinc-500 mt-1">Artist</p>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
     </main>
   );
 }

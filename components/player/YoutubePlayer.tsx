@@ -1,69 +1,50 @@
 "use client";
 
 import YouTube from "react-youtube";
-import {
-  useRef,
-  useEffect,
-} from "react";
+import { useRef, useEffect } from "react";
 import { usePlayerStore } from "@/store/player-store";
+import { useShallow } from "zustand/react/shallow";
 
 type Props = {
   videoId: string;
 };
 
-export default function YoutubePlayer({
-  videoId,
-}: Props) {
-  const playerRef = useRef<any>(null);
+export default function YoutubePlayer({ videoId }: Props) {
+  const playerRef = useRef<any>(null); // eslint-disable-line @typescript-eslint/no-explicit-any
 
-const {
-  setPlayer,
-  setCurrentTime,
-  setDuration,
-  nextTrack,
-} = usePlayerStore();
-  const onReady = (event: any) => {
-  playerRef.current = event.target;
+  const {
+    setPlayer,
+    setCurrentTime,
+    setDuration,
+    nextTrack,
+  } = usePlayerStore(useShallow((s) => ({
+    setPlayer: s.setPlayer,
+    setCurrentTime: s.setCurrentTime,
+    setDuration: s.setDuration,
+    nextTrack: s.nextTrack,
+  })));
 
-  setPlayer(event.target);
+  const onReady = (event: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
+    playerRef.current = event.target;
+    setPlayer(event.target);
+    setDuration(event.target.getDuration());
+  };
 
-  setDuration(
-    event.target.getDuration()
-  );
-};
-const onStateChange = (event: any) => {
-  if (event.data === 0) {
-    const { isRepeat } =
-      usePlayerStore.getState();
-
-    if (isRepeat) {
-      event.target.playVideo();
-    } else {
-      nextTrack();
-    }
-  }
-};
-useEffect(() => {
-  const interval =
-    setInterval(() => {
-      if (
-        playerRef.current
-      ) {
-        setCurrentTime(
-          playerRef.current.getCurrentTime()
-        );
-
-        setDuration(
-          playerRef.current.getDuration()
-        );
+  const onStateChange = (event: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
+    if (event.data === 0) {
+      const { isRepeat } = usePlayerStore.getState();
+      if (isRepeat) {
+        event.target.playVideo();
+      } else {
+        nextTrack();
       }
-    }, 1000);
+    }
+  };
 
-  return () =>
-    clearInterval(
-      interval
-    );
-}, []);
+  useEffect(() => {
+    // interval moved to BottomPlayer
+  }, []);
+
   return (
     <YouTube
       videoId={videoId}

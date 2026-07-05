@@ -1,7 +1,41 @@
 import { supabase } from "./supabase";
 import { auth } from "../src/lib/firebase";
+import { Track, Playlist } from "@/types/music";
 
-export async function loadLikedSongs() {
+interface LikedSongRow {
+  video_id: string;
+  title: string;
+  artist: string;
+  thumbnail: string;
+  duration?: number;
+}
+
+interface RecentSongRow {
+  video_id: string;
+  title: string;
+  artist: string;
+  thumbnail: string;
+  duration?: number;
+}
+
+interface PlaylistRow {
+  id: number;
+  name: string;
+  description?: string;
+  cover_image?: string | null;
+  is_collaborative?: boolean;
+}
+
+interface PlaylistSongRow {
+  playlist_id: number;
+  video_id: string;
+  title: string;
+  artist: string;
+  thumbnail: string;
+  duration?: number;
+}
+
+export async function loadLikedSongs(): Promise<Track[]> {
   const uid = auth.currentUser?.uid;
 
   if (!uid) return [];
@@ -12,17 +46,17 @@ export async function loadLikedSongs() {
     .eq("user_uid", uid);
 
   return (
-    data?.map((song: any) => ({
+    (data as LikedSongRow[])?.map((song) => ({
       videoId: song.video_id,
       title: song.title,
       artist: song.artist,
       thumbnail: song.thumbnail,
-      duration: song.duration,
+      duration: song.duration || 0,
     })) || []
   );
 }
 
-export async function loadRecentSongs() {
+export async function loadRecentSongs(): Promise<Track[]> {
   const uid = auth.currentUser?.uid;
 
   if (!uid) return [];
@@ -36,51 +70,49 @@ export async function loadRecentSongs() {
     });
 
   return (
-    data?.map((song: any) => ({
+    (data as RecentSongRow[])?.map((song) => ({
       videoId: song.video_id,
       title: song.title,
       artist: song.artist,
       thumbnail: song.thumbnail,
-      duration: song.duration,
+      duration: song.duration || 0,
     })) || []
   );
 }
 
-export async function loadPlaylists() {
-  const { data: playlists } =
-    await supabase
-      .from("playlists")
-      .select("*")
-.eq("user_uid", auth.currentUser?.uid)
-  const { data: playlistSongs } =
-    await supabase
-      .from("playlist_songs")
-      .select("*")
-.eq("user_uid", auth.currentUser?.uid)
+export async function loadPlaylists(): Promise<Playlist[]> {
+  const uid = auth.currentUser?.uid;
+  if (!uid) return [];
+
+  const { data: playlists } = await supabase
+    .from("playlists")
+    .select("*")
+    .eq("user_uid", uid);
+    
+  const { data: playlistSongs } = await supabase
+    .from("playlist_songs")
+    .select("*");
+
+  const rows = playlists as PlaylistRow[];
+  const songRows = playlistSongs as PlaylistSongRow[];
 
   return (
-    playlists?.map(
-      (playlist: any) => ({
-        id: playlist.id,
-        name: playlist.name,
-
-        songs:
-          playlistSongs
-            ?.filter(
-              (song: any) =>
-                song.playlist_id ===
-                playlist.id
-            )
-            .map(
-  (song: any) => ({
-    videoId: song.video_id,
-    title: song.title,
-    artist: song.artist,
-    thumbnail: song.thumbnail,
-    duration: song.duration,
-  })
-) || [],
-      })
-    ) || []
+    rows?.map((playlist) => ({
+      id: playlist.id,
+      name: playlist.name,
+      description: playlist.description || "",
+      coverImage: playlist.cover_image || null,
+      isCollaborative: playlist.is_collaborative || false,
+      songs:
+        songRows
+          ?.filter((song) => song.playlist_id === playlist.id)
+          .map((song) => ({
+            videoId: song.video_id,
+            title: song.title,
+            artist: song.artist,
+            thumbnail: song.thumbnail,
+            duration: song.duration || 0,
+          })) || [],
+    })) || []
   );
 }

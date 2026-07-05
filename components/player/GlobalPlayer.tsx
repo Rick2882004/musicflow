@@ -1,19 +1,27 @@
 "use client";
 import YoutubePlayer from "./YoutubePlayer";
 
-import { usePlayerStore }
-from "@/store/player-store";
+import { useShallow } from "zustand/react/shallow";
+import { usePlayerStore } from "@/store/player-store";
 
 export default function GlobalPlayer() {
-const {
-  videoId,
-  title,
-  artist,
-  thumbnail,
-  nextTrack,
-  prevTrack,
-} = usePlayerStore();
-if (!title) return null;
+  const {
+    videoId,
+    title,
+    artist,
+    thumbnail,
+    nextTrack,
+    prevTrack,
+  } = usePlayerStore(useShallow((s) => ({
+    videoId: s.videoId,
+    title: s.title,
+    artist: s.artist,
+    thumbnail: s.thumbnail,
+    nextTrack: s.nextTrack,
+    prevTrack: s.prevTrack,
+  })));
+
+  if (!title) return null;
   return (
     <div className="
       fixed

@@ -9,9 +9,9 @@ export async function savePlaylist(
       .from("playlists")
       .insert([
         {
-  user_uid: auth.currentUser?.uid,
-  name,
-}
+          user_uid: auth.currentUser?.uid,
+          name,
+        }
       ])
       .select()
       .single();
@@ -34,8 +34,8 @@ export async function deletePlaylistDB(
     await supabase
       .from("playlists")
       .delete()
-.eq("id", playlistId)
-.eq("user_uid", auth.currentUser?.uid)
+      .eq("id", playlistId)
+      .eq("user_uid", auth.currentUser?.uid);
 
   if (error) {
     console.log(
@@ -45,57 +45,22 @@ export async function deletePlaylistDB(
   }
 }
 
-export async function saveSongToPlaylist(
+export async function updatePlaylistDetailsDB(
   playlistId: number,
-  song: any
-) {
-  const { error } =
-    await supabase
-      .from("playlist_songs")
-      .insert([
-        {
-          playlist_id:
-            playlistId,
-          video_id:
-            song.videoId,
-          title:
-            song.title,
-          artist:
-            song.artist,
-          thumbnail:
-            song.thumbnail,
-        },
-      ]);
-
-  if (error) {
-    console.log(
-      "SAVE SONG ERROR:"
-    );
-    console.log(error);
+  details: {
+    name?: string;
+    description?: string;
+    is_collaborative?: boolean;
+    cover_image?: string;
   }
-}
-
-export async function removeSongFromPlaylistDB(
-  playlistId: number,
-  videoId: string
 ) {
-  const { error } =
-    await supabase
-      .from("playlist_songs")
-      .delete()
-      .eq(
-        "playlist_id",
-        playlistId
-      )
-      .eq(
-        "video_id",
-        videoId
-      );
+  const { error } = await supabase
+    .from("playlists")
+    .update(details)
+    .eq("id", playlistId)
+    .eq("user_uid", auth.currentUser?.uid);
 
   if (error) {
-    console.log(
-      "REMOVE SONG ERROR:"
-    );
-    console.log(error);
+    console.log("UPDATE PLAYLIST ERROR:", error);
   }
 }

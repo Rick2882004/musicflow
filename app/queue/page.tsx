@@ -1,14 +1,20 @@
 "use client";
 
 import { usePlayerStore } from "@/store/player-store";
+import { useShallow } from "zustand/react/shallow";
 import { SongCard } from "@/components/ui/SongCard";
 export default function QueuePage() {
-const {
-  queue,
-  currentIndex,
-  setTrack,
-  clearQueue,
-} = usePlayerStore();
+  const {
+    queue,
+    currentIndex,
+    setTrack,
+    clearQueue,
+  } = usePlayerStore(useShallow((s) => ({
+    queue: s.queue,
+    currentIndex: s.currentIndex,
+    setTrack: s.setTrack,
+    clearQueue: s.clearQueue,
+  })));
 
   return (
     <main className="min-h-screen bg-black text-white p-8 pb-32">

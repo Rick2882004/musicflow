@@ -11,7 +11,13 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const results = await searchSongs(query);
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error("Search request timed out")), 10000);
+    });
+    const results = await Promise.race([
+      searchSongs(query),
+      timeoutPromise,
+    ]);
 
     return NextResponse.json({
       results,

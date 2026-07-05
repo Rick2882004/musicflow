@@ -37,6 +37,11 @@ export default function TrackCard({
             "https://placehold.co/500x500/png"
           }
           alt={title}
+          loading="lazy"
+          onError={(e) => {
+            e.currentTarget.onerror = null;
+            e.currentTarget.src = "https://placehold.co/500x500/png";
+          }}
           className="
             aspect-square
             w-full

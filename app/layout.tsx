@@ -1,14 +1,9 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-
 import "./globals.css";
-
-import Navbar from "@/components/layout/Navbar";
 import DatabaseLoader from "@/components/DatabaseLoader";
-
 import PlayerEngine from "@/components/player/PlayerEngine";
-import BottomPlayer from "@/components/player/BottomPlayer";
-
+import AppLayout from "@/components/layout/AppLayout";
 import { AuthProvider } from "../src/context/AuthContext";
 
 const geistSans = Geist({
@@ -22,8 +17,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "MusicFlow",
-  description: "Music Streaming Platform",
+  title: "MusicFlow - Premium Music Streaming",
+  description: "Experience music in high fidelity with glassmorphic aesthetics.",
 };
 
 export default function RootLayout({
@@ -36,18 +31,17 @@ export default function RootLayout({
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-screen bg-black text-white">
+      <head>
+        <link rel="manifest" href="/manifest.json" />
+        <meta name="theme-color" content="#6C63FF" />
+        <meta name="mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+      </head>
+      <body className="min-h-screen bg-[#07070a] text-white">
         <AuthProvider>
           <DatabaseLoader />
-
-          <Navbar />
-
-          <main className="pb-28">
-            {children}
-          </main>
-
+          <AppLayout>{children}</AppLayout>
           <PlayerEngine />
-          <BottomPlayer />
         </AuthProvider>
       </body>
     </html>

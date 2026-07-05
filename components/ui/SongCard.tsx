@@ -1,313 +1,212 @@
-'use client'
-// src/components/ui/SongCard.tsx
+"use client";
+
+import { useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Play, Heart } from "lucide-react";
+import { useShallow } from "zustand/react/shallow";
 import { usePlayerStore } from "@/store/player-store";
-import Image from 'next/image'
-import { Play, Heart } from 'lucide-react'
-import { useState } from 'react'
 
 type Song = {
-  id: string
-  title: string
-  artist: string
-  thumbnail: string
-  duration: number
-  rank?: number
-}
-
-function formatDuration(
-  secs: number
-) {
-  const totalSeconds =
-    Math.floor(secs);
-
-  const m = Math.floor(
-    totalSeconds / 60
-  );
-
-  const s =
-    totalSeconds % 60;
-
-  return `${m}:${s
-    .toString()
-    .padStart(2, "0")}`;
-
-}
-
-export function SongCard({ song, showRank }: { song: Song; showRank?: boolean }) {
-const {
-  setTrack,
-  toggleLike,
-  addRecentSong,
-  likedSongs,
-  videoId,
-} = usePlayerStore();
-  const [isHovered, setIsHovered] = useState(false)
-const isLiked =
-  likedSongs.some(
-    (s) =>
-      s.videoId === song.id
-  );
-
-const isPlayingSong =
-  videoId === song.id;
-
-  const playSong = () => {
-  setTrack(
-    song.id,
-    song.title,
-    song.artist,
-    song.thumbnail,
-    0
-  );
-
-  addRecentSong({
-    videoId: song.id,
-    title: song.title,
-    artist: song.artist,
-    thumbnail: song.thumbnail,
-  });
+  id: string;
+  title: string;
+  artist: string;
+  thumbnail?: string;
+  duration?: number;
+  rank?: number;
 };
 
+function formatDuration(seconds: number = 0) {
+  const total = Math.floor(seconds);
+  const minutes = Math.floor(total / 60);
+  const secs = total % 60;
+
+  return `${minutes}:${secs.toString().padStart(2, "0")}`;
+}
+
+export function SongCard({
+  song,
+  showRank = false,
+}: {
+  song: Song;
+  showRank?: boolean;
+}) {
+  const {
+    setTrack,
+    toggleLike,
+    addRecentSong,
+    likedSongs,
+    videoId,
+  } = usePlayerStore(
+    useShallow((state) => ({
+      setTrack: state.setTrack,
+      toggleLike: state.toggleLike,
+      addRecentSong: state.addRecentSong,
+      likedSongs: state.likedSongs,
+      videoId: state.videoId,
+    }))
+  );
+
+  const [hovered, setHovered] = useState(false);
+
+  const isLiked = likedSongs.some(
+    (item) => item.videoId === song.id
+  );
+
+  const isPlaying = videoId === song.id;
+
+  const playSong = () => {
+    setTrack(
+      song.id,
+      song.title,
+      song.artist,
+      song.thumbnail || "",
+      0
+    );
+
+    void addRecentSong({
+      videoId: song.id,
+      title: song.title,
+      artist: song.artist,
+      thumbnail: song.thumbnail || "",
+      duration: song.duration ?? 0,
+    });
+  };
+
   return (
-    <div
-  className="mf-song-card"
-  onClick={playSong}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
+    <motion.div
+      whileHover={{ y: -6, scale: 1.02 }}
+      className="group relative cursor-pointer rounded-2xl border border-white/5 bg-white/[0.03] p-3 shadow-lg transition-all duration-300 hover:border-white/20 hover:bg-white/[0.08] hover:shadow-purple-500/20 backdrop-blur-xl"
+      onClick={playSong}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
       tabIndex={0}
       role="button"
-      aria-label={`Play ${song.title} by ${song.artist}`}
+      aria-label={`Play ${song.title}`}
     >
-      <div className="mf-song-card__thumb-wrap">
+      <div className="relative mb-4 aspect-square overflow-hidden rounded-xl">
         {showRank && (
-          <span className="mf-song-card__rank" aria-label={`Rank ${song.rank}`}>
-            {song.rank}
+          <span className="absolute left-2 top-2 z-20 rounded-md bg-black/60 px-2 py-1 text-[10px] font-bold text-white backdrop-blur">
+            #{song.rank}
           </span>
         )}
-        <Image
-          src={song.thumbnail}
-          alt=""
-          width={160}
-          height={160}
-          className="mf-song-card__thumb"
-          unoptimized
+
+        <motion.img
+          animate={{
+            scale: hovered ? 1.08 : 1,
+          }}
+          transition={{
+            duration: 0.4,
+          }}
+          src={
+            song.thumbnail ||
+            "https://placehold.co/500x500/18181b/ffffff?text=Music"
+          }
+          alt={song.title}
+          loading="lazy"
+          onError={(e) => {
+            e.currentTarget.onerror = null;
+            e.currentTarget.src =
+              "https://placehold.co/500x500/18181b/ffffff?text=Music";
+          }}
+          className="h-full w-full object-cover"
         />
-        <div className={`mf-song-card__overlay ${isHovered ? 'mf-song-card__overlay--visible' : ''}`}>
-          <button className="mf-song-card__play" aria-label={`Play ${song.title}`}>
-            <Play size={20} fill="currentColor" />
-          </button>
-        </div>
-        <button
-          className={`mf-song-card__like ${isLiked ? 'mf-song-card__like--active' : ''} ${isHovered || isLiked ? 'mf-song-card__like--visible' : ''}`}
+
+        <AnimatePresence>
+          {hovered && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+            >
+              <motion.button
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.95 }}
+                className="flex h-12 w-12 items-center justify-center rounded-full bg-purple-600 text-white shadow-lg"
+              >
+                <Play
+                  size={20}
+                  fill="currentColor"
+                  className="ml-1"
+                />
+              </motion.button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <motion.button
+          initial={{
+            opacity: 0,
+            scale: 0.8,
+          }}
+          animate={{
+            opacity: hovered || isLiked ? 1 : 0,
+            scale: hovered || isLiked ? 1 : 0.8,
+          }}
+          whileHover={{
+            scale: 1.15,
+          }}
+          whileTap={{
+            scale: 0.9,
+          }}
           onClick={(e) => {
-  e.stopPropagation();
+            e.stopPropagation();
 
-  toggleLike({
-    videoId: song.id,
-    title: song.title,
-    artist: song.artist,
-    thumbnail: song.thumbnail,
-  });
-}}
-          aria-label={isLiked ? 'Unlike' : 'Like'}
-          aria-pressed={isLiked}
+            void toggleLike({
+              videoId: song.id,
+              title: song.title,
+              artist: song.artist,
+              thumbnail: song.thumbnail || "",
+              duration: song.duration ?? 0,
+            });
+          }}
+          className={`absolute bottom-2 right-2 z-20 flex h-8 w-8 items-center justify-center rounded-full bg-black/60 backdrop-blur ${
+            isLiked
+              ? "text-purple-500"
+              : "text-zinc-300"
+          }`}
         >
-          <Heart size={14} fill={isLiked ? 'currentColor' : 'none'} />
-        </button>
+          <Heart
+            size={14}
+            fill={isLiked ? "currentColor" : "none"}
+          />
+        </motion.button>
       </div>
 
-      <div className="mf-song-card__meta">
-        <p className="mf-song-card__title">{song.title}</p>
-        <p className="mf-song-card__artist">{song.artist}</p>
-        {isPlayingSong && (
-  <div className="mf-equalizer">
-    <span />
-    <span />
-    <span />
-  </div>
-)}
-        <p className="mf-song-card__duration">{formatDuration(song.duration)}</p>
+      <div>
+        <h3 className="truncate pr-6 text-sm font-semibold text-white">
+          {song.title}
+        </h3>
+
+        <div className="mt-1 flex items-center justify-between">
+          <p className="max-w-[70%] truncate text-xs text-zinc-400">
+            {song.artist}
+          </p>
+
+          {isPlaying ? (
+            <div className="flex h-3 items-end gap-[3px]">
+              {[1, 2, 3].map((bar) => (
+                <motion.div
+                  key={bar}
+                  animate={{
+                    height: ["40%", "100%", "40%"],
+                  }}
+                  transition={{
+                    duration: 1,
+                    repeat: Infinity,
+                    delay: bar * 0.2,
+                  }}
+                  className="w-[3px] rounded-full bg-green-500"
+                />
+              ))}
+            </div>
+          ) : (
+            <span className="text-[10px] font-medium text-zinc-500">
+              {formatDuration(song.duration ?? 0)}
+            </span>
+          )}
+        </div>
       </div>
-
-      <style>{`
-        .mf-song-card {
-          cursor: pointer;
-          border-radius: var(--mf-radius-lg);
-          padding: 12px;
-          background: rgba(255,255,255,0.08);
-backdrop-filter: blur(20px);
--webkit-backdrop-filter: blur(20px);
-
-border: 1px solid rgba(255,255,255,0.12);
-
-box-shadow:
-  0 8px 32px rgba(0,0,0,0.3);
-          border: 1px solid var(--mf-border);
-          transition:
-            background var(--mf-duration-base) var(--mf-ease),
-            border-color var(--mf-duration-base) var(--mf-ease),
-            transform var(--mf-duration-base) var(--mf-ease);
-          outline: none;
-        }
-        .mf-song-card:hover,
-.mf-song-card:focus-visible {
-  background: rgba(255,255,255,0.12);
-
-  border-color:
-    rgba(255,255,255,0.25);
-
-  transform:
-    translateY(-6px);
-
-  box-shadow:
-    0 12px 40px
-    rgba(124,58,237,0.35);
-}
-        .mf-song-card:focus-visible { outline: 2px solid var(--mf-brand); }
-
-        .mf-song-card__thumb-wrap {
-          position: relative;
-          aspect-ratio: 1;
-          border-radius: var(--mf-radius-md);
-          overflow: hidden;
-          margin-bottom: 12px;
-        }
-        .mf-song-card__thumb {
-          width: 100%;
-          height: 100%;
-          object-fit: cover;
-          display: block;
-          transition: transform var(--mf-duration-slow) var(--mf-ease);
-        }
-        .mf-song-card:hover .mf-song-card__thumb { transform: scale(1.12); }
-
-        .mf-song-card__rank {
-          position: absolute;
-          top: 8px; left: 8px;
-          z-index: 2;
-          font-size: 11px;
-          font-weight: 700;
-          color: var(--mf-text-primary);
-          background: rgba(0,0,0,0.6);
-          backdrop-filter: blur(4px);
-          border-radius: var(--mf-radius-sm);
-          padding: 2px 6px;
-          font-variant-numeric: tabular-nums;
-        }
-
-        .mf-song-card__overlay {
-          position: absolute;
-          inset: 0;
-          background: rgba(0,0,0,0.45);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          opacity: 0;
-          transition: opacity var(--mf-duration-base) var(--mf-ease);
-        }
-        .mf-song-card__overlay--visible { opacity: 1; }
-
-        .mf-song-card__play {
-          width: 56px; height: 56px;
-          border-radius: 50%;
-          background: var(--mf-brand);
-          border: none;
-          color: white;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          cursor: pointer;
-          transform: scale(0.85);
-          transition: transform var(--mf-duration-fast) var(--mf-ease-spring);
-          box-shadow: 0 4px 16px rgba(108,99,255,0.5);
-        }
-        .mf-song-card__overlay--visible .mf-song-card__play { transform: scale(1); }
-        .mf-song-card__play:hover { transform: scale(1.08) !important; }
-        .mf-song-card__play:active { transform: scale(0.95) !important; }
-
-        .mf-song-card__like {
-          position: absolute;
-          bottom: 8px; right: 8px;
-          z-index: 2;
-          width: 28px; height: 28px;
-          border-radius: 50%;
-          background: rgba(0,0,0,0.6);
-          backdrop-filter: blur(4px);
-          border: none;
-          color: var(--mf-text-secondary);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          cursor: pointer;
-          opacity: 0;
-          transition: opacity var(--mf-duration-fast), color var(--mf-duration-fast), transform var(--mf-duration-fast) var(--mf-ease-spring);
-        }
-        .mf-song-card__like--visible { opacity: 1; }
-        .mf-song-card__like--active { color: var(--mf-brand); }
-        .mf-song-card__like:hover { transform: scale(1.15); }
-
-        .mf-song-card__meta { padding: 0 2px; }
-        .mf-song-card__title {
-          font-size: 14px;
-          font-weight: 600;
-          color: var(--mf-text-primary);
-          margin: 0 0 3px;
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
-        }
-        .mf-song-card__artist {
-          font-size: 12px;
-          color: var(--mf-text-secondary);
-          margin: 0 0 4px;
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
-        }
-        .mf-song-card__duration {
-          font-size: 11px;
-          color: var(--mf-text-muted);
-          margin: 0;
-          font-variant-numeric: tabular-nums;
-        }
-          .mf-equalizer {
-  display: flex;
-  gap: 3px;
-  margin-top: 6px;
-}
-
-.mf-equalizer span {
-  width: 3px;
-  height: 12px;
-
-  border-radius: 999px;
-
-  background: #22c55e;
-
-  box-shadow:
-    0 0 10px #22c55e;
-
-  animation: eq 1s infinite;
-}
-
-.mf-equalizer span:nth-child(2) {
-  animation-delay: .2s;
-}
-
-.mf-equalizer span:nth-child(3) {
-  animation-delay: .4s;
-}
-
-@keyframes eq {
-  0%,100% {
-    transform: scaleY(.4);
-  }
-
-  50% {
-    transform: scaleY(1.3);
-  }
-}
-      `}</style>
-    </div>
-  )
+    </motion.div>
+  );
 }
