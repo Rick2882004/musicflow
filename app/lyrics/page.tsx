@@ -98,7 +98,7 @@ export default function LyricsPage() {
           <div className="min-h-[250px] flex flex-col items-center justify-center text-center p-6">
             <AlertCircle className="w-8 h-8 text-zinc-500 mb-2" />
             <p className="text-zinc-400 text-sm font-semibold">Lyrics not available</p>
-            <p className="text-zinc-600 text-xs mt-1">We couldn't retrieve the lyrics lines for this song.</p>
+            <p className="text-zinc-600 text-xs mt-1">We couldn&apos;t retrieve the lyrics lines for this song.</p>
           </div>
         )}
       </div>

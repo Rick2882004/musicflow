@@ -9,6 +9,11 @@ import { Play, Shuffle, Calendar, Music, Clock } from "lucide-react";
 import Link from "next/link";
 import { Track, Album } from "@/types/music";
 
+function formatDur(s: number = 0) {
+  const m = Math.floor(s / 60), sec = Math.floor(s % 60);
+  return `${m}:${String(sec).padStart(2, "0")}`;
+}
+
 export default function AlbumPage() {
   const params = useParams();
   const router = useRouter();
@@ -63,18 +68,15 @@ export default function AlbumPage() {
 
   if (loading) {
     return (
-      <div className="space-y-8 animate-pulse">
-        {/* Banner Skeleton */}
-        <div className="h-[250px] w-full bg-white/5 rounded-3xl" />
-        {/* Controls skeleton */}
-        <div className="flex gap-4">
-          <div className="h-12 w-28 bg-white/5 rounded-full" />
-          <div className="h-12 w-28 bg-white/5 rounded-full" />
+      <div className="space-y-12 animate-pulse text-left px-6 md:px-10 pt-10">
+        <div className="h-[250px] w-full bg-white/[0.02] border border-white/[0.05] rounded-[24px]" />
+        <div className="flex gap-3">
+          <div className="h-11 w-24 bg-white/[0.02] border border-white/[0.05] rounded-full" />
+          <div className="h-11 w-24 bg-white/[0.02] border border-white/[0.05] rounded-full" />
         </div>
-        {/* Tracks List Skeleton */}
-        <div className="space-y-3">
+        <div className="space-y-2">
           {[1, 2, 3].map((i) => (
-            <div key={i} className="h-16 bg-white/5 rounded-xl w-full" />
+            <div key={i} className="h-14 bg-white/[0.015] border border-white/[0.05] rounded-[14px] w-full" />
           ))}
         </div>
       </div>
@@ -83,9 +85,9 @@ export default function AlbumPage() {
 
   if (!album) {
     return (
-      <main className="p-8 text-zinc-400">
+      <main className="p-8 text-zinc-400 text-left text-sm font-semibold">
         <p>Album not found.</p>
-        <button onClick={() => router.back()} className="mt-4 px-4 py-2 bg-purple-600 text-white rounded-lg text-xs">
+        <button onClick={() => router.back()} className="mt-4 px-5 py-2.5 bg-white text-black font-bold rounded-full text-xs">
           Go Back
         </button>
       </main>
@@ -98,50 +100,49 @@ export default function AlbumPage() {
   const formattedDuration = `${Math.floor(totalSeconds / 60)}m ${totalSeconds % 60}s`;
 
   return (
-    <main className="space-y-8">
-      {/* 1. Header Banner */}
-      <div className="relative overflow-hidden rounded-3xl">
-        <div
-          className="absolute inset-0 bg-cover bg-center blur-md scale-110 opacity-25 pointer-events-none"
-          style={{ backgroundImage: `url(${coverImage})` }}
-        />
-        <div className="relative bg-gradient-to-r from-purple-900/40 via-zinc-950/80 to-[#07070a] border border-white/5 p-8 md:p-10 flex flex-col sm:flex-row items-center gap-8 shadow-2xl">
+    <main className="space-y-10 select-none text-left">
+      {/* Immersive Header Banner */}
+      <div className="relative overflow-hidden rounded-[24px]">
+        {/* Glow Layer */}
+        <div className="absolute top-0 right-0 w-[500px] h-[350px] rounded-full bg-purple-900/[0.06] blur-[140px] pointer-events-none" />
+
+        <div className="relative bg-white/[0.015] border border-white/[0.05] p-8 md:p-10 flex flex-col md:flex-row items-center gap-8 shadow-2xl rounded-[24px]">
           <img
             src={coverImage}
             alt={album.name}
-            className="w-40 h-40 md:w-48 md:h-48 rounded-2xl object-cover shadow-2xl border border-white/5"
+            className="w-40 h-40 md:w-44 md:h-44 rounded-[22px] object-cover shadow-2xl border border-white/[0.08] shrink-0"
           />
 
-          <div className="space-y-3 text-center sm:text-left min-w-0">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-purple-400">
-              Album
+          <div className="space-y-3.5 text-center md:text-left min-w-0 flex-grow">
+            <span className="text-[9px] font-black uppercase tracking-[0.18em] text-purple-400">
+              Album Release
             </span>
 
             <h1 className="text-3xl md:text-5xl font-black tracking-tight text-white leading-none truncate">
               {album.name}
             </h1>
 
-            <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2.5 text-xs text-zinc-300">
+            <div className="flex flex-wrap items-center justify-center md:justify-start gap-4 text-[11px] text-zinc-550 font-bold">
               {album.artist.artistId ? (
                 <Link
                   href={`/artist/${encodeURIComponent(album.artist.name)}`}
-                  className="hover:text-purple-400 transition font-bold"
+                  className="text-zinc-300 hover:text-purple-400 transition duration-150 font-bold"
                 >
                   {album.artist.name}
                 </Link>
               ) : (
-                <span className="font-semibold">{album.artist.name}</span>
+                <span className="text-zinc-300">{album.artist.name}</span>
               )}
-              <span>•</span>
+              <span className="text-zinc-700">·</span>
               <span className="flex items-center gap-1">
-                <Calendar size={12} />
+                <Calendar size={11} />
                 {album.year || "2024"}
               </span>
-              <span>•</span>
+              <span className="text-zinc-700">·</span>
               <span>{songCount} songs</span>
-              <span>•</span>
+              <span className="text-zinc-700">·</span>
               <span className="flex items-center gap-1">
-                <Clock size={12} />
+                <Clock size={11} />
                 {formattedDuration}
               </span>
             </div>
@@ -149,62 +150,69 @@ export default function AlbumPage() {
         </div>
       </div>
 
-      {/* 2. Actions Bar */}
-      <div className="flex items-center gap-4 select-none">
+      {/* Spacing alignment */}
+      <div className="border-t border-white/[0.03]" />
+
+      {/* Actions Bar */}
+      <div className="flex items-center gap-3 select-none">
         {songCount > 0 && (
           <>
             <button
               onClick={playAlbum}
-              className="px-8 py-3.5 rounded-full bg-gradient-to-r from-purple-600 to-pink-500 hover:from-purple-500 hover:to-pink-400 text-white font-bold text-sm flex items-center gap-2 hover:scale-105 active:scale-95 transition shadow-lg shadow-purple-600/25"
+              className="px-6 py-2.5 rounded-full bg-white hover:bg-zinc-150 text-black font-bold text-[13px] flex items-center gap-2 hover:scale-103 active:scale-97 transition shadow-md"
             >
-              <Play size={16} fill="white" className="text-white" />
+              <Play size={14} fill="currentColor" />
               Play
             </button>
 
             <button
               onClick={shuffleAlbum}
-              className="px-6 py-3.5 rounded-full bg-white/5 border border-white/10 hover:bg-white/10 hover:border-white/20 text-zinc-200 hover:text-white font-bold text-xs flex items-center gap-2 transition"
+              className="px-5 py-2.5 rounded-full bg-white/[0.03] border border-white/[0.06] hover:bg-white/[0.06] text-zinc-300 hover:text-white font-bold text-[11px] flex items-center gap-1.5 transition active:scale-95"
             >
-              <Shuffle size={14} />
+              <Shuffle size={13} />
               Shuffle
             </button>
           </>
         )}
       </div>
 
-      {/* 3. Songs Tracklist Table */}
+      {/* Songs Tracklist Table */}
       {songCount > 0 ? (
-        <section className="space-y-2">
+        <section className="space-y-1.5">
           {album.songs?.map((song, index) => (
             <div
               key={song.videoId}
               onClick={() => playSong(song, index)}
-              className="flex items-center justify-between p-3.5 rounded-2xl bg-white/[0.02] hover:bg-white/[0.05] border border-white/5 hover:border-white/10 transition cursor-pointer group"
+              className="flex items-center justify-between px-3 py-2.5 rounded-[14px] bg-white/[0.015] border border-white/[0.05] hover:border-purple-500/20 hover:bg-white/[0.03] transition-all duration-150 cursor-pointer group"
             >
               <div className="flex items-center gap-4 min-w-0">
-                <span className="w-6 text-center text-xs font-bold text-zinc-600 group-hover:text-purple-400 transition-colors">
+                <span className="w-6 text-center text-[11px] font-mono text-zinc-650 group-hover:text-purple-400 transition-colors">
                   {index + 1}
                 </span>
                 <div className="min-w-0">
-                  <h3 className="text-sm font-semibold text-zinc-200 group-hover:text-purple-300 transition-colors truncate">
+                  <h3 className="text-[13px] font-semibold text-zinc-200 group-hover:text-purple-300 transition-colors truncate">
                     {song.title}
                   </h3>
-                  <p className="text-xs text-zinc-500 truncate">{song.artist}</p>
+                  <p className="text-[10px] text-zinc-500 truncate mt-0.5">{song.artist}</p>
                 </div>
               </div>
 
-              <div className="text-zinc-500 text-xs font-semibold">
-                {song.duration
-                  ? `${Math.floor(song.duration / 60)}:${String(song.duration % 60).padStart(2, "0")}`
-                  : "3:30"}
+              <div className="flex items-center gap-3 shrink-0">
+                <span className="text-zinc-650 text-[10px] font-mono tabular-nums mr-2">
+                  {song.duration ? formatDur(song.duration) : "3:30"}
+                </span>
+                <div className="w-7 h-7 rounded-full bg-white opacity-0 group-hover:opacity-100 flex items-center justify-center text-black shadow-md transition-opacity">
+                  <Play size={10} fill="black" className="text-black ml-0.5" />
+                </div>
               </div>
             </div>
           ))}
         </section>
       ) : (
-        <div className="text-center py-12">
-          <Music className="w-8 h-8 text-zinc-600 mx-auto mb-2" />
-          <p className="text-xs text-zinc-500">No tracks inside this album.</p>
+        <div className="text-center py-20 bg-white/[0.015] border border-white/[0.05] rounded-[24px]">
+          <Music className="w-8 h-8 text-zinc-700 mx-auto mb-3" />
+          <h3 className="font-display text-[16px] font-bold text-white mb-1">Album is empty</h3>
+          <p className="text-[12px] text-zinc-500 max-w-xs mx-auto">No tracks inside this album yet.</p>
         </div>
       )}
     </main>

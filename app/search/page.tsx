@@ -3,62 +3,187 @@
 import { useState, useEffect, useRef, Suspense } from "react";
 import { usePlayerStore } from "@/store/player-store";
 import { useShallow } from "zustand/react/shallow";
-import { SongCard } from "@/components/ui/SongCard";
-import { Search as SearchIcon, X, Clock, Compass, Grid, Sparkles, TrendingUp } from "lucide-react";
+import { Search as SearchIcon, X, Clock, TrendingUp, Play, Sparkles, HelpCircle, Music, Compass, Award } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Track } from "@/types/music";
+import Link from "next/link";
 
-const categories = [
-  { title: "Pop", color: "from-sky-500 to-cyan-600" },
-  { title: "Romance", color: "from-pink-500 to-rose-600" },
-  { title: "Chill & Lofi", color: "from-indigo-500 to-purple-600" },
-  { title: "Workout", color: "from-orange-500 to-red-600" },
-  { title: "Bollywood Hits", color: "from-fuchsia-500 to-pink-600" },
-  { title: "Classical", color: "from-amber-500 to-orange-600" },
-  { title: "Focus Beats", color: "from-teal-500 to-emerald-600" },
-  { title: "Sleep Rain", color: "from-blue-500 to-indigo-600" },
+const CATEGORIES = [
+  { title: "Pop",          bg: "rgba(139,92,246,0.15)",  border: "rgba(139,92,246,0.25)",  text: "#c4b5fd" },
+  { title: "Romance",      bg: "rgba(236,72,153,0.12)",  border: "rgba(236,72,153,0.22)",  text: "#f9a8d4" },
+  { title: "Chill & LoFi", bg: "rgba(59,130,246,0.12)",  border: "rgba(59,130,246,0.22)",  text: "#93c5fd" },
+  { title: "Workout",      bg: "rgba(249,115,22,0.12)",  border: "rgba(249,115,22,0.22)",  text: "#fdba74" },
+  { title: "Bollywood",    bg: "rgba(217,70,239,0.12)",  border: "rgba(217,70,239,0.22)",  text: "#f0abfc" },
+  { title: "Classical",    bg: "rgba(245,158,11,0.12)",  border: "rgba(245,158,11,0.22)",  text: "#fcd34d" },
 ];
+
+const TRENDING_SEARCHES = ["Arijit Singh", "KK", "Lofi", "AP Dhillon", "Bollywood", "Workout", "Party", "Rain", "Romance"];
+
+const POPULAR_PLAYLISTS = [
+  { id: "chill", name: "Chill Vibez", songsCount: 28, image: "https://images.unsplash.com/photo-1518609878373-06d740f60d8b?w=400&q=80" },
+  { id: "morning", name: "Morning Energy", songsCount: 35, image: "https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=400&q=80" },
+  { id: "focus", name: "Focus Flow", songsCount: 42, image: "https://images.unsplash.com/photo-1483412033650-1015ddeb83d1?w=400&q=80" },
+];
+
+const STATIC_RECOMMENDED = [
+  { videoId: "V0KD0nDkbpM", title: "Arijit Singh Hits", artist: "Arijit Singh", thumbnail: "https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=400&q=80", duration: 180 },
+  { videoId: "xRb8hxwN5zc", title: "Kabir Singh", artist: "Sachet Tandon", thumbnail: "https://images.unsplash.com/photo-1498038432885-c6f3f1b912ee?w=400&q=80", duration: 240 },
+  { videoId: "OkpIoEC44kk", title: "Lofi Bollywood", artist: "Lofi Fruit", thumbnail: "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=400&q=80", duration: 210 },
+];
+
+function formatDur(s: number = 0) {
+  const m = Math.floor(s / 60), sec = Math.floor(s % 60);
+  return `${m}:${String(sec).padStart(2, "0")}`;
+}
+
+function SongRow({ song, index, onPlay }: { song: Track; index: number; onPlay: (s: Track, i: number) => void }) {
+  const [hov, setHov] = useState(false);
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: index * 0.03, duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
+      onClick={() => onPlay(song, index)}
+      onMouseEnter={() => setHov(true)}
+      onMouseLeave={() => setHov(false)}
+      className="flex items-center justify-between px-4 py-3 rounded-[18px] cursor-pointer group transition-all duration-300 select-none"
+      style={{
+        background: hov ? "rgba(255,255,255,0.035)" : "rgba(255,255,255,0.012)",
+        border: `1px solid ${hov ? "rgba(139,92,246,0.22)" : "rgba(255,255,255,0.04)"}`,
+      }}
+    >
+      <div className="flex items-center gap-4 min-w-0">
+        <div className="w-6 text-center shrink-0">
+          {hov ? (
+            <Play size={13} fill="white" className="text-white mx-auto" />
+          ) : (
+            <span className="text-[11px] font-mono text-zinc-600">{index + 1}</span>
+          )}
+        </div>
+
+        <div className="w-12 h-12 rounded-xl overflow-hidden bg-zinc-950 shrink-0 border border-white/5 shadow-sm">
+          <img
+            src={song.thumbnail || ""}
+            alt={song.title}
+            onError={(e) => { e.currentTarget.src = "https://placehold.co/80x80/111/fff?text=♪"; }}
+            className="w-full h-full object-cover"
+            loading="lazy"
+          />
+        </div>
+
+        <div className="min-w-0">
+          <p className="text-xs font-bold text-zinc-200 group-hover:text-purple-300 transition-colors truncate">
+            {song.title}
+          </p>
+          <p className="text-[10px] text-zinc-500 truncate mt-0.5">{song.artist}</p>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-3 shrink-0">
+        <span className="text-[10px] font-mono text-zinc-600 tabular-nums">
+          {formatDur(song.duration)}
+        </span>
+      </div>
+    </motion.div>
+  );
+}
 
 function SearchContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const initialQuery = searchParams.get("q") || "";
 
-  const [query, setQuery] = useState(initialQuery);
-  const [results, setResults] = useState<Track[]>([]);
-  const [artists, setArtists] = useState<any[]>([]);
-  const [albums, setAlbums] = useState<any[]>([]);
-  const [suggestions, setSuggestions] = useState<string[]>([]);
+  interface AlbumItem {
+    albumId: string;
+    name: string;
+    artist: string;
+    thumbnail: string;
+  }
+  interface ArtistItem {
+    name: string;
+    image: string;
+  }
+
+  const [query,          setQuery]          = useState(initialQuery);
+  const [results,        setResults]        = useState<Track[]>([]);
+  const [artists,        setArtists]        = useState<ArtistItem[]>([]);
+  const [albums,         setAlbums]         = useState<AlbumItem[]>([]);
+  const [suggestions,    setSuggestions]    = useState<string[]>([]);
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [activeFilter, setActiveFilter] = useState<"all" | "tracks" | "artists" | "albums">("all");
+  const [loading,        setLoading]        = useState(false);
+  const [activeFilter,   setActiveFilter]   = useState<"all"|"tracks"|"artists"|"albums">("all");
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [isFocused,      setIsFocused]      = useState(false);
 
   const containerRef = useRef<HTMLDivElement>(null);
+  const inputRef     = useRef<HTMLInputElement>(null);
 
-  const { setTrack, setQueue } = usePlayerStore(useShallow((s) => ({
-    setTrack: s.setTrack,
-    setQueue: s.setQueue,
-  })));
+  const { recentSongs, setTrack, setQueue } = usePlayerStore(
+    useShallow((s) => ({
+      recentSongs: s.recentSongs,
+      setTrack:    s.setTrack,
+      setQueue:    s.setQueue,
+    }))
+  );
+
+  const executeSearch = async (searchQuery: string) => {
+    if (!searchQuery.trim()) return;
+    setLoading(true); setShowSuggestions(false);
+    saveSearchQuery(searchQuery);
+    try {
+      const [resData, artistRes, albumRes] = await Promise.all([
+        fetch(`/api/search?q=${encodeURIComponent(searchQuery)}`).then(r => r.json()),
+        fetch(`/api/artist?name=${encodeURIComponent(searchQuery)}`).then(r => r.ok ? r.json() : null),
+        fetch(`/api/search?q=${encodeURIComponent(searchQuery + " album")}`).then(r => r.json()),
+      ]);
+      setResults(resData.results || []);
+      setArtists(artistRes ? [artistRes] : []);
+      const seen = new Set<string>();
+      const uniqAlbums: AlbumItem[] = [];
+      (albumRes.results || []).forEach((s: Track) => {
+        if (s.title && !seen.has(s.title)) {
+          seen.add(s.title);
+          uniqAlbums.push({ albumId: s.videoId, name: s.title, artist: s.artist, thumbnail: s.thumbnail });
+        }
+      });
+      setAlbums(uniqAlbums.slice(0, 6));
+    } catch (error) { console.error("Search failed:", error); }
+    finally { setLoading(false); }
+  };
+
+  const saveSearchQuery = (q: string) => {
+    const updated = [q, ...recentSearches.filter(s => s !== q)].slice(0, 6);
+    setTimeout(() => setRecentSearches(updated), 0);
+    localStorage.setItem("recent-searches", JSON.stringify(updated));
+  };
+  const removeSearchQuery = (e: React.MouseEvent, q: string) => {
+    e.stopPropagation();
+    const updated = recentSearches.filter(s => s !== q);
+    setTimeout(() => setRecentSearches(updated), 0);
+    localStorage.setItem("recent-searches", JSON.stringify(updated));
+  };
+  const handleSelectSuggestion = (q: string) => { setQuery(q); executeSearch(q); };
+  const playSong = (song: Track, index: number) => { setQueue(results); setTrack(song.videoId, song.title, song.artist, song.thumbnail, index); };
 
   useEffect(() => {
     const history = localStorage.getItem("recent-searches");
     if (history) {
-      setRecentSearches(JSON.parse(history));
+      const parsed = JSON.parse(history);
+      setTimeout(() => setRecentSearches(parsed), 0);
     }
-
     if (initialQuery) {
-      setQuery(initialQuery);
-      executeSearch(initialQuery);
+      setTimeout(() => {
+        setQuery(initialQuery);
+        executeSearch(initialQuery);
+      }, 0);
     }
   }, [initialQuery]);
 
   useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+    function handleClickOutside(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node))
         setShowSuggestions(false);
-      }
     }
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
@@ -66,328 +191,476 @@ function SearchContent() {
 
   useEffect(() => {
     if (!query.trim()) {
-      setSuggestions([]);
+      setTimeout(() => setSuggestions([]), 0);
       return;
     }
-
-    const delayDebounceFn = setTimeout(async () => {
+    const t = setTimeout(async () => {
       try {
         const res = await fetch(`/api/search/suggestions?q=${encodeURIComponent(query)}`);
         const data = await res.json();
         setSuggestions(data || []);
-      } catch (err) {
-        console.error("Suggestions fetch error:", err);
-      }
+      } catch {}
     }, 250);
-
-    return () => clearTimeout(delayDebounceFn);
+    return () => clearTimeout(t);
   }, [query]);
 
-  const executeSearch = async (searchQuery: string) => {
-    if (!searchQuery.trim()) return;
-    setLoading(true);
-    setShowSuggestions(false);
-
-    saveSearchQuery(searchQuery);
-
-    try {
-      const resultsRes = await fetch(`/api/search?q=${encodeURIComponent(searchQuery)}`);
-      const resultsData = await resultsRes.json();
-      setResults(resultsData.results || []);
-
-      const artistsRes = await fetch(`/api/artist?name=${encodeURIComponent(searchQuery)}`);
-      if (artistsRes.ok) {
-        const artistDetails = await artistsRes.json();
-        setArtists([artistDetails]);
-      } else {
-        setArtists([]);
-      }
-
-      const albumSearchRes = await fetch(`/api/search?q=${encodeURIComponent(searchQuery + " album")}`);
-      const albumSearchData = await albumSearchRes.json();
-      
-      const uniqueAlbums: any[] = [];
-      const seenAlbums = new Set();
-      (albumSearchData.results || []).forEach((song: any) => {
-        const albumName = song.title;
-        if (albumName && !seenAlbums.has(albumName)) {
-          seenAlbums.add(albumName);
-          uniqueAlbums.push({
-            albumId: song.videoId,
-            name: song.title,
-            artist: song.artist,
-            thumbnail: song.thumbnail,
-          });
-        }
-      });
-      setAlbums(uniqueAlbums.slice(0, 5));
-
-    } catch (error) {
-      console.error("Search failed:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const saveSearchQuery = (searchQuery: string) => {
-    const updated = [searchQuery, ...recentSearches.filter((s) => s !== searchQuery)].slice(0, 6);
-    setRecentSearches(updated);
-    localStorage.setItem("recent-searches", JSON.stringify(updated));
-  };
-
-  const removeSearchQuery = (e: React.MouseEvent, searchQuery: string) => {
-    e.stopPropagation();
-    const updated = recentSearches.filter((s) => s !== searchQuery);
-    setRecentSearches(updated);
-    localStorage.setItem("recent-searches", JSON.stringify(updated));
-  };
-
-  const handleSelectSuggestion = (searchQuery: string) => {
-    setQuery(searchQuery);
-    executeSearch(searchQuery);
-  };
-
-  const playSong = (song: Track, index: number) => {
-    setQueue(results);
-    setTrack(song.videoId, song.title, song.artist, song.thumbnail, index);
-  };
+  const hasResults = results.length > 0 || artists.length > 0 || albums.length > 0;
 
   return (
-    <div className="space-y-8 max-w-6xl mx-auto" ref={containerRef}>
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight text-white select-none">Search</h1>
-        <p className="text-xs text-zinc-500">Discover songs, albums, and artists in real-time</p>
+    <div className="min-h-screen pb-36" style={{ background: "#07070A" }}>
+
+      {/* ── 1. Hero Search Header ─────────────────────────────────── */}
+      <div className="relative overflow-hidden px-6 md:px-10 pt-10 pb-8">
+        {/* Soft Background Orbs */}
+        <div className="absolute top-0 left-[-10%] w-[500px] h-[350px] rounded-full bg-purple-900/[0.08] blur-[130px] pointer-events-none" />
+        <div className="absolute top-10 right-[-5%] w-[350px] h-[250px] rounded-full bg-pink-950/[0.06] blur-[110px] pointer-events-none" />
+
+        <motion.div 
+          initial={{ opacity: 0, y: 15 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+          className="relative z-10 p-6 md:p-8 rounded-[30px] bg-white/[0.01] border border-white/[0.04] backdrop-blur-2xl"
+          style={{ boxShadow: "0 20px 60px rgba(0,0,0,0.5)" }}
+        >
+          <div className="max-w-3xl space-y-5 text-left">
+            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/[0.02] border border-white/[0.05]">
+              <SearchIcon size={10} className="text-purple-400" />
+              <span className="text-[9px] font-black uppercase tracking-[0.18em] text-zinc-550 select-none">SEARCH MUSIC</span>
+            </div>
+
+            <h1 className="font-display text-[38px] sm:text-[54px] font-black leading-[0.94] tracking-tighter text-white select-none">
+              Find Every.
+              <br />
+              <span className="bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">Sound.</span>
+            </h1>
+
+            <p className="text-xs sm:text-sm text-zinc-500 font-semibold">
+              Search millions of tracks, artists and playlists.
+            </p>
+
+            {/* Large Glass Search Box */}
+            <div className="relative mt-4" ref={containerRef}>
+              <div
+                className="relative flex items-center rounded-[20px] transition-all duration-200"
+                style={{
+                  background: isFocused ? "rgba(255,255,255,0.045)" : "rgba(255,255,255,0.025)",
+                  border: `1px solid ${isFocused ? "rgba(139,92,246,0.35)" : "rgba(255,255,255,0.06)"}`,
+                  boxShadow: isFocused ? "0 0 24px rgba(139,92,246,0.12)" : "none",
+                }}
+              >
+                <SearchIcon className="absolute left-4.5 w-4.5 h-4.5 text-zinc-600 pointer-events-none shrink-0" />
+                <input
+                  ref={inputRef}
+                  type="text"
+                  value={query}
+                  onFocus={() => { setIsFocused(true); setShowSuggestions(true); }}
+                  onBlur={() => setIsFocused(false)}
+                  onChange={(e) => setQuery(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && executeSearch(query)}
+                  placeholder="What do you want to play?"
+                  className="w-full h-13 bg-transparent outline-none text-white text-[14px] pl-12 pr-12 placeholder:text-zinc-650 font-medium"
+                  aria-label="Search music"
+                />
+                <AnimatePresence>
+                  {query && (
+                    <motion.button
+                      initial={{ opacity: 0, scale: 0.7 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.7 }}
+                      onClick={() => { setQuery(""); setResults([]); setArtists([]); setAlbums([]); inputRef.current?.focus(); }}
+                      className="absolute right-3.5 p-1.5 rounded-full bg-white/[0.07] text-zinc-400 hover:text-white transition-colors cursor-pointer"
+                      aria-label="Clear search"
+                    >
+                      <X size={13} />
+                    </motion.button>
+                  )}
+                </AnimatePresence>
+              </div>
+
+              {/* Suggestions Dropdown */}
+              <AnimatePresence>
+                {showSuggestions && suggestions.length > 0 && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 6, scale: 0.98 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 6, scale: 0.98 }}
+                    transition={{ duration: 0.15 }}
+                    className="absolute left-0 right-0 mt-2 rounded-[18px] overflow-hidden z-50 p-1.5"
+                    style={{
+                      background: "rgba(8,8,12,0.96)",
+                      backdropFilter: "blur(48px)",
+                      WebkitBackdropFilter: "blur(48px)",
+                      border: "1px solid rgba(255,255,255,0.06)",
+                      boxShadow: "0 20px 60px rgba(0,0,0,0.8)",
+                    }}
+                  >
+                    {suggestions.map((item, idx) => (
+                      <button key={idx} onClick={() => handleSelectSuggestion(item)}
+                        className="w-full text-left px-3.5 py-2.5 rounded-[12px] text-[13px] hover:bg-white/[0.04] text-zinc-400 hover:text-white font-semibold flex items-center gap-3 transition-colors cursor-pointer">
+                        <SearchIcon size={12} className="text-zinc-600 shrink-0" />
+                        {item}
+                      </button>
+                    ))}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+
+            {/* Trending Searches Under Search Bar */}
+            <div className="pt-2 flex flex-wrap items-center gap-2">
+              <span className="text-[10px] text-zinc-600 font-bold uppercase tracking-wider">Trending:</span>
+              {TRENDING_SEARCHES.map((term) => (
+                <button
+                  key={term}
+                  onClick={() => handleSelectSuggestion(term)}
+                  className="px-3 py-1 rounded-full bg-white/[0.02] border border-white/[0.04] text-[11px] font-semibold text-zinc-400 hover:text-white transition-all cursor-pointer"
+                >
+                  {term}
+                </button>
+              ))}
+            </div>
+
+          </div>
+        </motion.div>
       </div>
 
-      <div className="relative">
-        <div className="flex h-12 w-full rounded-xl bg-white/5 border border-white/10 items-center px-4 focus-within:border-purple-500/50 transition">
-          <SearchIcon className="text-zinc-500 w-5 h-5 mr-3 shrink-0" />
-          <input
-            type="text"
-            value={query}
-            onFocus={() => setShowSuggestions(true)}
-            onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && executeSearch(query)}
-            placeholder="What do you want to play?"
-            className="w-full bg-transparent outline-none text-white text-sm"
-          />
-          {query && (
-            <button
-              onClick={() => {
-                setQuery("");
-                setResults([]);
-                setArtists([]);
-                setAlbums([]);
-              }}
-              className="text-zinc-500 hover:text-white p-1 transition"
-            >
-              <X size={16} />
-            </button>
-          )}
-        </div>
+      <div className="px-6 md:px-10 space-y-12">
 
-        <AnimatePresence>
-          {showSuggestions && suggestions.length > 0 && (
+        {/* ── 2. Empty State ──────────────────── */}
+        {!loading && !hasResults && (
+          <AnimatePresence>
             <motion.div
-              initial={{ opacity: 0, y: 5 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 5 }}
-              className="absolute left-0 right-0 mt-2 bg-zinc-950/95 backdrop-blur-2xl border border-white/10 rounded-xl overflow-hidden shadow-2xl z-50 p-1.5"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="space-y-12"
             >
-              {suggestions.map((item, idx) => (
-                <button
-                  key={idx}
-                  onClick={() => handleSelectSuggestion(item)}
-                  className="w-full text-left px-4 py-2.5 rounded-lg text-xs hover:bg-white/5 text-zinc-300 hover:text-white font-medium flex items-center gap-2"
-                >
-                  <SearchIcon size={12} className="text-zinc-500" />
-                  {item}
-                </button>
-              ))}
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
-
-      {!loading && results.length === 0 && (
-        <div className="space-y-8">
-          {recentSearches.length > 0 && (
-            <div>
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Recent Searches</h3>
-                <button
-                  onClick={() => {
-                    setRecentSearches([]);
-                    localStorage.removeItem("recent-searches");
-                  }}
-                  className="text-[10px] text-zinc-500 hover:text-white"
-                >
-                  Clear all
-                </button>
-              </div>
-
-              <div className="flex flex-wrap gap-2">
-                {recentSearches.map((item) => (
-                  <button
-                    key={item}
-                    onClick={() => handleSelectSuggestion(item)}
-                    className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 hover:border-white/10 text-xs text-zinc-300 hover:text-white transition"
-                  >
-                    <Clock size={11} className="text-zinc-500" />
-                    {item}
-                    <X
-                      size={10}
-                      className="text-zinc-600 hover:text-red-400 cursor-pointer ml-1"
-                      onClick={(e) => removeSearchQuery(e, item)}
-                    />
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          <div>
-            <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-4">Browse All</h3>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-              {categories.map((cat) => (
-                <div
-                  key={cat.title}
-                  onClick={() => handleSelectSuggestion(cat.title)}
-                  className={`bg-gradient-to-br ${cat.color} rounded-2xl h-36 p-5 relative overflow-hidden cursor-pointer hover:scale-[1.02] transition shadow-md group`}
-                >
-                  <span className="text-lg font-bold text-white relative z-10 block">{cat.title}</span>
-                  <div className="absolute right-[-15px] bottom-[-15px] w-20 h-20 rounded-full bg-white/10 group-hover:scale-125 transition duration-500 rotate-12" />
+              
+              {/* Recent Searches */}
+              {recentSearches.length > 0 && (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <p className="text-[9px] font-black uppercase tracking-[0.18em] text-zinc-600">Recent Searches</p>
+                    <button
+                      onClick={() => { setRecentSearches([]); localStorage.removeItem("recent-searches"); }}
+                      className="text-[11px] text-zinc-650 hover:text-zinc-350 font-bold transition-colors uppercase tracking-wider"
+                    >
+                      Clear all
+                    </button>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {recentSearches.map((item) => (
+                      <button key={item} onClick={() => handleSelectSuggestion(item)}
+                        className="flex items-center gap-2 px-3.5 py-1.5 rounded-full text-[12px] font-semibold text-zinc-400 hover:text-white transition-all border border-white/[0.04] bg-white/[0.01] hover:bg-white/[0.03]"
+                      >
+                        <Clock size={11} className="text-zinc-600" />
+                        {item}
+                        <X size={10} className="text-zinc-650 hover:text-red-400 transition-colors ml-1"
+                          onClick={(e) => removeSearchQuery(e, item)} />
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
+              )}
 
-      {results.length > 0 && (
-        <div className="flex gap-2">
-          {(["all", "tracks", "artists", "albums"] as const).map((filter) => (
-            <button
-              key={filter}
-              onClick={() => setActiveFilter(filter)}
-              className={`px-4 py-1.5 rounded-full text-xs font-bold uppercase transition select-none cursor-pointer ${
-                activeFilter === filter
-                  ? "bg-purple-600 text-white"
-                  : "bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white"
-              }`}
-            >
-              {filter}
-            </button>
-          ))}
-        </div>
-      )}
+              {/* Continue Listening (Recent listened tracks) */}
+              {recentSongs.length > 0 && (
+                <div className="space-y-5">
+                  <div>
+                    <p className="text-[9px] font-black uppercase tracking-[0.18em] text-zinc-600 mb-1.5">Resume Playback</p>
+                    <h2 className="font-display text-[22px] font-black text-white tracking-tight leading-none">Continue Listening</h2>
+                  </div>
+                  <div className="flex gap-4 overflow-x-auto scrollbar-none pb-4 -mx-6 md:-mx-10 px-6 md:px-10">
+                    {recentSongs.slice(0, 6).map((song, index) => (
+                      <motion.div
+                        key={`continue-${song.videoId}-${index}`}
+                        whileHover={{ y: -6 }}
+                        onClick={() => { setQueue(recentSongs); setTrack(song.videoId, song.title, song.artist, song.thumbnail, index); }}
+                        className="group shrink-0 w-[140px] md:w-[155px] p-3 rounded-[20px] bg-white/[0.015] border border-white/[0.04] hover:bg-white/[0.03] hover:border-purple-500/25 transition-all duration-300 cursor-pointer"
+                      >
+                        <div className="relative aspect-square rounded-[14px] overflow-hidden bg-zinc-950 border border-white/5 shadow-sm mb-3">
+                          <img src={song.thumbnail} alt={song.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                            <Play size={12} fill="white" className="text-white" />
+                          </div>
+                        </div>
+                        <p className="text-[11px] font-bold text-zinc-300 truncate leading-tight group-hover:text-white transition-colors">{song.title}</p>
+                        <p className="text-[9px] text-zinc-555 truncate mt-0.5">{song.artist}</p>
+                      </motion.div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
-      {loading && (
-        <div className="space-y-6">
-          <div className="h-6 w-32 mf-skeleton rounded" />
-          <div className="space-y-3">
-            {[1, 2, 3, 4].map((i) => (
-              <div key={i} className="flex items-center gap-4 p-3 bg-white/[0.01] rounded-xl">
-                <div className="w-14 h-14 mf-skeleton rounded-lg" />
-                <div className="flex-1 space-y-2">
-                  <div className="h-4 w-1/3 mf-skeleton rounded" />
-                  <div className="h-3 w-1/4 mf-skeleton rounded" />
+              {/* Browse Categories */}
+              <div className="space-y-5">
+                <div>
+                  <p className="text-[9px] font-black uppercase tracking-[0.18em] text-zinc-600 mb-1.5">Vibe</p>
+                  <h2 className="font-display text-[22px] font-black text-white tracking-tight leading-none">Browse Categories</h2>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3.5">
+                  {CATEGORIES.map((cat, i) => (
+                    <motion.button
+                      key={cat.title}
+                      initial={{ opacity: 0, scale: 0.94 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{ delay: i * 0.02 }}
+                      whileHover={{ y: -4 }}
+                      whileTap={{ scale: 0.96 }}
+                      onClick={() => handleSelectSuggestion(cat.title)}
+                      className="group relative h-20 rounded-2xl cursor-pointer p-4 overflow-hidden border border-white/[0.04] bg-white/[0.015] hover:bg-white/[0.03] transition-all duration-300 flex items-end justify-between text-left"
+                    >
+                      <div className="absolute top-[-25%] right-[-15%] w-14 h-14 rounded-full opacity-10 blur-md" style={{ background: cat.text }} />
+                      <span className="font-display text-[13px] font-bold transition-colors" style={{ color: cat.text }}>{cat.title}</span>
+                      <span className="text-[10px] font-mono text-zinc-650 font-bold uppercase group-hover:text-zinc-450 transition-colors">Go</span>
+                    </motion.button>
+                  ))}
                 </div>
               </div>
-            ))}
-          </div>
-        </div>
-      )}
 
-      {!loading && results.length > 0 && (
-        <div className="space-y-8">
-          {(activeFilter === "all" || activeFilter === "tracks") && (
-            <div>
-              <h2 className="text-lg font-bold mb-4 text-white">Songs</h2>
-              <div className="space-y-2">
-                {results.slice(0, activeFilter === "all" ? 5 : 20).map((song, index) => (
-                  <div
-                    key={song.videoId}
-                    onClick={() => playSong(song, index)}
-                    className="flex items-center justify-between p-3 rounded-xl bg-white/[0.02] hover:bg-white/[0.05] border border-white/5 hover:border-white/10 transition cursor-pointer group"
-                  >
-                    <div className="flex items-center gap-4 min-w-0">
-                      <img
-                        src={song.thumbnail}
-                        alt={song.title}
-                        className="w-14 h-14 rounded-lg object-cover"
-                      />
-                      <div className="min-w-0">
-                        <h3 className="text-sm font-semibold text-zinc-200 group-hover:text-purple-300 transition-colors truncate">
-                          {song.title}
-                        </h3>
-                        <p className="text-xs text-zinc-400 truncate">{song.artist}</p>
+              {/* Featured Artists */}
+              <div className="space-y-5">
+                <div className="flex items-end justify-between">
+                  <div>
+                    <p className="text-[9px] font-black uppercase tracking-[0.18em] text-zinc-600 mb-1.5">Profiles</p>
+                    <h2 className="font-display text-[22px] font-black text-white tracking-tight leading-none">Featured Artists</h2>
+                  </div>
+                  <Link href="/explore" className="text-[11px] text-zinc-500 hover:text-zinc-350 transition-colors font-bold uppercase tracking-wider">See all</Link>
+                </div>
+                <div className="flex gap-5 overflow-x-auto scrollbar-none pb-4 -mx-6 md:-mx-10 px-6 md:px-10">
+                  {["Arijit Singh", "KK", "Sonu Nigam", "Atif Aslam"].map((name) => (
+                    <motion.div
+                      key={name}
+                      whileHover={{ y: -6 }}
+                      onClick={() => router.push(`/artist/${encodeURIComponent(name)}`)}
+                      className="group shrink-0 flex flex-col items-center gap-3 cursor-pointer"
+                    >
+                      <div className="w-20 h-20 rounded-full overflow-hidden bg-zinc-950 border border-white/[0.05] group-hover:border-purple-500/30 transition-all duration-300 shadow-md">
+                        <img
+                          src={`https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=111118&color=fff&size=128`}
+                          alt={name}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                        />
+                      </div>
+                      <p className="text-[12px] font-bold text-zinc-300 group-hover:text-white transition-colors">{name}</p>
+                    </motion.div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Trending Albums */}
+              <div className="space-y-5">
+                <div className="flex items-end justify-between">
+                  <div>
+                    <p className="text-[9px] font-black uppercase tracking-[0.18em] text-zinc-600 mb-1.5">Releases</p>
+                    <h2 className="font-display text-[22px] font-black text-white tracking-tight leading-none">Trending Albums</h2>
+                  </div>
+                </div>
+                <div className="flex gap-4 overflow-x-auto scrollbar-none pb-4 -mx-6 md:-mx-10 px-6 md:px-10">
+                  {STATIC_RECOMMENDED.map((album) => (
+                    <motion.div
+                      key={album.videoId}
+                      whileHover={{ y: -6 }}
+                      onClick={() => router.push(`/album/${album.videoId}`)}
+                      className="group shrink-0 w-[140px] md:w-[155px] flex flex-col gap-3 cursor-pointer text-left"
+                    >
+                      <div className="relative rounded-[20px] overflow-hidden bg-zinc-900 aspect-square border border-white/[0.05] group-hover:border-purple-500/35 transition-all duration-300 shadow-sm">
+                        <img src={album.thumbnail} alt={album.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                          <Play size={12} fill="white" className="text-white" />
+                        </div>
+                      </div>
+                      <p className="text-[11px] font-bold text-zinc-300 group-hover:text-white transition-colors truncate leading-tight tracking-tight">{album.title}</p>
+                      <p className="text-[9px] text-zinc-555 truncate mt-0.5">{album.artist}</p>
+                    </motion.div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Popular Playlists */}
+              <div className="space-y-5">
+                <div>
+                  <p className="text-[9px] font-black uppercase tracking-[0.18em] text-zinc-600 mb-1.5">Curated</p>
+                  <h2 className="font-display text-[22px] font-black text-white tracking-tight leading-none">Popular Playlists</h2>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {POPULAR_PLAYLISTS.map((playlist) => (
+                    <motion.div
+                      key={playlist.id}
+                      whileHover={{ y: -6 }}
+                      onClick={() => handleSelectSuggestion(playlist.name)}
+                      className="group relative p-3.5 rounded-2xl bg-white/[0.015] border border-white/[0.04] hover:bg-white/[0.035] hover:border-purple-500/20 transition-all duration-300 cursor-pointer flex gap-3.5 overflow-hidden"
+                    >
+                      <div className="w-16 h-16 rounded-xl overflow-hidden shrink-0 bg-zinc-950 border border-white/5 shadow-sm">
+                        <img src={playlist.image} alt={playlist.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                      </div>
+                      <div className="flex flex-col justify-center min-w-0">
+                        <h3 className="font-display text-[13px] font-bold text-zinc-300 group-hover:text-white truncate transition-colors">{playlist.name}</h3>
+                        <p className="text-[9px] text-zinc-650 font-bold uppercase tracking-wider mt-1">{playlist.songsCount} Songs</p>
+                      </div>
+                    </motion.div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Recommended For You */}
+              <div className="space-y-5">
+                <div>
+                  <p className="text-[9px] font-black uppercase tracking-[0.18em] text-zinc-600 mb-1.5">Just For You</p>
+                  <h2 className="font-display text-[22px] font-black text-white tracking-tight leading-none">Recommended For You</h2>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                  {STATIC_RECOMMENDED.map((song, i) => (
+                    <div
+                      key={`static-rec-${song.videoId}-${i}`}
+                      onClick={() => { setQueue(STATIC_RECOMMENDED); setTrack(song.videoId, song.title, song.artist, song.thumbnail, i); }}
+                      className="flex items-center justify-between p-3 rounded-2xl bg-white/[0.015] border border-white/[0.04] hover:border-purple-500/20 hover:bg-white/[0.03] transition-all duration-300 cursor-pointer group"
+                    >
+                      <div className="flex items-center gap-3.5 min-w-0">
+                        <div className="w-11 h-11 rounded-xl overflow-hidden shrink-0 border border-white/5 bg-zinc-950">
+                          <img src={song.thumbnail} alt={song.title} className="w-full h-full object-cover" />
+                        </div>
+                        <div className="min-w-0">
+                          <h3 className="text-xs font-bold text-zinc-200 group-hover:text-purple-300 transition-colors truncate">{song.title}</h3>
+                          <p className="text-[10px] text-zinc-500 truncate mt-0.5">{song.artist}</p>
+                        </div>
+                      </div>
+                      <div className="w-7 h-7 rounded-full bg-white opacity-0 group-hover:opacity-100 flex items-center justify-center text-black transition-opacity shadow-sm shrink-0">
+                        <Play size={10} fill="black" className="text-black ml-0.5" />
                       </div>
                     </div>
-                    <div className="text-zinc-500 text-xs font-semibold">
-                      {song.duration
-                        ? `${Math.floor(song.duration / 60)}:${String(song.duration % 60).padStart(2, "0")}`
-                        : "0:00"}
-                    </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
-            </div>
-          )}
 
-          {(activeFilter === "all" || activeFilter === "artists") && artists.length > 0 && artists[0] && (
-            <div>
-              <h2 className="text-lg font-bold mb-4 text-white">Artist Profiles</h2>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                {artists.map((artist) => (
-                  <div
-                    key={artist.name}
-                    onClick={() => router.push(`/artist/${encodeURIComponent(artist.name)}`)}
-                    className="flex flex-col items-center p-4 bg-white/[0.02] border border-white/5 hover:border-white/10 rounded-2xl cursor-pointer hover:bg-white/[0.05] transition-all"
-                  >
-                    <div className="w-24 h-24 rounded-full overflow-hidden border border-white/10 shadow-inner">
-                      <img
-                        src={artist.image}
-                        alt={artist.name}
-                        className="w-full h-full object-cover"
-                      />
-                    </div>
-                    <h3 className="text-sm font-semibold mt-3 text-zinc-200 truncate w-full text-center">
-                      {artist.name}
-                    </h3>
-                    <p className="text-[10px] text-zinc-500 mt-1 uppercase tracking-wider font-bold">Artist</p>
-                  </div>
-                ))}
+              {/* Search Tips (Small premium card) */}
+              <div className="p-4 rounded-2xl bg-white/[0.015] border border-white/[0.04] flex items-start gap-3 max-w-md">
+                <HelpCircle size={15} className="text-purple-400 shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-[11px] font-bold text-zinc-300">Quick Tip</p>
+                  <p className="text-[10px] text-zinc-500 leading-relaxed mt-0.5">
+                    Try searching for specific tracks, artist profiles, or albums. Keywords are matched across titles, categories, and lyrics.
+                  </p>
+                </div>
               </div>
-            </div>
-          )}
 
-          {(activeFilter === "all" || activeFilter === "albums") && albums.length > 0 && (
-            <div>
-              <h2 className="text-lg font-bold mb-4 text-white">Albums</h2>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                {albums.map((album) => (
-                  <div
-                    key={album.albumId}
-                    onClick={() => router.push(`/album/${album.albumId}`)}
-                    className="p-4 bg-white/[0.02] border border-white/5 hover:border-white/10 rounded-2xl cursor-pointer hover:bg-white/[0.05] transition group shadow"
-                  >
-                    <img
-                      src={album.thumbnail}
-                      alt={album.name}
-                      className="w-full aspect-square object-cover rounded-xl shadow-md group-hover:scale-[1.01] transition duration-300"
-                    />
-                    <h3 className="text-sm font-semibold mt-3 text-zinc-200 truncate group-hover:text-purple-300 transition-colors">
-                      {album.name}
-                    </h3>
-                    <p className="text-xs text-zinc-500 mt-1 truncate">{album.artist}</p>
-                  </div>
-                ))}
-              </div>
+            </motion.div>
+          </AnimatePresence>
+        )}
+
+        {/* ── 3. Loading Skeleton ─────────────────────────────── */}
+        {loading && (
+          <div className="space-y-6">
+            <div className="h-5 w-28 mf-skeleton rounded-lg bg-white/[0.015]" />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+              {[1, 2, 3, 4, 5, 6].map(i => (
+                <div key={i} className="h-16 w-full mf-skeleton rounded-2xl bg-white/[0.015] border border-white/[0.05]" />
+              ))}
             </div>
-          )}
-        </div>
-      )}
+          </div>
+        )}
+
+        {/* ── 4. Results ──────────────────────────────────────── */}
+        {!loading && hasResults && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-10">
+
+            {/* Filter pills */}
+            <div className="flex gap-2 flex-wrap">
+              {(["all", "tracks", "artists", "albums"] as const).map(filter => (
+                <button key={filter} onClick={() => setActiveFilter(filter)}
+                  className="px-4.5 py-2 rounded-full text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer border select-none"
+                  style={{
+                    background: activeFilter === filter ? "#FFFFFF" : "rgba(255,255,255,0.02)",
+                    color: activeFilter === filter ? "#000000" : "#a1a1aa",
+                    border: `1px solid ${activeFilter === filter ? "rgba(255,255,255,0.1)" : "rgba(255,255,255,0.05)"}`,
+                  }}
+                >
+                  {filter}
+                </button>
+              ))}
+            </div>
+
+            {/* Songs */}
+            {(activeFilter === "all" || activeFilter === "tracks") && results.length > 0 && (
+              <div className="space-y-5">
+                <div>
+                  <p className="text-[9px] font-black uppercase tracking-[0.18em] text-zinc-600 mb-1.5">Songs</p>
+                  <h2 className="font-display text-[22px] font-black text-white tracking-tight leading-none">
+                    {results.length} Matches
+                  </h2>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                  {results.slice(0, activeFilter === "all" ? 6 : 30).map((song, i) => (
+                    <SongRow key={song.videoId} song={song} index={i} onPlay={playSong} />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Artists */}
+            {(activeFilter === "all" || activeFilter === "artists") && artists.length > 0 && artists[0] && (
+              <div className="space-y-5">
+                <div>
+                  <p className="text-[9px] font-black uppercase tracking-[0.18em] text-zinc-600 mb-1.5">Profiles</p>
+                  <h2 className="font-display text-[22px] font-black text-white tracking-tight leading-none">Artists</h2>
+                </div>
+                <div className="flex gap-6 overflow-x-auto scrollbar-none pb-4 -mx-6 md:-mx-10 px-6 md:px-10">
+                  {artists.map((artist) => (
+                    <motion.button
+                      key={artist.name}
+                      whileHover={{ y: -6 }}
+                      onClick={() => router.push(`/artist/${encodeURIComponent(artist.name)}`)}
+                      className="flex flex-col items-center gap-3 shrink-0 group focus:outline-none"
+                    >
+                      <div className="w-20 h-20 rounded-full overflow-hidden bg-zinc-950 border border-white/[0.05] group-hover:border-purple-500/30 transition-all duration-300 shadow-md">
+                        <img src={artist.image} alt={artist.name}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                      </div>
+                      <div className="text-center">
+                        <p className="text-[12px] font-bold text-zinc-300 group-hover:text-white transition-colors">{artist.name}</p>
+                        <p className="text-[9px] text-zinc-650 uppercase tracking-wider font-bold mt-0.5">Artist</p>
+                      </div>
+                    </motion.button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Albums */}
+            {(activeFilter === "all" || activeFilter === "albums") && albums.length > 0 && (
+              <div className="space-y-5">
+                <div>
+                  <p className="text-[9px] font-black uppercase tracking-[0.18em] text-zinc-600 mb-1.5">Releases</p>
+                  <h2 className="font-display text-[22px] font-black text-white tracking-tight leading-none">Albums</h2>
+                </div>
+                <div className="flex gap-5 overflow-x-auto scrollbar-none pb-4 -mx-6 md:-mx-10 px-6 md:px-10">
+                  {albums.map((album) => (
+                    <motion.button
+                      key={album.albumId}
+                      whileHover={{ y: -6 }}
+                      onClick={() => router.push(`/album/${album.albumId}`)}
+                      className="group flex flex-col gap-3 text-left focus:outline-none shrink-0 w-[140px] md:w-[155px]"
+                    >
+                      <div className="relative aspect-square rounded-[20px] overflow-hidden bg-zinc-900 border border-white/[0.05] group-hover:border-purple-500/35 transition-all duration-300 shadow-md">
+                        <img src={album.thumbnail} alt={album.name}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                          <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center">
+                            <Play size={12} fill="black" className="text-black ml-0.5" />
+                          </div>
+                        </div>
+                      </div>
+                      <div>
+                        <p className="text-[12px] font-bold text-zinc-300 group-hover:text-white transition-colors truncate leading-tight tracking-tight">{album.name}</p>
+                        <p className="text-[10px] text-zinc-555 truncate mt-0.5">{album.artist}</p>
+                      </div>
+                    </motion.button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </motion.div>
+        )}
+      </div>
     </div>
   );
 }
@@ -395,8 +668,10 @@ function SearchContent() {
 export default function SearchPage() {
   return (
     <Suspense fallback={
-      <div className="flex h-[50vh] items-center justify-center text-zinc-500 text-xs">
-        Loading search engine...
+      <div className="px-6 md:px-10 pt-10 pb-8 space-y-4">
+        <div className="h-4 w-16 mf-skeleton rounded bg-white/[0.015]" />
+        <div className="h-12 w-72 mf-skeleton rounded-2xl bg-white/[0.015]" />
+        <div className="h-14 mf-skeleton rounded-[20px] bg-white/[0.015]" />
       </div>
     }>
       <SearchContent />

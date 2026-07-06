@@ -38,7 +38,7 @@ export default async function Page() {
 
         {artist.similar.map(
           (
-            item: any,
+            item: { name: string },
             index: number
           ) => (
             <div

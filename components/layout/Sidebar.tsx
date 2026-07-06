@@ -7,7 +7,6 @@ import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Home,
-  Search,
   Heart,
   ListMusic,
   Clock,
@@ -16,10 +15,11 @@ import {
   Plus,
   List,
   Compass,
-  X
+  Search,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useShallow } from "zustand/react/shallow";
+import { Playlist } from "@/types/music";
 
 const NAV_ITEMS = [
   { href: "/", icon: Home, label: "Home" },
@@ -34,10 +34,12 @@ const NAV_ITEMS = [
 
 export function Sidebar() {
   const pathname = usePathname();
-  const { playlists, addPlaylist } = usePlayerStore(useShallow((s) => ({
-    playlists: s.playlists,
-    addPlaylist: s.addPlaylist,
-  })));
+  const { playlists, addPlaylist } = usePlayerStore(
+    useShallow((s) => ({
+      playlists: s.playlists,
+      addPlaylist: s.addPlaylist,
+    }))
+  );
   const [showAddPlaylist, setShowAddPlaylist] = useState(false);
   const [newPlaylistName, setNewPlaylistName] = useState("");
 
@@ -50,20 +52,23 @@ export function Sidebar() {
 
   return (
     <>
-      {/* Desktop Sidebar */}
-      <aside className="hidden md:flex flex-col w-[260px] h-full glass-sidebar-panel border-r border-white/5 p-5 shrink-0 z-40">
-        {/* Logo */}
-        <Link href="/" className="flex items-center gap-3 px-2 mb-8 select-none">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-purple-600 to-pink-500 flex items-center justify-center shadow-lg shadow-purple-500/20">
-            <Music2 className="text-white w-5 h-5" />
+      {/* Redesigned Floating Sidebar for Desktop */}
+      <aside className="hidden md:flex flex-col w-[260px] h-full rounded-[24px] bg-zinc-950/60 backdrop-blur-3xl border border-white/[0.06] p-5 shrink-0 z-40 shadow-[0_24px_50px_-12px_rgba(0,0,0,0.9)] relative overflow-hidden">
+        {/* Glow Layer */}
+        <div className="absolute top-[-10%] left-[-10%] w-[120%] h-[40%] bg-purple-900/10 blur-[80px] rounded-full pointer-events-none" />
+
+        {/* Brand logo */}
+        <Link href="/" className="flex items-center gap-3 px-2 mb-8 select-none relative z-10">
+          <div className="w-9 h-9 rounded-xl bg-white flex items-center justify-center shadow-lg transition-transform duration-300 hover:scale-105">
+            <Music2 className="text-black w-4.5 h-4.5" />
           </div>
-          <span className="text-xl font-bold bg-gradient-to-r from-white via-purple-200 to-pink-300 bg-clip-text text-transparent tracking-tight">
+          <span className="text-lg font-bold tracking-tight text-white leading-none">
             MusicFlow
           </span>
         </Link>
 
-        {/* Navigation Items */}
-        <nav className="space-y-1 mb-6 flex-grow overflow-y-auto pr-1 scrollbar-none">
+        {/* Navigation Section */}
+        <nav className="space-y-0.5 flex-grow overflow-y-auto pr-1 scrollbar-none relative z-10">
           {NAV_ITEMS.map(({ href, icon: Icon, label }) => {
             const active = pathname === href;
             return (
@@ -71,24 +76,22 @@ export function Sidebar() {
                 key={href}
                 href={href}
                 className={cn(
-                  "relative flex items-center gap-4 px-4 py-3 rounded-xl text-sm font-medium transition-all group",
-                  active
-                    ? "text-white"
-                    : "text-zinc-400 hover:text-zinc-100 hover:bg-white/5"
+                  "relative flex items-center gap-3.5 px-3.5 py-2.5 rounded-xl text-[13px] font-semibold transition-all duration-200 group",
+                  active ? "text-white" : "text-zinc-400 hover:text-zinc-200"
                 )}
               >
                 {active && (
                   <motion.div
                     layoutId="active-nav"
-                    className="absolute inset-0 bg-purple-600/20 rounded-xl border border-purple-500/20"
+                    className="absolute inset-0 bg-white/[0.04] border border-white/[0.06] rounded-xl shadow-[inset_0_1px_1px_rgba(255,255,255,0.05)]"
                     transition={{ type: "spring", stiffness: 380, damping: 30 }}
                   />
                 )}
                 <Icon
-                  size={18}
+                  size={16}
                   className={cn(
                     "relative z-10 transition-colors",
-                    active ? "text-purple-400" : "group-hover:text-zinc-100"
+                    active ? "text-purple-400" : "text-zinc-400 group-hover:text-zinc-200"
                   )}
                 />
                 <span className="relative z-10">{label}</span>
@@ -96,48 +99,48 @@ export function Sidebar() {
             );
           })}
 
-          <div className="h-px bg-white/5 my-4 mx-2" />
+          <div className="h-px bg-white/[0.05] my-4 mx-2" />
 
-          {/* Playlists Section Header */}
-          <div className="flex items-center justify-between px-4 py-2 text-zinc-500">
-            <span className="text-[10px] font-bold uppercase tracking-wider">Playlists</span>
+          {/* Playlists Header */}
+          <div className="flex items-center justify-between px-3 py-2 text-zinc-500">
+            <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-zinc-650">Playlists</span>
             <button
               onClick={() => setShowAddPlaylist(true)}
-              className="text-zinc-400 hover:text-white hover:bg-white/10 p-1 rounded-lg transition"
+              className="text-zinc-400 hover:text-white p-1 rounded-lg hover:bg-white/5 transition duration-150 active:scale-95"
               aria-label="Create playlist"
             >
               <Plus size={14} />
             </button>
           </div>
 
-          {/* Create Playlist Form */}
+          {/* Playlist Input Form */}
           <AnimatePresence>
             {showAddPlaylist && (
               <motion.div
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                className="px-4 py-2 space-y-2 bg-white/5 rounded-xl border border-white/5 my-2"
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+                className="px-3 py-2 space-y-2 bg-white/[0.03] rounded-xl border border-white/[0.05] my-2 overflow-hidden"
               >
                 <input
                   type="text"
-                  placeholder="Playlist name"
+                  placeholder="Playlist name..."
                   value={newPlaylistName}
                   onChange={(e) => setNewPlaylistName(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && handleCreatePlaylist()}
-                  className="w-full bg-black/40 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-purple-500"
+                  className="w-full bg-black/40 border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:border-purple-500 transition-colors"
                   autoFocus
                 />
-                <div className="flex justify-end gap-1.5">
+                <div className="flex justify-end gap-1.5 text-[10px]">
                   <button
                     onClick={() => setShowAddPlaylist(false)}
-                    className="px-2 py-1 text-[10px] text-zinc-400 hover:text-white rounded"
+                    className="px-2 py-1 text-zinc-400 hover:text-white transition-colors"
                   >
                     Cancel
                   </button>
                   <button
                     onClick={handleCreatePlaylist}
-                    className="px-2 py-1 text-[10px] bg-purple-600 hover:bg-purple-500 text-white rounded font-medium"
+                    className="px-2.5 py-1 bg-white text-black font-bold rounded transition-all active:scale-95"
                   >
                     Create
                   </button>
@@ -147,22 +150,22 @@ export function Sidebar() {
           </AnimatePresence>
 
           {/* Playlists List */}
-          <div className="space-y-0.5 mt-2">
-            {playlists.map((pl: any) => {
+          <div className="space-y-0.5 mt-2 max-h-[220px] overflow-y-auto scrollbar-none pr-0.5">
+            {playlists.map((pl: Playlist) => {
               const active = pathname === `/playlists/${pl.id}`;
               return (
                 <Link
                   key={pl.id}
                   href={`/playlists/${pl.id}`}
                   className={cn(
-                    "flex items-center justify-between px-4 py-2 text-xs rounded-lg transition-all",
+                    "flex items-center justify-between px-3.5 py-2 text-[12px] rounded-lg transition-all group",
                     active
-                      ? "bg-purple-900/10 text-purple-300 font-medium"
-                      : "text-zinc-400 hover:text-zinc-200 hover:bg-white/5"
+                      ? "bg-purple-500/10 border border-purple-500/20 text-purple-300 font-bold"
+                      : "text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.02]"
                   )}
                 >
                   <span className="truncate max-w-[150px]">{pl.name}</span>
-                  <span className="text-[10px] text-zinc-600 group-hover:text-zinc-400 font-semibold bg-zinc-950/40 px-1.5 py-0.5 rounded-full">
+                  <span className="text-[9px] text-zinc-550 group-hover:text-zinc-450 font-bold bg-white/[0.04] px-1.5 py-0.5 rounded-full border border-white/[0.03]">
                     {pl.songs.length}
                   </span>
                 </Link>
@@ -172,28 +175,26 @@ export function Sidebar() {
         </nav>
 
         {/* Footer / Settings Link */}
-        <div className="pt-4 border-t border-white/5 space-y-1">
+        <div className="pt-4 border-t border-white/[0.05] space-y-1 relative z-10">
           <Link
             href="/settings"
             className={cn(
-              "relative flex items-center gap-4 px-4 py-3 rounded-xl text-sm font-medium transition-all group",
-              pathname === "/settings"
-                ? "text-white"
-                : "text-zinc-400 hover:text-zinc-100 hover:bg-white/5"
+              "relative flex items-center gap-3.5 px-3.5 py-2.5 rounded-xl text-[13px] font-semibold transition-all duration-200 group",
+              pathname === "/settings" ? "text-white" : "text-zinc-400 hover:text-zinc-200"
             )}
           >
             {pathname === "/settings" && (
               <motion.div
                 layoutId="active-nav"
-                className="absolute inset-0 bg-purple-600/20 rounded-xl border border-purple-500/20"
+                className="absolute inset-0 bg-white/[0.04] border border-white/[0.06] rounded-xl shadow-[inset_0_1px_1px_rgba(255,255,255,0.05)]"
                 transition={{ type: "spring", stiffness: 380, damping: 30 }}
               />
             )}
             <Settings
-              size={18}
+              size={16}
               className={cn(
                 "relative z-10 transition-colors",
-                pathname === "/settings" ? "text-purple-400" : "group-hover:text-zinc-100"
+                pathname === "/settings" ? "text-purple-400" : "text-zinc-400 group-hover:text-zinc-200"
               )}
             />
             <span className="relative z-10">Settings</span>
@@ -201,8 +202,8 @@ export function Sidebar() {
         </div>
       </aside>
 
-      {/* Mobile Bottom Tab Navigation */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 h-[64px] glass border-t border-white/5 flex items-center justify-around px-4 z-50">
+      {/* Redesigned Mobile Bottom Tab Navigation */}
+      <nav className="md:hidden fixed bottom-4 left-4 right-4 h-[60px] bg-zinc-950/70 backdrop-blur-3xl border border-white/[0.06] rounded-2xl flex items-center justify-around px-4 z-50 shadow-[0_16px_40px_rgba(0,0,0,0.8)]">
         {NAV_ITEMS.slice(0, 4).map(({ href, icon: Icon, label }) => {
           const active = pathname === href;
           return (
@@ -210,16 +211,16 @@ export function Sidebar() {
               key={href}
               href={href}
               className={cn(
-                "flex flex-col items-center justify-center gap-1 w-16 h-full text-[10px] transition-colors relative",
-                active ? "text-purple-400" : "text-zinc-500 hover:text-zinc-300"
+                "flex flex-col items-center justify-center gap-1 w-14 h-full text-[9px] transition-colors relative",
+                active ? "text-white" : "text-zinc-500"
               )}
             >
-              <Icon size={20} className={active ? "text-purple-400" : "text-zinc-500"} />
-              <span className="font-medium">{label}</span>
+              <Icon size={18} className={active ? "text-white" : "text-zinc-500"} />
+              <span className="font-semibold">{label}</span>
               {active && (
                 <motion.div
                   layoutId="mobile-pip"
-                  className="absolute bottom-1 w-1.5 h-1.5 rounded-full bg-purple-500"
+                  className="absolute bottom-1.5 w-1 h-1 rounded-full bg-white"
                   transition={{ type: "spring", stiffness: 300, damping: 20 }}
                 />
               )}

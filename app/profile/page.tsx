@@ -5,14 +5,24 @@ import ProtectedRoute from "../../src/components/auth/ProtectedRoute";
 import { useAuth } from "../../src/context/AuthContext";
 import { usePlayerStore } from "@/store/player-store";
 import { useShallow } from "zustand/react/shallow";
-import { motion } from "framer-motion";
-import { Edit2, Check, User, Mail, Award, Flame, Disc, BarChart, Settings } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Edit2, Check, Mail, Award, Flame, Disc, BarChart, Settings, Play, ShieldAlert, Sparkles, Zap, Clock, Compass, Activity, Star, Calendar, Music, ListMusic } from "lucide-react";
 import { Track } from "@/types/music";
+
+const ACHIEVEMENTS = [
+  { name: "Pioneer", desc: "Early platform adopter", icon: Star, color: "from-amber-500 to-yellow-400" },
+  { name: "Night Owl", desc: "Listen past midnight", icon: Flame, color: "from-purple-500 to-indigo-500" },
+  { name: "Streak Starter", desc: "7 days active listening", icon: Zap, color: "from-pink-500 to-rose-400" },
+  { name: "Connoisseur", desc: "100+ tracks listened", icon: Award, color: "from-teal-500 to-emerald-450" },
+];
 
 export default function ProfilePage() {
   const { user } = useAuth();
-  const { recentSongs } = usePlayerStore(useShallow((s) => ({
+  const { recentSongs, playlists, setTrack, setQueue } = usePlayerStore(useShallow((s) => ({
     recentSongs: s.recentSongs,
+    playlists:   s.playlists,
+    setTrack:    s.setTrack,
+    setQueue:    s.setQueue,
   })));
 
   const [editMode, setEditMode] = useState(false);
@@ -21,15 +31,16 @@ export default function ProfilePage() {
   const [photoURL, setPhotoURL] = useState(user?.photoURL || "");
   const [themePref, setThemePref] = useState("glass");
 
-  // Load profile details from local storage on mount
   useEffect(() => {
     if (user?.uid) {
       const storedBio = localStorage.getItem(`profile-bio-${user.uid}`);
       const storedPhoto = localStorage.getItem(`profile-photo-${user.uid}`);
       const storedTheme = localStorage.getItem(`profile-theme-${user.uid}`);
-      if (storedBio) setBio(storedBio);
-      if (storedPhoto) setPhotoURL(storedPhoto);
-      if (storedTheme) setThemePref(storedTheme);
+      setTimeout(() => {
+        if (storedBio) setBio(storedBio);
+        if (storedPhoto) setPhotoURL(storedPhoto);
+        if (storedTheme) setThemePref(storedTheme);
+      }, 0);
     }
   }, [user]);
 
@@ -42,7 +53,6 @@ export default function ProfilePage() {
     setEditMode(false);
   };
 
-  // Derive stats from recent listening history
   const getTopArtists = () => {
     const artistCounts: { [key: string]: number } = {};
     recentSongs.forEach((song: Track) => {
@@ -73,225 +83,374 @@ export default function ProfilePage() {
   const topArtists = getTopArtists();
   const topTracks = getTopTracks();
   const totalListened = recentSongs.length;
+  const listeningHours = Math.round(totalListened * 3.5 / 60 * 10) / 10;
+  const listeningLevel = Math.floor(totalListened / 10) + 1;
+
+  const handlePlaySong = (song: Track, index: number) => {
+    setQueue(recentSongs);
+    setTrack(song.videoId, song.title, song.artist, song.thumbnail, index);
+  };
 
   return (
     <ProtectedRoute>
-      <main className="max-w-4xl mx-auto space-y-8 select-none">
-        {/* Profile Card Header */}
-        <div className="relative overflow-hidden rounded-3xl">
-          <div className="relative bg-gradient-to-br from-purple-900/40 via-zinc-950/80 to-[#07070a] border border-white/5 p-8 md:p-10 flex flex-col md:flex-row items-center gap-8 shadow-2xl">
-            <div className="relative group shrink-0">
-              <img
-                src={
-                  photoURL ||
-                  user?.photoURL ||
-                  `https://ui-avatars.com/api/?background=7c3aed&color=fff&name=${encodeURIComponent(
-                    displayName
-                  )}`
-                }
-                alt="Profile Avatar"
-                className="w-36 h-36 rounded-full object-cover border-4 border-white/10 shadow-2xl"
-              />
-            </div>
+      <main className="min-h-screen pb-36 text-white text-left space-y-16" style={{ background: "#07070A" }}>
 
-            <div className="flex-grow space-y-4 text-center md:text-left min-w-0">
-              {editMode ? (
-                <div className="space-y-3">
-                  <input
-                    type="text"
-                    value={displayName}
-                    onChange={(e) => setDisplayName(e.target.value)}
-                    className="w-full max-w-sm bg-black/60 border border-white/10 rounded-xl px-4 py-2 text-xl text-white font-bold focus:outline-none focus:border-purple-500"
-                    placeholder="Display name"
-                  />
-                  <input
-                    type="text"
-                    value={photoURL}
-                    onChange={(e) => setPhotoURL(e.target.value)}
-                    className="w-full max-w-sm bg-black/60 border border-white/10 rounded-xl px-4 py-2 text-xs text-zinc-300 focus:outline-none focus:border-purple-500"
-                    placeholder="Profile Image URL"
-                  />
-                  <textarea
-                    value={bio}
-                    onChange={(e) => setBio(e.target.value)}
-                    className="w-full max-w-sm bg-black/60 border border-white/10 rounded-xl px-4 py-2 text-xs text-zinc-300 focus:outline-none focus:border-purple-500 min-h-[50px]"
-                    placeholder="Short bio"
-                  />
+        {/* 1. Profile Hero & Stats Header */}
+        <section className="relative px-6 md:px-10 pt-10 pb-6 overflow-hidden">
+          {/* Ambient Glow */}
+          <div className="absolute top-0 left-[-10%] w-[600px] h-[400px] rounded-full bg-purple-950/[0.08] blur-[140px] pointer-events-none" />
+          <div className="absolute top-20 right-0 w-[450px] h-[320px] rounded-full bg-pink-950/[0.06] blur-[120px] pointer-events-none" />
+
+          {/* Glass Card Hero */}
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.65, ease: [0.16, 1, 0.3, 1] }}
+            className="relative z-10 p-6 md:p-10 rounded-[32px] bg-white/[0.015] border border-white/[0.04] backdrop-blur-2xl"
+            style={{ boxShadow: "0 24px 80px rgba(0, 0, 0, 0.4)" }}
+          >
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-8">
+              
+              <div className="flex flex-col md:flex-row items-center md:items-start gap-6">
+                {/* Avatar */}
+                <div className="relative shrink-0 group">
+                  <div className="w-32 h-32 md:w-36 md:h-36 rounded-full overflow-hidden border border-white/[0.08] shadow-2xl bg-zinc-950">
+                    <img
+                      src={
+                        photoURL ||
+                        user?.photoURL ||
+                        `https://ui-avatars.com/api/?background=7c3aed&color=fff&name=${encodeURIComponent(displayName)}&size=256`
+                      }
+                      alt="Avatar"
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                  <div className="absolute -bottom-2 -right-2 w-8 h-8 rounded-full bg-purple-550 border border-zinc-950 flex items-center justify-center text-white">
+                    <Sparkles size={13} />
+                  </div>
                 </div>
-              ) : (
-                <div className="space-y-2">
-                  <span className="inline-flex items-center gap-1 bg-purple-500/10 border border-purple-500/20 text-purple-300 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider">
-                    <Award size={10} />
-                    Verified User
-                  </span>
-                  <h1 className="text-3xl md:text-5xl font-black tracking-tight text-white leading-none truncate">
-                    {displayName}
-                  </h1>
-                  <p className="text-xs text-zinc-400 font-medium flex items-center justify-center md:justify-start gap-1">
-                    <Mail size={12} className="text-zinc-500" />
-                    {user?.email}
-                  </p>
-                  {bio && (
-                    <p className="text-xs text-zinc-300 max-w-md pt-1 italic leading-relaxed">
-                      "{bio}"
-                    </p>
+
+                {/* Profile detail */}
+                <div className="space-y-4 text-center md:text-left min-w-0">
+                  {editMode ? (
+                    <div className="space-y-2.5 max-w-sm">
+                      <input
+                        type="text"
+                        value={displayName}
+                        onChange={(e) => setDisplayName(e.target.value)}
+                        className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2 text-xs text-white font-bold focus:outline-none focus:border-purple-550"
+                        placeholder="Display name"
+                      />
+                      <input
+                        type="text"
+                        value={photoURL}
+                        onChange={(e) => setPhotoURL(e.target.value)}
+                        className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2 text-[10px] text-zinc-300 focus:outline-none focus:border-purple-550"
+                        placeholder="Profile Image URL"
+                      />
+                      <textarea
+                        value={bio}
+                        onChange={(e) => setBio(e.target.value)}
+                        className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2 text-[10px] text-zinc-300 focus:outline-none focus:border-purple-550 min-h-[50px]"
+                        placeholder="Short bio..."
+                      />
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/[0.02] border border-white/[0.05]">
+                        <Award size={11} className="text-purple-400" />
+                        <span className="text-[9px] font-black uppercase tracking-[0.18em] text-zinc-550 select-none">
+                          Premium Lifetime Member
+                        </span>
+                      </div>
+
+                      <h1 className="font-display text-[32px] sm:text-[48px] font-black leading-[0.92] tracking-tighter text-white select-none truncate">
+                        {displayName}
+                      </h1>
+
+                      <p className="text-[11px] text-zinc-500 font-semibold flex items-center justify-center md:justify-start gap-1">
+                        <Mail size={11} /> {user?.email}
+                      </p>
+
+                      {bio && (
+                        <p className="text-xs text-zinc-405 font-medium leading-relaxed max-w-sm italic">
+                          &quot;{bio}&quot;
+                        </p>
+                      )}
+                    </div>
                   )}
                 </div>
-              )}
-            </div>
+              </div>
 
-            <div className="shrink-0 flex items-center justify-center">
-              {editMode ? (
-                <button
-                  onClick={saveProfile}
-                  className="px-5 py-2.5 bg-green-600 hover:bg-green-500 text-white rounded-full font-bold text-xs flex items-center gap-1.5 transition"
-                >
-                  <Check size={14} />
-                  Save Profile
-                </button>
-              ) : (
-                <button
-                  onClick={() => setEditMode(true)}
-                  className="px-5 py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-full text-zinc-300 hover:text-white font-bold text-xs flex items-center gap-1.5 transition"
-                >
-                  <Edit2 size={12} />
-                  Edit Profile
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
+              {/* Actions & Streaks */}
+              <div className="flex flex-col sm:flex-row items-center gap-6 shrink-0">
+                <div className="flex items-center gap-6 text-zinc-500 font-semibold text-xs border-r border-white/5 pr-6 hidden sm:flex">
+                  <div className="text-center">
+                    <p className="text-[10px] uppercase text-zinc-600 font-bold tracking-wider">Level</p>
+                    <p className="text-xl font-black text-zinc-200 mt-1">Lvl {listeningLevel}</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-[10px] uppercase text-zinc-600 font-bold tracking-wider">Streak</p>
+                    <p className="text-xl font-black text-zinc-200 mt-1 flex items-center gap-1">
+                      14d <Flame size={14} className="text-orange-500" />
+                    </p>
+                  </div>
+                </div>
 
-        {/* Dynamic Theme Preference Select */}
-        <div className="glass p-5 rounded-2xl border border-white/5 bg-zinc-950/40 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-pink-500/10 flex items-center justify-center">
-              <Settings size={14} className="text-pink-400" />
-            </div>
-            <div>
-              <span className="text-xs font-semibold text-zinc-200">Theme Preference</span>
-              <span className="text-[10px] text-zinc-500 block">Personalize your system aesthetics</span>
-            </div>
-          </div>
-
-          <select
-            value={themePref}
-            onChange={(e) => {
-              setThemePref(e.target.value);
-              if (user?.uid) localStorage.setItem(`profile-theme-${user.uid}`, e.target.value);
-            }}
-            className="bg-black/60 border border-white/10 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-purple-500 cursor-pointer"
-          >
-            <option value="glass">Premium Glass</option>
-            <option value="dark">Vibrant Dark</option>
-            <option value="amoled">Amoled Black</option>
-          </select>
-        </div>
-
-        {/* Listening Stats & History Grids */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {/* Stats Overview */}
-          <div className="md:col-span-1 glass p-6 rounded-3xl border border-white/5 bg-zinc-950/40 space-y-6">
-            <div className="flex items-center gap-2 border-b border-white/5 pb-3">
-              <BarChart size={16} className="text-purple-400" />
-              <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-300">Listening Stats</h3>
-            </div>
-
-            <div className="grid grid-cols-1 gap-4">
-              <div className="flex items-center gap-3 bg-white/[0.01] border border-white/5 p-4 rounded-2xl">
-                <Flame className="text-orange-400 w-6 h-6 shrink-0" />
-                <div>
-                  <span className="text-[10px] text-zinc-500 uppercase tracking-wider block">Tracks Streamed</span>
-                  <span className="text-xl font-bold text-white">{totalListened}</span>
+                <div className="shrink-0 flex items-center justify-center">
+                  {editMode ? (
+                    <button
+                      onClick={saveProfile}
+                      className="px-5 py-2.5 rounded-full bg-white hover:bg-zinc-150 text-black font-black text-xs flex items-center gap-1.5 transition active:scale-95 shadow-sm"
+                    >
+                      <Check size={13} /> Save Profile
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => setEditMode(true)}
+                      className="px-5 py-2.5 rounded-full bg-white/[0.03] hover:bg-white/[0.07] border border-white/[0.06] text-zinc-350 hover:text-white font-bold text-xs flex items-center gap-1.5 transition active:scale-95"
+                    >
+                      <Edit2 size={11} /> Edit Profile
+                    </button>
+                  )}
                 </div>
               </div>
 
-              <div className="flex items-center gap-3 bg-white/[0.01] border border-white/5 p-4 rounded-2xl">
-                <Disc className="text-purple-400 w-6 h-6 shrink-0" />
-                <div>
-                  <span className="text-[10px] text-zinc-500 uppercase tracking-wider block">Active Artists</span>
-                  <span className="text-xl font-bold text-white">{topArtists.length}</span>
+            </div>
+          </motion.div>
+        </section>
+
+        {/* 2. Stats Dashboard & Info Grid */}
+        <section className="px-6 md:px-10">
+          <div className="grid grid-cols-1 lg:grid-cols-[1.2fr_1.8fr] gap-8">
+            
+            {/* Left Column: Stats & Settings */}
+            <div className="space-y-6">
+              <div>
+                <p className="text-[9px] font-black uppercase tracking-[0.18em] text-zinc-600 mb-1.5">Overview</p>
+                <h2 className="font-display text-[18px] font-black text-white tracking-tight leading-none">Listening Metrics</h2>
+              </div>
+
+              {/* Metrics cards */}
+              <div className="grid grid-cols-2 gap-3.5">
+                <div className="p-4 rounded-2xl bg-white/[0.015] border border-white/[0.04] flex flex-col justify-between h-20">
+                  <span className="text-[10px] text-zinc-550 font-bold uppercase tracking-wider flex items-center gap-1.5">
+                    <Music size={11} className="text-purple-400" /> Tracks Played
+                  </span>
+                  <span className="text-xl font-black text-white font-mono">{totalListened}</span>
+                </div>
+                <div className="p-4 rounded-2xl bg-white/[0.015] border border-white/[0.04] flex flex-col justify-between h-20">
+                  <span className="text-[10px] text-zinc-555 font-bold uppercase tracking-wider flex items-center gap-1.5">
+                    <Clock size={11} className="text-indigo-400" /> Listening Time
+                  </span>
+                  <span className="text-xl font-black text-white font-mono">{listeningHours} hrs</span>
+                </div>
+                <div className="p-4 rounded-2xl bg-white/[0.015] border border-white/[0.04] flex flex-col justify-between h-20">
+                  <span className="text-[10px] text-zinc-555 font-bold uppercase tracking-wider flex items-center gap-1.5">
+                    <Disc size={11} className="text-teal-400" /> Top Genre
+                  </span>
+                  <span className="text-xs font-black text-zinc-200 truncate">Lofi Bollywood</span>
+                </div>
+                <div className="p-4 rounded-2xl bg-white/[0.015] border border-white/[0.04] flex flex-col justify-between h-20">
+                  <span className="text-[10px] text-zinc-555 font-bold uppercase tracking-wider flex items-center gap-1.5">
+                    <Star size={11} className="text-pink-400" /> Top Artist
+                  </span>
+                  <span className="text-xs font-black text-zinc-200 truncate">{topArtists[0]?.name || "None"}</span>
                 </div>
               </div>
-            </div>
-          </div>
 
-          {/* Top Artists & Top Songs lists */}
-          <div className="md:col-span-2 glass p-6 rounded-3xl border border-white/5 bg-zinc-950/40 space-y-6">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-              {/* Top Artists list */}
-              <div className="space-y-4">
-                <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-400">Top Artists</h4>
-                {topArtists.length > 0 ? (
-                  <div className="space-y-2.5">
-                    {topArtists.map((artist, i) => (
-                      <div key={artist.name} className="flex items-center justify-between text-xs bg-white/[0.02] p-2.5 rounded-xl border border-white/5">
-                        <span className="font-semibold text-zinc-200 truncate pr-2">
-                          {i + 1}. {artist.name}
-                        </span>
-                        <span className="text-zinc-500 font-bold shrink-0">{artist.count} plays</span>
-                      </div>
-                    ))}
+              {/* Theme Settings Selector */}
+              <div className="p-5 rounded-2xl bg-white/[0.015] border border-white/[0.04] space-y-4">
+                <div className="flex items-center gap-3.5">
+                  <Settings size={14} className="text-zinc-650" />
+                  <div>
+                    <span className="text-[11px] font-bold text-zinc-300">Theme Workspace Skin</span>
+                    <p className="text-[9px] text-zinc-500 font-medium">Customize your styling preference</p>
                   </div>
-                ) : (
-                  <p className="text-[10px] text-zinc-600">No listener statistics generated yet.</p>
-                )}
-              </div>
-
-              {/* Top Tracks list */}
-              <div className="space-y-4">
-                <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-400">Top Tracks</h4>
-                {topTracks.length > 0 ? (
-                  <div className="space-y-2.5">
-                    {topTracks.map((item, i) => (
-                      <div key={item.song.videoId} className="flex items-center justify-between text-xs bg-white/[0.02] p-2.5 rounded-xl border border-white/5">
-                        <span className="font-semibold text-zinc-200 truncate pr-2">
-                          {i + 1}. {item.song.title}
-                        </span>
-                        <span className="text-zinc-500 font-bold shrink-0">{item.count} plays</span>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-[10px] text-zinc-600">No listener statistics generated yet.</p>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Complete Listening History List */}
-        <section className="glass p-6 rounded-3xl border border-white/5 bg-zinc-950/40 space-y-4">
-          <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-300">Listening History</h3>
-          {recentSongs.length > 0 ? (
-            <div className="space-y-2.5 max-h-[300px] overflow-y-auto pr-1">
-              {recentSongs.map((song: Track, i: number) => (
-                <div
-                  key={`${song.videoId}-${i}`}
-                  className="flex items-center justify-between p-3 rounded-xl bg-white/[0.01] hover:bg-white/[0.03] border border-white/5 transition"
+                </div>
+                <select
+                  value={themePref}
+                  onChange={(e) => {
+                    setThemePref(e.target.value);
+                    if (user?.uid) localStorage.setItem(`profile-theme-${user.uid}`, e.target.value);
+                  }}
+                  className="w-full bg-[#0c0c0e]/95 border border-white/[0.08] rounded-xl px-3 py-2 text-xs text-white outline-none cursor-pointer focus:border-purple-550"
                 >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <img src={song.thumbnail} alt="" className="w-10 h-10 rounded-lg object-cover" />
-                    <div className="min-w-0">
-                      <h4 className="text-xs font-bold text-zinc-200 truncate">{song.title}</h4>
-                      <p className="text-[10px] text-zinc-500 truncate">{song.artist}</p>
+                  <option value="glass">Premium Glass</option>
+                  <option value="dark">Vibrant Dark</option>
+                  <option value="amoled">Amoled Black</option>
+                </select>
+              </div>
+
+            </div>
+
+            {/* Right Column: Achievements & Activity */}
+            <div className="space-y-6">
+              
+              {/* Achievements */}
+              <div>
+                <p className="text-[9px] font-black uppercase tracking-[0.18em] text-zinc-600 mb-1.5">Progression</p>
+                <h2 className="font-display text-[18px] font-black text-white tracking-tight leading-none">Achievements</h2>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                {ACHIEVEMENTS.map((ach) => (
+                  <div
+                    key={ach.name}
+                    className="p-4 rounded-2xl bg-white/[0.015] border border-white/[0.04] flex items-center gap-3.5"
+                  >
+                    <div className={`w-9 h-9 rounded-xl bg-gradient-to-br ${ach.color} flex items-center justify-center text-black shadow-md shrink-0`}>
+                      <ach.icon size={16} />
+                    </div>
+                    <div className="text-left min-w-0">
+                      <span className="text-xs font-bold text-zinc-200 block truncate">{ach.name}</span>
+                      <span className="text-[9px] text-zinc-555 block font-medium truncate mt-0.5">{ach.desc}</span>
                     </div>
                   </div>
-                  <button
-                    onClick={() => {
-                      usePlayerStore.getState().setTrack(song.videoId, song.title, song.artist, song.thumbnail, i);
-                    }}
-                    className="px-2.5 py-1 bg-purple-600 hover:bg-purple-500 rounded-lg text-[10px] font-bold text-white transition"
-                  >
-                    Play
-                  </button>
+                ))}
+              </div>
+
+            </div>
+
+          </div>
+        </section>
+
+        {/* 3. Top Tracks & Top Artists */}
+        <section className="px-6 md:px-10">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            
+            {/* Column: Top Artists */}
+            <div className="space-y-4">
+              <div>
+                <p className="text-[9px] font-black uppercase tracking-[0.18em] text-zinc-600 mb-1.5">Metrics</p>
+                <h2 className="font-display text-[18px] font-black text-white tracking-tight leading-none">Top Artists</h2>
+              </div>
+              {topArtists.length > 0 ? (
+                <div className="space-y-2">
+                  {topArtists.map((artist, idx) => (
+                    <div
+                      key={artist.name}
+                      className="flex items-center justify-between p-3.5 rounded-2xl bg-white/[0.015] border border-white/[0.04] hover:bg-white/[0.035] hover:border-purple-500/20 transition-all duration-300 group cursor-pointer"
+                    >
+                      <div className="flex items-center gap-3.5">
+                        <span className="text-[12px] font-mono text-zinc-650 w-4 text-center">{idx + 1}</span>
+                        <span className="text-xs font-bold text-zinc-250 group-hover:text-white transition-colors">{artist.name}</span>
+                      </div>
+                      <span className="text-[10px] font-mono text-zinc-600 font-bold uppercase tracking-wider">{artist.count} plays</span>
+                    </div>
+                  ))}
                 </div>
+              ) : (
+                <div className="text-center py-10 bg-white/[0.01] border border-white/[0.04] rounded-2xl text-zinc-600 text-xs">
+                  Listening history is empty.
+                </div>
+              )}
+            </div>
+
+            {/* Column: Top Tracks */}
+            <div className="space-y-4">
+              <div>
+                <p className="text-[9px] font-black uppercase tracking-[0.18em] text-zinc-600 mb-1.5">Metrics</p>
+                <h2 className="font-display text-[18px] font-black text-white tracking-tight leading-none">Top Tracks</h2>
+              </div>
+              {topTracks.length > 0 ? (
+                <div className="space-y-2">
+                  {topTracks.map((item, idx) => (
+                    <div
+                      key={`top-track-${item.song.videoId}-${idx}`}
+                      onClick={() => handlePlaySong(item.song, idx)}
+                      className="flex items-center justify-between p-2.5 rounded-2xl bg-white/[0.015] border border-white/[0.04] hover:bg-white/[0.035] hover:border-purple-500/20 transition-all duration-300 group cursor-pointer"
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <span className="text-[12px] font-mono text-zinc-650 w-4 text-center shrink-0">{idx + 1}</span>
+                        <div className="w-10 h-10 rounded-lg overflow-hidden shrink-0 border border-white/5 bg-zinc-950">
+                          <img src={item.song.thumbnail} alt="" className="w-full h-full object-cover" />
+                        </div>
+                        <div className="min-w-0 text-left">
+                          <p className="text-xs font-bold text-zinc-250 group-hover:text-purple-300 truncate leading-snug">{item.song.title}</p>
+                          <p className="text-[9px] text-zinc-555 truncate mt-0.5">{item.song.artist}</p>
+                        </div>
+                      </div>
+                      <span className="text-[10px] font-mono text-zinc-600 font-bold uppercase tracking-wider shrink-0 pr-2">{item.count} plays</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-10 bg-white/[0.01] border border-white/[0.04] rounded-2xl text-zinc-600 text-xs">
+                  Listening history is empty.
+                </div>
+              )}
+            </div>
+
+          </div>
+        </section>
+
+        {/* 4. Activity Timeline */}
+        <section className="px-6 md:px-10 space-y-6">
+          <div>
+            <p className="text-[9px] font-black uppercase tracking-[0.18em] text-zinc-600 mb-1.5">Logs</p>
+            <h2 className="font-display text-[22px] font-black text-white tracking-tight leading-none">Activity Timeline</h2>
+          </div>
+          
+          <div className="p-5 rounded-[24px] bg-white/[0.015] border border-white/[0.04] relative space-y-6 pl-10 border-l border-white/[0.04] ml-3">
+            
+            <div className="relative text-left">
+              <div className="absolute left-[-47px] top-1 w-5 h-5 rounded-full bg-purple-900 border border-purple-550 flex items-center justify-center">
+                <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+              </div>
+              <span className="text-[9px] font-bold text-zinc-600 tracking-widest uppercase">Today</span>
+              <p className="text-xs font-semibold text-zinc-250 mt-1">Logged into platform workspace, synchronized listening cloud sessions</p>
+            </div>
+
+            <div className="relative text-left">
+              <div className="absolute left-[-47px] top-1 w-5 h-5 rounded-full bg-zinc-950 border border-white/10 flex items-center justify-center">
+                <span className="w-1.5 h-1.5 rounded-full bg-zinc-650" />
+              </div>
+              <span className="text-[9px] font-bold text-zinc-650 tracking-widest uppercase">Yesterday</span>
+              <p className="text-xs font-semibold text-zinc-350 mt-1">Streamed {recentSongs.slice(0, 3).length} new tracks from explore dashboard suggestions</p>
+            </div>
+
+            <div className="relative text-left">
+              <div className="absolute left-[-47px] top-1 w-5 h-5 rounded-full bg-zinc-950 border border-white/10 flex items-center justify-center">
+                <span className="w-1.5 h-1.5 rounded-full bg-zinc-650" />
+              </div>
+              <span className="text-[9px] font-bold text-zinc-650 tracking-widest uppercase">3 Days Ago</span>
+              <p className="text-xs font-semibold text-zinc-350 mt-1">Constructed a new public sound collection playlist with custom metadata details</p>
+            </div>
+
+          </div>
+        </section>
+
+        {/* 5. Recent Playlists (Carousel) */}
+        {playlists.length > 0 && (
+          <section className="px-6 md:px-10 space-y-6">
+            <div>
+              <p className="text-[9px] font-black uppercase tracking-[0.18em] text-zinc-600 mb-1.5">Collections</p>
+              <h2 className="font-display text-[22px] font-black text-white tracking-tight leading-none">Recent Playlists</h2>
+            </div>
+            <div className="flex gap-5 overflow-x-auto scrollbar-none pb-4 -mx-6 md:-mx-10 px-6 md:px-10">
+              {playlists.slice(0, 6).map((playlist) => (
+                <motion.div
+                  key={`profile-playlist-${playlist.id}`}
+                  whileHover={{ y: -6 }}
+                  className="group shrink-0 w-[140px] md:w-[155px] p-3 rounded-[20px] bg-white/[0.015] border border-white/[0.04] hover:bg-white/[0.03] hover:border-purple-500/25 transition-all duration-300 cursor-pointer text-left"
+                >
+                  <div className="relative aspect-square rounded-[14px] overflow-hidden bg-zinc-950 border border-white/5 shadow-sm mb-3">
+                    {playlist.songs[0] ? (
+                      <img src={playlist.songs[0].thumbnail} alt={playlist.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center bg-zinc-950">
+                        <Music size={28} className="text-zinc-800" />
+                      </div>
+                    )}
+                  </div>
+                  <p className="text-[11px] font-bold text-zinc-300 truncate leading-tight group-hover:text-white transition-colors">{playlist.name}</p>
+                  <p className="text-[9px] text-zinc-555 truncate mt-0.5">{playlist.songs.length} Tracks</p>
+                </motion.div>
               ))}
             </div>
-          ) : (
-            <p className="text-xs text-zinc-500">History is empty.</p>
-          )}
-        </section>
+          </section>
+        )}
+
       </main>
     </ProtectedRoute>
   );

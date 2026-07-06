@@ -2,8 +2,7 @@
 
 import { usePlayerStore } from "@/store/player-store";
 import { useShallow } from "zustand/react/shallow";
-import { useState, useEffect, useRef } from "react";
-import Image from "next/image";
+import { useState, useEffect, useRef, memo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Play,
@@ -16,10 +15,12 @@ import {
   Repeat,
   Shuffle,
   List,
-  Mic2,
-  Maximize2,
   Gauge,
-  Timer
+  Timer,
+  ChevronDown,
+  Mic,
+  Laptop,
+  Music2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import QueueDrawer from "./QueueDrawer";
@@ -28,6 +29,68 @@ function formatTime(secs: number) {
   const m = Math.floor(secs / 60);
   const s = Math.floor(secs % 60);
   return `${m}:${s.toString().padStart(2, "0")}`;
+}
+
+const SafeImage = memo(function SafeImage({
+  src,
+  alt,
+  className,
+}: {
+  src: string;
+  alt: string;
+  className?: string;
+}) {
+  const [currentSrc, setCurrentSrc] = useState(src);
+  const [prevSrc, setPrevSrc] = useState(src);
+
+  if (src !== prevSrc) {
+    setCurrentSrc(src);
+    setPrevSrc(src);
+  }
+
+  return (
+    <img
+      src={currentSrc || "https://placehold.co/100x100/111/fff?text=♪"}
+      alt={alt}
+      loading="lazy"
+      onError={() => setCurrentSrc("https://placehold.co/100x100/111/fff?text=♪")}
+      className={className}
+    />
+  );
+});
+SafeImage.displayName = "SafeImage";
+
+// Icon button helper
+function IconBtn({
+  onClick,
+  active,
+  activeColor = "text-white",
+  label,
+  children,
+  className = "",
+}: {
+  onClick: () => void;
+  active?: boolean;
+  activeColor?: string;
+  label: string;
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      aria-label={label}
+      className={cn(
+        "relative p-2 rounded-xl transition-all duration-200 active:scale-90 flex items-center justify-center",
+        active
+          ? `${activeColor} bg-white/[0.06] border border-white/[0.08]`
+          : "text-zinc-500 hover:text-zinc-200 hover:bg-white/[0.03] border border-transparent",
+        className
+      )}
+    >
+      {children}
+    </button>
+  );
 }
 
 export default function BottomPlayer() {
@@ -95,11 +158,50 @@ export default function BottomPlayer() {
   const [volume, setVolumeState] = useState(80);
   const [showSpeedMenu, setShowSpeedMenu] = useState(false);
   const [showTimerMenu, setShowTimerMenu] = useState(false);
+  const [isLyricsOpen, setIsLyricsOpen] = useState(false);
+  const [showDeviceMenu, setShowDeviceMenu] = useState(false);
 
   const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
   const progressRef = useRef<HTMLInputElement>(null);
 
-  // Sleep Timer Countdown Logic
+  // Controls
+  const togglePlay = () => {
+    if (!player) return;
+    if (isPlaying) {
+      player.pauseVideo();
+      setIsPlaying(false);
+    } else {
+      player.playVideo();
+      setIsPlaying(true);
+    }
+  };
+
+  const seekDelta = (delta: number) => {
+    if (!player) return;
+    player.seekTo(Math.min(Math.max(player.getCurrentTime() + delta, 0), duration), true);
+  };
+
+  const adjustVolume = (delta: number) => {
+    setVolume(Math.min(Math.max(volume + delta, 0), 100));
+  };
+
+  const toggleMute = () => {
+    if (!player) return;
+    if (isMuted) {
+      player.unMute();
+      setIsMuted(false);
+    } else {
+      player.mute();
+      setIsMuted(true);
+    }
+  };
+
+  const setVolume = (value: number) => {
+    setVolumeState(value);
+    if (player) player.setVolume(value);
+  };
+
+  // Sleep Timer
   useEffect(() => {
     if (sleepTimer === null) return;
     if (sleepTimer <= 0) {
@@ -108,18 +210,15 @@ export default function BottomPlayer() {
         setIsPlaying(false);
       }
       setSleepTimer(null);
-      alert("Sleep timer finished. Playback stopped.");
       return;
     }
-
     const timer = setTimeout(() => {
       setSleepTimer(sleepTimer - 1);
     }, 60000);
-
     return () => clearTimeout(timer);
   }, [sleepTimer, player, isPlaying, setSleepTimer, setIsPlaying]);
 
-  // Player Polling Logic
+  // Polling for current track progress
   useEffect(() => {
     const interval = setInterval(() => {
       if (player && typeof player.getCurrentTime === "function") {
@@ -127,21 +226,17 @@ export default function BottomPlayer() {
         setDuration(player.getDuration());
       }
     }, 1000);
-
     return () => clearInterval(interval);
   }, [player, setCurrentTime, setDuration]);
 
-  // Keyboard Shortcuts Handler
+  // Keyboard Shortcuts
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
-      // Ignore if user is typing in input or textarea
       if (
         document.activeElement?.tagName === "INPUT" ||
         document.activeElement?.tagName === "TEXTAREA"
-      ) {
+      )
         return;
-      }
-
       switch (e.code) {
         case "Space":
           e.preventDefault();
@@ -175,140 +270,129 @@ export default function BottomPlayer() {
           e.preventDefault();
           prevTrack();
           break;
-        default:
-          break;
       }
     }
-
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [videoId, player, isPlaying, volume, isMuted, likedSongs]);
 
-  const togglePlay = () => {
-    if (!player) return;
-    if (isPlaying) {
-      player.pauseVideo();
-      setIsPlaying(false);
-    } else {
-      player.playVideo();
-      setIsPlaying(true);
-    }
-  };
-
-  const seekDelta = (delta: number) => {
-    if (!player) return;
-    const current = player.getCurrentTime();
-    const dest = Math.min(Math.max(current + delta, 0), duration);
-    player.seekTo(dest, true);
-  };
-
-  const adjustVolume = (delta: number) => {
-    const nextVolume = Math.min(Math.max(volume + delta, 0), 100);
-    setVolume(nextVolume);
-  };
-
-  const toggleMute = () => {
-    if (!player) return;
-    if (isMuted) {
-      player.unMute();
-      setIsMuted(false);
-    } else {
-      player.mute();
-      setIsMuted(true);
-    }
-  };
-
-  const setVolume = (value: number) => {
-    setVolumeState(value);
-    if (player) {
-      player.setVolume(value);
-    }
-  };
-
   const speedOptions = [0.5, 1.0, 1.25, 1.5, 2.0];
   const timerOptions = [
     { label: "Off", value: null },
-    { label: "5 Min", value: 5 },
-    { label: "15 Min", value: 15 },
-    { label: "30 Min", value: 30 },
-    { label: "60 Min", value: 60 },
+    { label: "5 min", value: 5 },
+    { label: "15 min", value: 15 },
+    { label: "30 min", value: 30 },
+    { label: "60 min", value: 60 },
   ];
-
-  const progressStyle = `linear-gradient(to right, #9333ea ${progress}%, rgba(255,255,255,0.06) ${progress}%)`;
-  const volumeStyle = `linear-gradient(to right, #ffffff ${isMuted ? 0 : volume}%, rgba(255,255,255,0.06) ${isMuted ? 0 : volume}%)`;
 
   if (!title) return null;
 
+  const art = thumbnail || "https://placehold.co/100x100/111/fff?text=♪";
+  const progressStyle = `linear-gradient(to right, #8B5CF6 ${progress}%, rgba(255,255,255,0.06) ${progress}%)`;
+  const volumeStyle = `linear-gradient(to right, rgba(255,255,255,0.7) ${isMuted ? 0 : volume}%, rgba(255,255,255,0.06) ${isMuted ? 0 : volume}%)`;
+
+  const dropdownStyle: React.CSSProperties = {
+    background: "rgba(10, 10, 14, 0.95)",
+    backdropFilter: "blur(40px)",
+    WebkitBackdropFilter: "blur(40px)",
+    border: "1px solid rgba(255,255,255,0.08)",
+    boxShadow: "0 24px 60px rgba(0,0,0,0.85)",
+  };
+
   return (
     <>
-      {/* ---- Desktop/Tablet Player ---- */}
-      <div className="hidden md:grid fixed left-4 right-4 bottom-4 h-24 grid-cols-3 items-center px-6 rounded-3xl bg-zinc-950/90 backdrop-blur-2xl border border-white/5 shadow-2xl z-50 select-none">
-
+      {/* ── DESKTOP/TABLET PLAYER: Floating Glass Capsule Dock ── */}
+      <motion.div
+        initial={{ y: 32, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        transition={{ type: "spring", stiffness: 260, damping: 28, delay: 0.15 }}
+        className="hidden md:grid fixed left-1/2 bottom-8 -translate-x-1/2 w-[calc(100%-4rem)] max-w-5xl h-20 grid-cols-[1.2fr_1.6fr_1.2fr] items-center px-6 rounded-[28px] select-none z-50 bg-zinc-950/80 backdrop-blur-3xl border border-white/[0.06] shadow-[0_32px_60px_-15px_rgba(0,0,0,0.9)]"
+      >
         {/* Left Side: Track Info */}
-        <div className="flex items-center gap-4 min-w-0">
-          <div className="relative w-14 h-14 rounded-xl overflow-hidden shadow-md border border-white/5 shrink-0">
-            <img
-              src={thumbnail || "https://placehold.co/100x100/png"}
-              alt={title}
-              className="w-full h-full object-cover"
-            />
+        <div className="flex items-center gap-3.5 min-w-0">
+          <motion.div
+            animate={isPlaying ? { y: [0, -2, 0] } : { y: 0 }}
+            transition={
+              isPlaying
+                ? { duration: 5, repeat: Infinity, ease: "easeInOut" }
+                : { duration: 0.3 }
+            }
+            className="relative shrink-0"
+          >
+            <div
+              className="w-13 h-13 rounded-2xl overflow-hidden bg-zinc-900 shadow-lg"
+              style={{
+                border: "1px solid rgba(255,255,255,0.08)",
+                boxShadow: isPlaying ? "0 8px 24px rgba(139,92,246,0.15)" : undefined,
+              }}
+            >
+              <SafeImage src={art} alt={title} className="w-full h-full object-cover" />
+            </div>
+          </motion.div>
+          <div className="min-w-0 flex-1">
+            <h3 className="text-xs font-bold text-zinc-100 truncate tracking-tight">{title}</h3>
+            <p className="text-[10px] text-zinc-500 truncate mt-0.5 font-medium">{artist}</p>
           </div>
-          <div className="min-w-0">
-            <h3 className="text-sm font-semibold text-zinc-100 truncate">{title}</h3>
-            <p className="text-xs text-zinc-400 truncate mt-0.5">{artist}</p>
-          </div>
-          <button
+          <motion.button
+            whileTap={{ scale: 0.8 }}
             onClick={() => toggleLike(currentTrack)}
-            className="text-zinc-400 hover:text-pink-500 transition shrink-0 p-1.5"
+            className="text-zinc-500 hover:text-pink-400 p-2 rounded-xl transition duration-150 active:scale-90"
             aria-label={isLiked ? "Unlike song" : "Like song"}
           >
-            <Heart size={16} fill={isLiked ? "#ec4899" : "none"} className={isLiked ? "text-pink-500" : ""} />
-          </button>
+            <Heart
+              size={15}
+              fill={isLiked ? "#ec4899" : "none"}
+              className={isLiked ? "text-pink-400 drop-shadow-[0_0_8px_rgba(236,72,153,0.3)]" : ""}
+            />
+          </motion.button>
         </div>
 
-        {/* Center Side: Media Controls */}
+        {/* Center Side: Media Controls & Timeline */}
         <div className="flex flex-col items-center gap-2">
-          <div className="flex items-center gap-4">
-            <button
-              onClick={toggleShuffle}
-              className={cn("p-1.5 rounded transition text-zinc-400 hover:text-white", isShuffle && "text-green-400 hover:text-green-300")}
-              aria-label="Shuffle"
-            >
-              <Shuffle size={15} />
-            </button>
+          <div className="flex items-center gap-3">
+            <IconBtn onClick={toggleShuffle} active={isShuffle} label="Shuffle">
+              <Shuffle size={13} />
+            </IconBtn>
+
             <button
               onClick={prevTrack}
-              className="p-1.5 text-zinc-400 hover:text-white transition"
+              className="p-2 text-zinc-400 hover:text-white rounded-xl active:scale-90 transition duration-150"
               aria-label="Previous"
             >
-              <SkipBack size={18} fill="currentColor" />
+              <SkipBack size={15} fill="currentColor" />
             </button>
-            <button
+
+            {/* Play Button */}
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.93 }}
               onClick={togglePlay}
-              className="w-10 h-10 rounded-full bg-white hover:scale-105 text-black flex items-center justify-center transition active:scale-95 shadow-md"
+              className="w-10 h-10 rounded-full bg-white flex items-center justify-center text-black shadow-md hover:shadow-lg transition-all"
               aria-label={isPlaying ? "Pause" : "Play"}
             >
-              {isPlaying ? <Pause size={16} fill="currentColor" /> : <Play size={16} fill="currentColor" className="ml-0.5" />}
-            </button>
+              {isPlaying ? (
+                <Pause size={15} fill="currentColor" />
+              ) : (
+                <Play size={15} fill="currentColor" className="ml-0.5" />
+              )}
+            </motion.button>
+
             <button
               onClick={nextTrack}
-              className="p-1.5 text-zinc-400 hover:text-white transition"
+              className="p-2 text-zinc-400 hover:text-white rounded-xl active:scale-90 transition duration-150"
               aria-label="Next"
             >
-              <SkipForward size={18} fill="currentColor" />
+              <SkipForward size={15} fill="currentColor" />
             </button>
-            <button
-              onClick={toggleRepeat}
-              className={cn("p-1.5 rounded transition text-zinc-400 hover:text-white", isRepeat && "text-green-400 hover:text-green-300")}
-              aria-label="Repeat"
-            >
-              <Repeat size={15} />
-            </button>
+
+            <IconBtn onClick={toggleRepeat} active={isRepeat} label="Repeat">
+              <Repeat size={13} />
+            </IconBtn>
           </div>
 
-          {/* Progress Timeline Slider */}
-          <div className="flex items-center gap-3 w-full max-w-xl text-[10px] text-zinc-500 font-bold">
-            <span className="w-8 text-right font-mono">{formatTime(currentTime)}</span>
+          {/* Timeline slider */}
+          <div className="flex items-center gap-3 w-full max-w-[420px] text-[10px] text-zinc-500 font-bold">
+            <span className="w-8 text-right font-mono tabular-nums">{formatTime(currentTime)}</span>
             <input
               ref={progressRef}
               type="range"
@@ -317,94 +401,183 @@ export default function BottomPlayer() {
               value={progress}
               onChange={(e) => {
                 if (!player) return;
-                const pct = Number(e.target.value);
-                player.seekTo((pct / 100) * duration, true);
+                player.seekTo((Number(e.target.value) / 100) * duration, true);
               }}
-              className="flex-1 h-1.5 rounded-full appearance-none bg-zinc-800 outline-none cursor-pointer"
-              style={{ background: progressStyle }}
+              className="flex-1 h-1 rounded-full cursor-pointer outline-none transition-all"
+              style={{ background: progressStyle, appearance: "none" }}
+              aria-label="Seek"
             />
-            <span className="w-8 font-mono">{formatTime(duration)}</span>
+            {isPlaying ? (
+              <div className="flex items-end gap-[1.5px] h-3 px-1 text-purple-400 select-none shrink-0">
+                <span className="w-[1.5px] h-[35%] bg-purple-500 rounded-full animate-[pulse_0.8s_infinite]" />
+                <span className="w-[1.5px] h-[80%] bg-purple-400 rounded-full animate-[pulse_1s_infinite_0.2s]" />
+                <span className="w-[1.5px] h-[50%] bg-purple-500 rounded-full animate-[pulse_0.9s_infinite_0.1s]" />
+              </div>
+            ) : (
+              <span className="w-8 font-mono tabular-nums">{formatTime(duration)}</span>
+            )}
           </div>
         </div>
 
-        {/* Right Side: Extras Controls */}
-        <div className="flex items-center justify-end gap-3.5">
-          {/* Playback speed trigger */}
+        {/* Right Side: Extra Controls */}
+        <div className="flex items-center justify-end gap-1">
+          {/* Lyrics Toggle */}
+          <IconBtn onClick={() => setIsLyricsOpen(!isLyricsOpen)} active={isLyricsOpen} label="Lyrics">
+            <Mic size={13} />
+          </IconBtn>
+
+          {/* Playback speed selector */}
           <div className="relative">
             <button
               onClick={() => {
                 setShowSpeedMenu(!showSpeedMenu);
                 setShowTimerMenu(false);
+                setShowDeviceMenu(false);
               }}
-              className={cn("p-1.5 text-zinc-400 hover:text-white transition rounded-lg hover:bg-white/5", showSpeedMenu && "text-purple-400 bg-white/5")}
-              aria-label="Playback speed"
+              className={cn(
+                "px-2.5 py-1.5 rounded-xl text-[9px] font-bold transition duration-150 border active:scale-95",
+                showSpeedMenu
+                  ? "text-white bg-white/[0.08] border-white/[0.08]"
+                  : "text-zinc-500 hover:text-zinc-200 border-transparent hover:bg-white/[0.03]"
+              )}
             >
-              <Gauge size={16} />
+              {playbackSpeed}×
             </button>
-            {showSpeedMenu && (
-              <div className="absolute bottom-10 right-0 bg-zinc-950 border border-white/10 rounded-xl overflow-hidden shadow-2xl p-1 w-24">
-                {speedOptions.map((opt) => (
-                  <button
-                    key={opt}
-                    onClick={() => {
-                      setPlaybackSpeed(opt);
-                      setShowSpeedMenu(false);
-                    }}
-                    className={cn("w-full text-center py-1.5 text-[10px] rounded-lg text-zinc-400 hover:text-white hover:bg-white/5 transition font-semibold", playbackSpeed === opt && "text-purple-400 bg-purple-500/10")}
-                  >
-                    {opt}x
-                  </button>
-                ))}
-              </div>
-            )}
+            <AnimatePresence>
+              {showSpeedMenu && (
+                <motion.div
+                  initial={{ opacity: 0, y: 8, scale: 0.95 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 8, scale: 0.95 }}
+                  transition={{ duration: 0.12 }}
+                  className="absolute bottom-full mb-3 right-0 rounded-2xl p-1.5 w-24 space-y-0.5"
+                  style={dropdownStyle}
+                >
+                  {speedOptions.map((opt) => (
+                    <button
+                      key={opt}
+                      onClick={() => {
+                        setPlaybackSpeed(opt);
+                        if (player) player.setPlaybackRate(opt);
+                        setShowSpeedMenu(false);
+                      }}
+                      className={cn(
+                        "w-full text-center py-1.5 text-[11px] rounded-[10px] transition font-semibold",
+                        playbackSpeed === opt
+                          ? "text-white bg-white/[0.08]"
+                          : "text-zinc-500 hover:text-white hover:bg-white/[0.04]"
+                      )}
+                    >
+                      {opt}×
+                    </button>
+                  ))}
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
 
-          {/* Sleep Timer Trigger */}
+          {/* Sleep Timer */}
           <div className="relative">
             <button
               onClick={() => {
                 setShowTimerMenu(!showTimerMenu);
                 setShowSpeedMenu(false);
+                setShowDeviceMenu(false);
               }}
-              className={cn("p-1.5 text-zinc-400 hover:text-white transition rounded-lg hover:bg-white/5 flex items-center gap-1", sleepTimer !== null && "text-purple-400 bg-white/5")}
-              aria-label="Sleep timer"
+              className={cn(
+                "p-2 rounded-xl transition duration-150 flex items-center gap-1 active:scale-95 border border-transparent",
+                sleepTimer !== null
+                  ? "text-white bg-white/[0.08] border-white/[0.08]"
+                  : "text-zinc-500 hover:text-zinc-200 hover:bg-white/[0.03]"
+              )}
             >
-              <Timer size={16} />
-              {sleepTimer !== null && <span className="text-[9px] font-bold">{sleepTimer}m</span>}
+              <Timer size={13} />
+              {sleepTimer !== null && (
+                <span className="text-[9px] font-black">{sleepTimer}m</span>
+              )}
             </button>
-            {showTimerMenu && (
-              <div className="absolute bottom-10 right-0 bg-zinc-950 border border-white/10 rounded-xl overflow-hidden shadow-2xl p-1 w-24">
-                {timerOptions.map((opt) => (
-                  <button
-                    key={opt.label}
-                    onClick={() => {
-                      setSleepTimer(opt.value);
-                      setShowTimerMenu(false);
-                    }}
-                    className={cn("w-full text-center py-1.5 text-[10px] rounded-lg text-zinc-400 hover:text-white hover:bg-white/5 transition font-semibold", sleepTimer === opt.value && "text-purple-400 bg-purple-500/10")}
-                  >
-                    {opt.label}
-                  </button>
-                ))}
-              </div>
-            )}
+            <AnimatePresence>
+              {showTimerMenu && (
+                <motion.div
+                  initial={{ opacity: 0, y: 8, scale: 0.95 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 8, scale: 0.95 }}
+                  transition={{ duration: 0.12 }}
+                  className="absolute bottom-full mb-3 right-0 rounded-2xl p-1.5 w-24 space-y-0.5"
+                  style={dropdownStyle}
+                >
+                  {timerOptions.map((opt) => (
+                    <button
+                      key={opt.label}
+                      onClick={() => {
+                        setSleepTimer(opt.value);
+                        setShowTimerMenu(false);
+                      }}
+                      className={cn(
+                        "w-full text-center py-1.5 text-[11px] rounded-[10px] transition font-semibold",
+                        sleepTimer === opt.value
+                          ? "text-white bg-white/[0.08]"
+                          : "text-zinc-500 hover:text-white hover:bg-white/[0.04]"
+                      )}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
 
-          <button
-            onClick={toggleQueue}
-            className={cn("p-1.5 text-zinc-400 hover:text-white transition rounded-lg hover:bg-white/5", isQueueOpen && "text-purple-400 bg-white/5")}
-            aria-label="Open queue drawer"
-          >
-            <List size={16} />
-          </button>
+          {/* Connect Device */}
+          <div className="relative">
+            <IconBtn
+              onClick={() => {
+                setShowDeviceMenu(!showDeviceMenu);
+                setShowSpeedMenu(false);
+                setShowTimerMenu(false);
+              }}
+              active={showDeviceMenu}
+              label="Devices"
+            >
+              <Laptop size={13} />
+            </IconBtn>
+            <AnimatePresence>
+              {showDeviceMenu && (
+                <motion.div
+                  initial={{ opacity: 0, y: 8, scale: 0.95 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 8, scale: 0.95 }}
+                  transition={{ duration: 0.15 }}
+                  className="absolute bottom-full mb-3 right-0 rounded-2xl p-3 w-52 space-y-2"
+                  style={dropdownStyle}
+                >
+                  <p className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest">Connect Device</p>
+                  <div className="flex items-center gap-2 p-1.5 rounded-xl bg-white/[0.06] border border-white/[0.08] text-white">
+                    <Laptop size={13} />
+                    <span className="text-[11px] font-bold">This Device</span>
+                  </div>
+                  <div className="flex items-center gap-2 p-1.5 rounded-xl hover:bg-white/5 text-zinc-500 hover:text-zinc-200 cursor-pointer transition-all">
+                    <Music2 size={13} />
+                    <span className="text-[11px] font-semibold">Web Audio Engine</span>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
 
-          <div className="flex items-center gap-2">
+          {/* Queue Drawer Button */}
+          <IconBtn onClick={toggleQueue} active={isQueueOpen} label="Play Queue">
+            <List size={13} />
+          </IconBtn>
+
+          {/* Mute and Volume Bar */}
+          <div className="flex items-center gap-2 ml-1">
             <button
               onClick={toggleMute}
-              className="text-zinc-400 hover:text-white transition p-1.5"
+              className="text-zinc-500 hover:text-zinc-200 p-1.5 transition duration-150"
               aria-label={isMuted ? "Unmute" : "Mute"}
             >
-              {isMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
+              {isMuted ? <VolumeX size={13} /> : <Volume2 size={13} />}
             </button>
             <input
               type="range"
@@ -412,162 +585,261 @@ export default function BottomPlayer() {
               max={100}
               value={isMuted ? 0 : volume}
               onChange={(e) => setVolume(Number(e.target.value))}
-              className="w-20 h-1 rounded-full appearance-none bg-zinc-800 outline-none cursor-pointer"
-              style={{ background: volumeStyle }}
-              aria-label="Volume slider"
+              className="w-16 h-1 cursor-pointer outline-none rounded-full"
+              style={{ background: volumeStyle, appearance: "none" }}
+              aria-label="Volume"
             />
           </div>
         </div>
-      </div>
+      </motion.div>
 
-      {/* ---- Mobile Mini Player ---- */}
+      {/* ── MOBILE MINI PLAYER ── */}
       <div
-        className="md:hidden fixed bottom-16 left-2 right-2 h-16 rounded-2xl glass border border-white/5 p-2 flex items-center justify-between z-40 select-none shadow-xl cursor-pointer"
+        className="md:hidden fixed bottom-24 left-4 right-4 h-15 rounded-2xl bg-zinc-950/70 border border-white/[0.06] backdrop-blur-3xl flex items-center justify-between px-3 z-40 select-none cursor-pointer shadow-[0_16px_40px_rgba(0,0,0,0.8)]"
         onClick={() => setIsMobileExpanded(true)}
       >
-        <div className="flex items-center gap-2.5 min-w-0">
-          <img
-            src={thumbnail || "/logo.png"}
-            alt=""
-            className="w-10 h-10 rounded-xl object-cover"
-          />
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-10 h-10 rounded-xl overflow-hidden shrink-0">
+            <SafeImage src={art} alt="" className="w-full h-full object-cover" />
+          </div>
           <div className="min-w-0">
-            <h4 className="text-xs font-bold text-zinc-200 truncate">{title}</h4>
-            <p className="text-[10px] text-zinc-500 truncate">{artist}</p>
+            <h4 className="text-xs font-bold text-white truncate leading-tight tracking-tight">{title}</h4>
+            <p className="text-[10px] text-zinc-500 truncate mt-0.5 font-medium">{artist}</p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-          <button
+        <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+          <motion.button
+            whileTap={{ scale: 0.88 }}
             onClick={togglePlay}
-            className="p-2 text-zinc-200 hover:text-white"
+            className="w-8.5 h-8.5 rounded-full bg-white flex items-center justify-center text-black"
           >
-            {isPlaying ? <Pause size={18} fill="currentColor" /> : <Play size={18} fill="currentColor" />}
-          </button>
-          <button
-            onClick={nextTrack}
-            className="p-2 text-zinc-200 hover:text-white"
-          >
-            <SkipForward size={18} fill="currentColor" />
+            {isPlaying ? <Pause size={13} fill="currentColor" /> : <Play size={13} fill="currentColor" className="ml-0.5" />}
+          </motion.button>
+          <button onClick={nextTrack} className="p-2 text-zinc-400 hover:text-white">
+            <SkipForward size={14} fill="currentColor" />
           </button>
         </div>
 
-        {/* Underline progress bar indicator */}
-        <div className="absolute bottom-0 left-0 right-0 h-[2.5px] bg-white/5 overflow-hidden rounded-b-2xl">
-          <div className="h-full bg-purple-600 rounded-full" style={{ width: `${progress}%` }} />
+        {/* Progress Underline */}
+        <div className="absolute bottom-0 left-3 right-3 h-[2px] bg-white/[0.06] rounded-full overflow-hidden">
+          <div
+            className="h-full bg-purple-500 rounded-full transition-all duration-1000 ease-linear"
+            style={{ width: `${progress}%` }}
+          />
         </div>
       </div>
 
-      {/* ---- Mobile Full Screen Player View ---- */}
+      {/* ── MOBILE FULL-SCREEN PLAYER ── */}
       <AnimatePresence>
         {isMobileExpanded && (
           <motion.div
             initial={{ y: "100%" }}
             animate={{ y: 0 }}
             exit={{ y: "100%" }}
-            transition={{ type: "spring", damping: 25, stiffness: 220 }}
-            className="md:hidden fixed inset-0 bg-[#07070a] z-50 flex flex-col justify-between p-8 select-none"
+            transition={{ ease: [0.16, 1, 0.3, 1], duration: 0.55 }}
+            className="md:hidden fixed inset-0 z-[60] flex flex-col select-none overflow-hidden bg-[#07070A]"
           >
-            {/* Header / Minimize button */}
-            <div className="flex items-center justify-between border-b border-white/5 pb-4">
-              <button
-                onClick={() => setIsMobileExpanded(false)}
-                className="text-zinc-500 hover:text-white p-2"
-                aria-label="Minimize"
-              >
-                <Maximize2 size={16} className="rotate-180" />
-              </button>
-              <span className="text-[10px] font-bold uppercase tracking-wider text-purple-400">Now Playing</span>
-              <div className="w-8" />
+            {/* Blurred background artwork */}
+            <div className="absolute inset-0 overflow-hidden">
+              <img
+                src={art}
+                alt=""
+                className="w-full h-full object-cover scale-150 blur-[100px] opacity-[0.14]"
+              />
+              <div className="absolute inset-0 bg-[#07070A]/90" />
             </div>
 
-            {/* Album Cover art */}
-            <div className="flex-grow flex items-center justify-center py-6">
-              <div className="relative w-64 h-64 sm:w-72 sm:h-72 rounded-3xl overflow-hidden shadow-2xl border border-white/5 animate-pulse-slow">
-                <img
-                  src={thumbnail || "/logo.png"}
-                  alt=""
-                  className="w-full h-full object-cover"
-                />
-              </div>
-            </div>
-
-            {/* Metadata & Liked Song button */}
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="min-w-0 flex-grow pr-4">
-                  <h2 className="text-xl font-bold text-white truncate">{title}</h2>
-                  <p className="text-sm text-zinc-400 truncate mt-1">{artist}</p>
-                </div>
+            <div className="relative z-10 flex flex-col h-full px-6 pt-12 justify-between pb-8">
+              {/* Header */}
+              <div className="flex items-center justify-between py-4">
                 <button
-                  onClick={() => toggleLike(currentTrack)}
-                  className="text-zinc-400 p-2"
+                  onClick={() => setIsMobileExpanded(false)}
+                  className="w-9 h-9 rounded-full bg-white/[0.05] border border-white/[0.08] flex items-center justify-center text-zinc-400 active:scale-90"
                 >
-                  <Heart size={20} fill={isLiked ? "#ec4899" : "none"} className={isLiked ? "text-pink-500" : ""} />
+                  <ChevronDown size={18} />
+                </button>
+                <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-zinc-500">
+                  Now Playing
+                </span>
+                <button
+                  onClick={() => setIsLyricsOpen(true)}
+                  className="w-9 h-9 rounded-full bg-white/[0.05] border border-white/[0.08] flex items-center justify-center text-zinc-400 active:scale-90"
+                >
+                  <Mic size={14} />
                 </button>
               </div>
 
-              {/* Progress Slider */}
-              <div className="space-y-2 text-[10px] text-zinc-500 font-bold">
-                <input
-                  type="range"
-                  min={0}
-                  max={100}
-                  value={progress}
-                  onChange={(e) => {
-                    if (!player) return;
-                    const pct = Number(e.target.value);
-                    player.seekTo((pct / 100) * duration, true);
-                  }}
-                  className="w-full h-1 rounded-full appearance-none bg-zinc-800 outline-none cursor-pointer"
-                  style={{ background: progressStyle }}
-                />
-                <div className="flex justify-between font-mono">
-                  <span>{formatTime(currentTime)}</span>
-                  <span>{formatTime(duration)}</span>
-                </div>
+              {/* Album art */}
+              <div className="flex-1 flex items-center justify-center py-4">
+                <motion.div
+                  animate={{ scale: isPlaying ? 1 : 0.93 }}
+                  transition={{ type: "spring", stiffness: 200, damping: 22 }}
+                  className="w-68 h-68 rounded-[32px] overflow-hidden shadow-[0_24px_50px_rgba(0,0,0,0.8)] border border-white/[0.08]"
+                >
+                  <SafeImage src={art} alt="" className="w-full h-full object-cover" />
+                </motion.div>
               </div>
 
-              {/* Media Controls */}
-              <div className="flex items-center justify-around py-4">
-                <button
-                  onClick={toggleShuffle}
-                  className={cn("p-2", isShuffle ? "text-green-400" : "text-zinc-500")}
-                >
-                  <Shuffle size={18} />
-                </button>
-                <button onClick={prevTrack} className="p-2 text-white">
-                  <SkipBack size={22} fill="currentColor" />
-                </button>
-                <button
-                  onClick={togglePlay}
-                  className="w-14 h-14 rounded-full bg-white text-black flex items-center justify-center shadow-lg active:scale-95 transition"
-                >
-                  {isPlaying ? <Pause size={24} fill="currentColor" /> : <Play size={24} fill="currentColor" className="ml-1" />}
-                </button>
-                <button onClick={nextTrack} className="p-2 text-white">
-                  <SkipForward size={22} fill="currentColor" />
-                </button>
-                <button
-                  onClick={toggleRepeat}
-                  className={cn("p-2", isRepeat ? "text-green-400" : "text-zinc-500")}
-                >
-                  <Repeat size={18} />
-                </button>
-              </div>
-
-              {/* Playback speed trigger */}
-              <div className="flex items-center justify-between border-t border-white/5 pt-4 text-xs font-semibold text-zinc-400">
-                <div className="flex items-center gap-1">
-                  <Gauge size={14} />
-                  Speed: {playbackSpeed}x
-                </div>
-                {sleepTimer !== null && (
-                  <div className="flex items-center gap-1 text-purple-400">
-                    <Timer size={14} />
-                    Timer: {sleepTimer}m
+              {/* Track info & Playback sliders */}
+              <div className="space-y-6">
+                <div className="flex items-center justify-between">
+                  <div className="min-w-0 flex-1 pr-4 text-left">
+                    <h2 className="text-xl font-bold text-white truncate leading-tight tracking-tight">
+                      {title}
+                    </h2>
+                    <p className="text-xs text-zinc-450 font-medium truncate mt-1">{artist}</p>
                   </div>
-                )}
+                  <motion.button
+                    whileTap={{ scale: 0.8 }}
+                    onClick={() => toggleLike(currentTrack)}
+                    className="p-2 rounded-xl bg-white/[0.03] border border-white/[0.06]"
+                  >
+                    <Heart
+                      size={18}
+                      fill={isLiked ? "#ec4899" : "none"}
+                      className={isLiked ? "text-pink-400" : "text-zinc-550"}
+                    />
+                  </motion.button>
+                </div>
+
+                {/* Progress Timeline */}
+                <div className="space-y-2">
+                  <input
+                    type="range"
+                    min={0}
+                    max={100}
+                    value={progress}
+                    onChange={(e) => {
+                      if (!player) return;
+                      player.seekTo((Number(e.target.value) / 100) * duration, true);
+                    }}
+                    className="w-full h-1 rounded-full cursor-pointer outline-none"
+                    style={{ background: progressStyle, appearance: "none" }}
+                    aria-label="Seek"
+                  />
+                  <div className="flex justify-between text-[10px] font-mono text-zinc-500 tabular-nums">
+                    <span>{formatTime(currentTime)}</span>
+                    <span>{formatTime(duration)}</span>
+                  </div>
+                </div>
+
+                {/* Major controls row */}
+                <div className="flex items-center justify-between py-2 px-1">
+                  <button
+                    onClick={toggleShuffle}
+                    className={cn("p-2", isShuffle ? "text-purple-400" : "text-zinc-650")}
+                  >
+                    <Shuffle size={18} />
+                  </button>
+
+                  <button onClick={prevTrack} className="p-2 text-zinc-300">
+                    <SkipBack size={22} fill="currentColor" />
+                  </button>
+
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.92 }}
+                    onClick={togglePlay}
+                    className="w-14 h-14 rounded-full bg-white flex items-center justify-center text-black"
+                  >
+                    {isPlaying ? <Pause size={20} fill="currentColor" /> : <Play size={20} fill="currentColor" className="ml-0.5" />}
+                  </motion.button>
+
+                  <button onClick={nextTrack} className="p-2 text-zinc-300">
+                    <SkipForward size={22} fill="currentColor" />
+                  </button>
+
+                  <button
+                    onClick={toggleRepeat}
+                    className={cn("p-2", isRepeat ? "text-purple-400" : "text-zinc-650")}
+                  >
+                    <Repeat size={18} />
+                  </button>
+                </div>
+
+                {/* Footer details */}
+                <div className="flex items-center justify-between border-t border-white/[0.05] pt-4 text-[10px] font-medium text-zinc-600">
+                  <div className="flex items-center gap-1.5">
+                    <Gauge size={12} className="text-zinc-700" />
+                    <span>{playbackSpeed}× speed</span>
+                  </div>
+                  <button
+                    onClick={() => {
+                      toggleQueue();
+                      setIsMobileExpanded(false);
+                    }}
+                    className="flex items-center gap-1.5 hover:text-white"
+                  >
+                    <List size={12} />
+                    <span>Up Next</span>
+                  </button>
+                  {sleepTimer !== null && (
+                    <div className="flex items-center gap-1.5 text-purple-400">
+                      <Timer size={12} />
+                      <span>{sleepTimer}m sleep</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Sliding Glass Lyrics Overlay ── */}
+      <AnimatePresence>
+        {isLyricsOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.25 }}
+            className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-zinc-950/95 backdrop-blur-3xl px-6 select-none"
+          >
+            {/* Ambient blur orbs */}
+            <div className="absolute top-1/4 left-1/4 w-[400px] h-[400px] rounded-full bg-purple-900/[0.08] blur-[150px] pointer-events-none" />
+            <div className="absolute bottom-1/4 right-1/4 w-[350px] h-[350px] rounded-full bg-pink-900/[0.06] blur-[120px] pointer-events-none" />
+
+            <div className="relative z-10 max-w-2xl w-full flex flex-col h-[75vh] justify-between">
+              {/* Header */}
+              <div className="flex items-center justify-between border-b border-white/[0.06] pb-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl overflow-hidden bg-zinc-900 border border-white/[0.08]">
+                    <SafeImage src={art} alt="" className="w-full h-full object-cover" />
+                  </div>
+                  <div className="text-left">
+                    <h4 className="text-xs font-bold text-white leading-tight">{title}</h4>
+                    <p className="text-[10px] text-zinc-500 font-medium mt-0.5">{artist}</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setIsLyricsOpen(false)}
+                  className="px-4.5 py-1.5 rounded-full border border-white/[0.08] bg-white/[0.03] hover:bg-white/[0.08] text-[10px] font-bold text-zinc-400 hover:text-white transition"
+                >
+                  Close
+                </button>
+              </div>
+
+              {/* Dynamic scrollable content */}
+              <div className="flex-1 overflow-y-auto my-8 scrollbar-none space-y-6 flex flex-col justify-center text-center px-4">
+                <p className="text-lg font-bold text-zinc-600 transition-colors duration-200">
+                  {title} • {artist}
+                </p>
+                <p className="text-2xl font-black text-white tracking-tight leading-snug drop-shadow-sm">
+                  Audio streaming in high-fidelity mode.
+                </p>
+                <p className="text-lg font-bold text-zinc-650">
+                  MusicFlow brings you premium sound.
+                </p>
+                <p className="text-xs font-semibold text-zinc-500">
+                  (Lyrics Sync Active • V3 Audio Engine)
+                </p>
+              </div>
+
+              {/* Footer details */}
+              <div className="text-center text-[9px] text-zinc-700 tracking-widest font-mono border-t border-white/[0.05] pt-4 uppercase">
+                PLAYING FROM SYSTEM • SOUND HYDRATED VIA YTENGINE
               </div>
             </div>
           </motion.div>

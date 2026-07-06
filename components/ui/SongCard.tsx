@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, memo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Play, Heart } from "lucide-react";
+import { Play, Heart, Pause } from "lucide-react";
 import { useShallow } from "zustand/react/shallow";
 import { usePlayerStore } from "@/store/player-store";
 
@@ -19,11 +19,10 @@ function formatDuration(seconds: number = 0) {
   const total = Math.floor(seconds);
   const minutes = Math.floor(total / 60);
   const secs = total % 60;
-
   return `${minutes}:${secs.toString().padStart(2, "0")}`;
 }
 
-export function SongCard({
+export const SongCard = memo(function SongCard({
   song,
   showRank = false,
 }: {
@@ -36,6 +35,7 @@ export function SongCard({
     addRecentSong,
     likedSongs,
     videoId,
+    isPlaying,
   } = usePlayerStore(
     useShallow((state) => ({
       setTrack: state.setTrack,
@@ -43,26 +43,18 @@ export function SongCard({
       addRecentSong: state.addRecentSong,
       likedSongs: state.likedSongs,
       videoId: state.videoId,
+      isPlaying: state.isPlaying,
     }))
   );
 
   const [hovered, setHovered] = useState(false);
 
-  const isLiked = likedSongs.some(
-    (item) => item.videoId === song.id
-  );
-
-  const isPlaying = videoId === song.id;
+  const isLiked = likedSongs.some((item) => item.videoId === song.id);
+  const isCurrentSong = videoId === song.id;
+  const isActivePlaying = isCurrentSong && isPlaying;
 
   const playSong = () => {
-    setTrack(
-      song.id,
-      song.title,
-      song.artist,
-      song.thumbnail || "",
-      0
-    );
-
+    setTrack(song.id, song.title, song.artist, song.thumbnail || "", 0);
     void addRecentSong({
       videoId: song.id,
       title: song.title,
@@ -74,84 +66,90 @@ export function SongCard({
 
   return (
     <motion.div
-      whileHover={{ y: -6, scale: 1.02 }}
-      className="group relative cursor-pointer rounded-2xl border border-white/5 bg-white/[0.03] p-3 shadow-lg transition-all duration-300 hover:border-white/20 hover:bg-white/[0.08] hover:shadow-purple-500/20 backdrop-blur-xl"
+      whileHover={{ y: -5 }}
+      transition={{ type: "spring", stiffness: 360, damping: 26 }}
+      className="group relative cursor-pointer flex flex-col gap-3 text-left focus:outline-none"
       onClick={playSong}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       tabIndex={0}
       role="button"
       aria-label={`Play ${song.title}`}
+      onKeyDown={(e) => e.key === "Enter" && playSong()}
     >
-      <div className="relative mb-4 aspect-square overflow-hidden rounded-xl">
+      {/* Artwork */}
+      <div
+        className="relative aspect-square overflow-hidden bg-[#0a0a0c]"
+        style={{
+          borderRadius: "16px",
+          boxShadow: isCurrentSong
+            ? "0 12px 40px rgba(139,92,246,0.22), 0 4px 16px rgba(0,0,0,0.5)"
+            : hovered
+            ? "0 16px 44px rgba(0,0,0,0.65), 0 4px 16px rgba(0,0,0,0.4)"
+            : "0 8px 28px rgba(0,0,0,0.55)",
+          transition: "box-shadow 0.3s ease",
+          border: isCurrentSong
+            ? "1px solid rgba(139,92,246,0.35)"
+            : "1px solid rgba(255,255,255,0.05)",
+        }}
+      >
         {showRank && (
-          <span className="absolute left-2 top-2 z-20 rounded-md bg-black/60 px-2 py-1 text-[10px] font-bold text-white backdrop-blur">
+          <span className="absolute left-2.5 top-2.5 z-20 rounded-full bg-[#06060a]/85 border border-white/[0.06] px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-zinc-300 backdrop-blur-sm">
             #{song.rank}
           </span>
         )}
 
         <motion.img
-          animate={{
-            scale: hovered ? 1.08 : 1,
-          }}
-          transition={{
-            duration: 0.4,
-          }}
-          src={
-            song.thumbnail ||
-            "https://placehold.co/500x500/18181b/ffffff?text=Music"
-          }
+          animate={{ scale: hovered ? 1.06 : 1 }}
+          transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+          src={song.thumbnail || "https://placehold.co/500x500/111/fff?text=♪"}
           alt={song.title}
           loading="lazy"
           onError={(e) => {
             e.currentTarget.onerror = null;
-            e.currentTarget.src =
-              "https://placehold.co/500x500/18181b/ffffff?text=Music";
+            e.currentTarget.src = "https://placehold.co/500x500/111/fff?text=♪";
           }}
           className="h-full w-full object-cover"
         />
 
+        {/* Hover overlay */}
+        <motion.div
+          animate={{ opacity: hovered ? 1 : 0 }}
+          transition={{ duration: 0.18 }}
+          className="absolute inset-0 bg-black/45"
+        />
+
+        {/* Play/Pause Button */}
         <AnimatePresence>
-          {hovered && (
+          {(hovered || isActivePlaying) && (
             <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="absolute inset-0 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+              initial={{ opacity: 0, scale: 0.75 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.75 }}
+              transition={{ type: "spring", stiffness: 480, damping: 26 }}
+              className="absolute inset-0 flex items-center justify-center"
             >
-              <motion.button
-                whileHover={{ scale: 1.1 }}
-                whileTap={{ scale: 0.95 }}
-                className="flex h-12 w-12 items-center justify-center rounded-full bg-purple-600 text-white shadow-lg"
-              >
-                <Play
-                  size={20}
-                  fill="currentColor"
-                  className="ml-1"
-                />
-              </motion.button>
+              <div className="w-11 h-11 rounded-full bg-white flex items-center justify-center shadow-lg">
+                {isActivePlaying ? (
+                  <Pause size={15} fill="black" className="text-black" />
+                ) : (
+                  <Play size={15} fill="black" className="text-black ml-0.5" />
+                )}
+              </div>
             </motion.div>
           )}
         </AnimatePresence>
 
+        {/* Like Button */}
         <motion.button
-          initial={{
-            opacity: 0,
-            scale: 0.8,
-          }}
           animate={{
             opacity: hovered || isLiked ? 1 : 0,
-            scale: hovered || isLiked ? 1 : 0.8,
+            scale: hovered || isLiked ? 1 : 0.7,
           }}
-          whileHover={{
-            scale: 1.15,
-          }}
-          whileTap={{
-            scale: 0.9,
-          }}
+          whileTap={{ scale: 0.78 }}
+          transition={{ type: "spring", stiffness: 400, damping: 22 }}
           onClick={(e) => {
             e.stopPropagation();
-
             void toggleLike({
               videoId: song.id,
               title: song.title,
@@ -160,48 +158,41 @@ export function SongCard({
               duration: song.duration ?? 0,
             });
           }}
-          className={`absolute bottom-2 right-2 z-20 flex h-8 w-8 items-center justify-center rounded-full bg-black/60 backdrop-blur ${
-            isLiked
-              ? "text-purple-500"
-              : "text-zinc-300"
-          }`}
+          className="absolute bottom-2.5 right-2.5 z-20 w-8 h-8 rounded-full bg-[#06060a]/90 backdrop-blur-sm flex items-center justify-center border border-white/[0.08] hover:border-pink-500/35 text-zinc-400 hover:text-pink-400 transition-colors duration-150"
+          aria-label={isLiked ? "Unlike" : "Like"}
         >
           <Heart
-            size={14}
-            fill={isLiked ? "currentColor" : "none"}
+            size={12}
+            fill={isLiked ? "#ec4899" : "none"}
+            className={isLiked ? "text-pink-400" : ""}
           />
         </motion.button>
       </div>
 
-      <div>
-        <h3 className="truncate pr-6 text-sm font-semibold text-white">
+      {/* Text Details */}
+      <div className="space-y-0.5 px-0.5">
+        <h3
+          className="text-[13px] font-semibold tracking-tight truncate leading-tight transition-colors duration-200"
+          style={{
+            color: isCurrentSong ? "#c084fc" : hovered ? "#ffffff" : "#e4e4e7",
+          }}
+        >
           {song.title}
         </h3>
-
-        <div className="mt-1 flex items-center justify-between">
-          <p className="max-w-[70%] truncate text-xs text-zinc-400">
+        <div className="flex items-center justify-between">
+          <p className="text-[11px] text-zinc-550 truncate max-w-[75%] leading-tight">
             {song.artist}
           </p>
 
-          {isPlaying ? (
-            <div className="flex h-3 items-end gap-[3px]">
-              {[1, 2, 3].map((bar) => (
-                <motion.div
-                  key={bar}
-                  animate={{
-                    height: ["40%", "100%", "40%"],
-                  }}
-                  transition={{
-                    duration: 1,
-                    repeat: Infinity,
-                    delay: bar * 0.2,
-                  }}
-                  className="w-[3px] rounded-full bg-green-500"
-                />
-              ))}
+          {/* Equalizer Visualizer or Duration */}
+          {isActivePlaying ? (
+            <div className="flex items-end gap-[1.5px] h-3 px-1 text-purple-400 select-none shrink-0">
+              <span className="w-[1.5px] h-[35%] bg-purple-500 rounded-full animate-[pulse_0.8s_infinite]" />
+              <span className="w-[1.5px] h-[80%] bg-purple-400 rounded-full animate-[pulse_1s_infinite_0.2s]" />
+              <span className="w-[1.5px] h-[50%] bg-purple-500 rounded-full animate-[pulse_0.9s_infinite_0.1s]" />
             </div>
           ) : (
-            <span className="text-[10px] font-medium text-zinc-500">
+            <span className="text-[10px] text-zinc-600 font-mono tabular-nums">
               {formatDuration(song.duration ?? 0)}
             </span>
           )}
@@ -209,4 +200,5 @@ export function SongCard({
       </div>
     </motion.div>
   );
-}
+});
+SongCard.displayName = "SongCard";

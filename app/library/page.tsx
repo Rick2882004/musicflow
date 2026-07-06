@@ -1,239 +1,421 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { usePlayerStore } from "@/store/player-store";
 import { useShallow } from "zustand/react/shallow";
 import { SongCard } from "@/components/ui/SongCard";
 import ProtectedRoute from "../../src/components/auth/ProtectedRoute";
-import { motion } from "framer-motion";
-import { Play, ListMusic, Heart, History, Compass, Plus, User } from "lucide-react";
+import { motion, Variants } from "framer-motion";
+import { Play, ListMusic, Heart, History, Compass, Plus, Sparkles, Disc, Music, Clock } from "lucide-react";
+import { Track } from "@/types/music";
+
+const ALBUM_CARDS = [
+  { id: "MPREb_HtIOxExZ0cj", title: "Arijit Singh Hits", artist: "Arijit Singh", image: "https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=400&q=80" },
+  { id: "MPREb_FCKWeH9GnWF", title: "Jigra Collection", artist: "Achint", image: "https://yt3.googleusercontent.com/F8s9lSInfQQu6PvEl23by6_KPoazHLcjk4226uEZqcabT7w_QQP4IX8nxutH5pLJOtwAi32VfMhRJPo=w226-h226-l90-rj" },
+  { id: "MPREb_aak6B9FGA6U", title: "Bollywood Essentials", artist: "Various Artists", image: "https://yt3.googleusercontent.com/FPXzFBDqz2viDjL-yyPFSVLyzc8dv9uLHBVyJIfSc1hTQiGe6Lie2fbVRhMjpYtMD1NLcNo_l3T9Mg=w226-h226-l90-rj" },
+  { id: "MPREb_HtIOxExZ0ck", title: "Lofi Bollywood", artist: "Lofi Fruit", image: "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=400&q=80" },
+];
+
+const containerVariants: Variants = {
+  hidden: { opacity: 0 },
+  show: {
+    opacity: 1,
+    transition: { staggerChildren: 0.05 }
+  }
+};
+
+const itemVariants: Variants = {
+  hidden: { opacity: 0, y: 15 },
+  show: {
+    opacity: 1,
+    y: 0,
+    transition: { type: "spring", stiffness: 300, damping: 24 }
+  }
+};
 
 export default function LibraryPage() {
-  const {
-    likedSongs,
-    playlists,
-    recentSongs,
-  } = usePlayerStore(useShallow((s) => ({
-    likedSongs: s.likedSongs,
-    playlists: s.playlists,
-    recentSongs: s.recentSongs,
-  })));
-
-  const uniqueRecentSongs = Array.from(
-    new Map(
-      recentSongs.map((song) => [
-        song.videoId,
-        song,
-      ])
-    ).values()
+  const router = useRouter();
+  const { likedSongs, playlists, recentSongs, setTrack, setQueue } = usePlayerStore(
+    useShallow((s) => ({
+      likedSongs:  s.likedSongs,
+      playlists:   s.playlists,
+      recentSongs: s.recentSongs,
+      setTrack:    s.setTrack,
+      setQueue:    s.setQueue,
+    }))
   );
 
-  const container = {
-    hidden: { opacity: 0 },
-    show: {
-      opacity: 1,
-      transition: {
-        staggerChildren: 0.1
-      }
-    }
-  };
+  const uniqueRecentSongs = Array.from(
+    new Map(recentSongs.map((song) => [song.videoId, song])).values()
+  );
 
-  const item = {
-    hidden: { opacity: 0, y: 20 },
-    show: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 300, damping: 24 } }
+  const totalTracksCount = likedSongs.length + playlists.reduce((acc, p) => acc + p.songs.length, 0);
+
+  const playSong = (song: Track, index: number) => {
+    setQueue(uniqueRecentSongs);
+    setTrack(song.videoId, song.title, song.artist, song.thumbnail, index);
   };
 
   return (
     <ProtectedRoute>
-      <main className="min-h-screen bg-black text-white pb-32">
-        {/* Premium Header */}
-        <div className="relative overflow-hidden bg-gradient-to-br from-indigo-900/40 via-purple-900/20 to-black px-8 pt-16 pb-12 border-b border-white/5">
-          <div className="absolute top-0 right-0 w-96 h-96 bg-purple-600/20 blur-[120px] rounded-full mix-blend-screen" />
-          <div className="absolute bottom-0 left-0 w-96 h-96 bg-blue-600/10 blur-[100px] rounded-full mix-blend-screen" />
-          
-          <div className="relative z-10 max-w-7xl mx-auto flex flex-col md:flex-row md:items-end justify-between gap-6">
-            <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.5 }}>
-              <h1 className="text-5xl md:text-7xl font-black tracking-tighter mb-4">Your Library</h1>
-              <div className="flex items-center gap-3 text-zinc-400 font-medium">
-                <span className="flex items-center gap-1.5"><Heart size={16} className="text-pink-500" /> {likedSongs.length} Likes</span>
-                <span>•</span>
-                <span className="flex items-center gap-1.5"><ListMusic size={16} className="text-blue-500" /> {playlists.length} Playlists</span>
-                <span>•</span>
-                <span className="flex items-center gap-1.5"><History size={16} className="text-purple-500" /> {recentSongs.length} Recent</span>
-              </div>
-            </motion.div>
-            
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.2 }} className="flex gap-3">
-              <Link href="/playlists">
-                <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} className="px-6 py-3 bg-white text-black font-bold rounded-full flex items-center gap-2 shadow-lg shadow-white/10 hover:shadow-white/20 transition-shadow">
-                  <Plus size={20} /> Create Playlist
-                </motion.button>
-              </Link>
-            </motion.div>
-          </div>
-        </div>
+      <main className="min-h-screen pb-36 text-white text-left space-y-16" style={{ background: "#07070A" }}>
 
-        <div className="max-w-7xl mx-auto px-8 py-12">
-          {/* Collections Grid */}
-          <motion.section variants={container} initial="hidden" animate="show" className="mb-16">
-            <h2 className="text-2xl font-bold mb-6 tracking-tight flex items-center gap-2">
-              Collections
+        {/* 1. Hero & Stats Container */}
+        <section className="relative px-6 md:px-10 pt-10 pb-6 overflow-hidden">
+          {/* Ambient Background Glow */}
+          <div className="absolute top-0 left-[-10%] w-[600px] h-[400px] rounded-full bg-purple-950/[0.08] blur-[140px] pointer-events-none" />
+          <div className="absolute top-20 right-0 w-[450px] h-[320px] rounded-full bg-pink-950/[0.06] blur-[120px] pointer-events-none" />
+
+          {/* Glass Hero Container */}
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.65, ease: [0.16, 1, 0.3, 1] }}
+            className="relative z-10 p-6 md:p-10 rounded-[32px] bg-white/[0.015] border border-white/[0.04] backdrop-blur-2xl"
+            style={{ boxShadow: "0 24px 80px rgba(0, 0, 0, 0.4)" }}
+          >
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-8">
+              <div className="space-y-4 max-w-xl">
+                {/* Small Badge */}
+                <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/[0.02] border border-white/[0.05]">
+                  <Disc size={11} className="text-purple-400" />
+                  <span className="text-[9px] font-black uppercase tracking-[0.18em] text-zinc-550 select-none">
+                    MY COLLECTION
+                  </span>
+                </div>
+
+                {/* Title */}
+                <h1 className="font-display text-[44px] sm:text-[68px] font-black leading-[0.92] tracking-tighter text-white select-none">
+                  Your Library.
+                </h1>
+
+                {/* Subtitle */}
+                <p className="text-sm md:text-base text-zinc-500 font-medium leading-relaxed">
+                  Everything you love, in one place. Access your playlists, favorite songs, and recently listened tracks.
+                </p>
+              </div>
+
+              {/* Quick Stats Grid */}
+              <div className="grid grid-cols-2 gap-3 shrink-0 lg:w-[380px]">
+                {/* Stat: Liked */}
+                <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/[0.04] flex flex-col justify-between h-20">
+                  <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider flex items-center gap-1.5">
+                    <Heart size={11} className="text-pink-500" /> Liked
+                  </span>
+                  <span className="text-2xl font-black text-white">{likedSongs.length}</span>
+                </div>
+
+                {/* Stat: Playlists */}
+                <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/[0.04] flex flex-col justify-between h-20">
+                  <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider flex items-center gap-1.5">
+                    <ListMusic size={11} className="text-purple-400" /> Playlists
+                  </span>
+                  <span className="text-2xl font-black text-white">{playlists.length}</span>
+                </div>
+
+                {/* Stat: Recent */}
+                <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/[0.04] flex flex-col justify-between h-20">
+                  <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider flex items-center gap-1.5">
+                    <History size={11} className="text-indigo-400" /> Recent
+                  </span>
+                  <span className="text-2xl font-black text-white">{recentSongs.length}</span>
+                </div>
+
+                {/* Stat: Total */}
+                <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/[0.04] flex flex-col justify-between h-20">
+                  <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider flex items-center gap-1.5">
+                    <Music size={11} className="text-teal-400" /> Total Tracks
+                  </span>
+                  <span className="text-2xl font-black text-white">{totalTracksCount}</span>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        </section>
+
+        {/* 2. Quick Access Cards */}
+        <section className="px-6 md:px-10 space-y-6">
+          <div>
+            <p className="text-[9px] font-black uppercase tracking-[0.18em] text-zinc-600 mb-1.5">
+              Shortcuts
+            </p>
+            <h2 className="font-display text-[22px] font-black text-white tracking-tight leading-none">
+              Quick Access
             </h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              {[
-                { title: "Liked Songs", icon: Heart, count: likedSongs.length, href: "/liked", color: "from-pink-500 to-purple-600", bgGlow: "bg-pink-500/20" },
-                { title: "Recently Played", icon: History, count: recentSongs.length, href: "/recently-played", color: "from-blue-500 to-cyan-500", bgGlow: "bg-blue-500/20" },
-                { title: "Your Playlists", icon: ListMusic, count: playlists.length, href: "/playlists", color: "from-fuchsia-500 to-indigo-600", bgGlow: "bg-fuchsia-500/20" },
-                { title: "Explore Music", icon: Compass, count: "Discover", href: "/explore", color: "from-emerald-400 to-teal-600", bgGlow: "bg-emerald-500/20" }
-              ].map((card, idx) => (
-                <motion.div
-    key={card.title}
-    variants={container}
->
-                  <Link href={card.href}>
-                    <div className="group relative overflow-hidden rounded-3xl p-6 h-48 flex flex-col justify-end shadow-lg transition-all duration-300 hover:-translate-y-2 hover:shadow-xl border border-white/10 bg-zinc-900/50 backdrop-blur-xl">
-                      <div className={`absolute inset-0 opacity-40 group-hover:opacity-100 bg-gradient-to-br ${card.color} transition-opacity duration-500 mix-blend-overlay`} />
-                      <div className={`absolute -top-10 -right-10 w-32 h-32 blur-2xl rounded-full ${card.bgGlow} group-hover:scale-150 transition-transform duration-700`} />
-                      
-                      <div className="relative z-10">
-                        <div className="w-12 h-12 rounded-full bg-black/30 backdrop-blur-md flex items-center justify-center mb-4 text-white shadow-inner">
-                          <card.icon size={24} />
-                        </div>
-                        <h3 className="text-xl font-bold text-white group-hover:text-white transition-colors">{card.title}</h3>
-                        <p className="text-sm font-medium text-white/70 mt-1">{card.count} {typeof card.count === 'number' && 'items'}</p>
-                      </div>
-                    </div>
-                  </Link>
-                </motion.div>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            
+            {/* Card 1: Liked Songs */}
+            <Link href="/liked">
+              <motion.div
+                whileHover={{ y: -6 }}
+                className="group relative h-40 p-5 rounded-3xl cursor-pointer bg-gradient-to-br from-pink-500/10 to-transparent border border-white/[0.04] hover:border-pink-500/30 transition-all duration-300 flex flex-col justify-between overflow-hidden"
+              >
+                <div className="absolute inset-0 bg-white/[0.01] pointer-events-none" />
+                <div className="w-10 h-10 rounded-xl bg-pink-500/15 flex items-center justify-center text-pink-400 group-hover:scale-105 transition-transform duration-300">
+                  <Heart size={18} fill="currentColor" />
+                </div>
+                <div>
+                  <h3 className="font-display text-[14px] font-bold text-zinc-200 group-hover:text-white transition-colors">
+                    Liked Songs
+                  </h3>
+                  <p className="text-[10px] text-pink-400/80 font-bold mt-1 uppercase tracking-wider">
+                    {likedSongs.length} Tracks
+                  </p>
+                </div>
+              </motion.div>
+            </Link>
+
+            {/* Card 2: Recently Played */}
+            <Link href="/recently-played">
+              <motion.div
+                whileHover={{ y: -6 }}
+                className="group relative h-40 p-5 rounded-3xl cursor-pointer bg-gradient-to-br from-indigo-500/10 to-transparent border border-white/[0.04] hover:border-indigo-500/30 transition-all duration-300 flex flex-col justify-between overflow-hidden"
+              >
+                <div className="absolute inset-0 bg-white/[0.01] pointer-events-none" />
+                <div className="w-10 h-10 rounded-xl bg-indigo-500/15 flex items-center justify-center text-indigo-400 group-hover:scale-105 transition-transform duration-300">
+                  <History size={18} />
+                </div>
+                <div>
+                  <h3 className="font-display text-[14px] font-bold text-zinc-200 group-hover:text-white transition-colors">
+                    Recently Played
+                  </h3>
+                  <p className="text-[10px] text-indigo-400/80 font-bold mt-1 uppercase tracking-wider">
+                    {recentSongs.length} Tracks
+                  </p>
+                </div>
+              </motion.div>
+            </Link>
+
+            {/* Card 3: Your Playlists */}
+            <Link href="/playlists">
+              <motion.div
+                whileHover={{ y: -6 }}
+                className="group relative h-40 p-5 rounded-3xl cursor-pointer bg-gradient-to-br from-purple-500/10 to-transparent border border-white/[0.04] hover:border-purple-500/30 transition-all duration-300 flex flex-col justify-between overflow-hidden"
+              >
+                <div className="absolute inset-0 bg-white/[0.01] pointer-events-none" />
+                <div className="w-10 h-10 rounded-xl bg-purple-500/15 flex items-center justify-center text-purple-400 group-hover:scale-105 transition-transform duration-300">
+                  <ListMusic size={18} />
+                </div>
+                <div>
+                  <h3 className="font-display text-[14px] font-bold text-zinc-200 group-hover:text-white transition-colors">
+                    Your Playlists
+                  </h3>
+                  <p className="text-[10px] text-purple-400/80 font-bold mt-1 uppercase tracking-wider">
+                    {playlists.length} Playlists
+                  </p>
+                </div>
+              </motion.div>
+            </Link>
+
+            {/* Card 4: Discover Music */}
+            <Link href="/explore">
+              <motion.div
+                whileHover={{ y: -6 }}
+                className="group relative h-40 p-5 rounded-3xl cursor-pointer bg-gradient-to-br from-teal-500/10 to-transparent border border-white/[0.04] hover:border-teal-500/30 transition-all duration-300 flex flex-col justify-between overflow-hidden"
+              >
+                <div className="absolute inset-0 bg-white/[0.01] pointer-events-none" />
+                <div className="w-10 h-10 rounded-xl bg-teal-500/15 flex items-center justify-center text-teal-400 group-hover:scale-105 transition-transform duration-300">
+                  <Compass size={18} />
+                </div>
+                <div>
+                  <h3 className="font-display text-[14px] font-bold text-zinc-200 group-hover:text-white transition-colors">
+                    Discover Music
+                  </h3>
+                  <p className="text-[10px] text-teal-400/80 font-bold mt-1 uppercase tracking-wider">
+                    Explore
+                  </p>
+                </div>
+              </motion.div>
+            </Link>
+
+          </div>
+        </section>
+
+        {/* 3. Continue Listening (Uses Home song cards) */}
+        {uniqueRecentSongs.length > 0 && (
+          <section className="px-6 md:px-10 space-y-6">
+            <div className="flex items-end justify-between">
+              <div>
+                <p className="text-[9px] font-black uppercase tracking-[0.18em] text-zinc-600 mb-1.5">
+                  Resume
+                </p>
+                <h2 className="font-display text-[22px] font-black text-white tracking-tight leading-none">
+                  Continue Listening
+                </h2>
+              </div>
+              <Link href="/recently-played" className="text-[11px] text-zinc-500 hover:text-zinc-350 transition-colors font-bold uppercase tracking-wider">
+                See all
+              </Link>
+            </div>
+            <div className="flex gap-5 overflow-x-auto scrollbar-none pb-4 -mx-6 md:-mx-10 px-6 md:px-10">
+              {uniqueRecentSongs.slice(0, 8).map((song, index) => (
+                <SongCard
+                  key={`lib-recent-${song.videoId}-${index}`}
+                  song={{
+                    id:        song.videoId,
+                    title:     song.title,
+                    artist:    song.artist,
+                    thumbnail: song.thumbnail,
+                    duration:  song.duration || 0,
+                  }}
+                />
               ))}
             </div>
-          </motion.section>
+          </section>
+        )}
 
-          {/* Recent Activity */}
-          <motion.section initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="mb-16">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-2xl font-bold tracking-tight">Recent Activity</h2>
-              <Link href="/recently-played" className="text-sm font-medium text-zinc-400 hover:text-white transition-colors">See all</Link>
-            </div>
-            
-            {uniqueRecentSongs.length > 0 ? (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6">
-                {uniqueRecentSongs.slice(0, 6).map((song, index) => (
-                  <SongCard
-                    key={`${song.videoId}-${index}`}
-                    song={{
-                      id: song.videoId,
-                      title: song.title,
-                      artist: song.artist,
-                      thumbnail: song.thumbnail,
-                      duration: song.duration || 0,
-                    }}
+        {/* 4. Recently Added */}
+        <section className="px-6 md:px-10 space-y-6">
+          <div>
+            <p className="text-[9px] font-black uppercase tracking-[0.18em] text-zinc-600 mb-1.5">
+              History
+            </p>
+            <h2 className="font-display text-[22px] font-black text-white tracking-tight leading-none">
+              Recently Added
+            </h2>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-5">
+            {ALBUM_CARDS.map((album) => (
+              <motion.div
+                key={`added-${album.id}`}
+                whileHover={{ y: -6 }}
+                onClick={() => router.push(`/album/${album.id}`)}
+                className="group flex flex-col gap-3 cursor-pointer text-left"
+              >
+                <div className="relative rounded-[22px] overflow-hidden bg-zinc-900 aspect-square border border-white/[0.05] group-hover:border-purple-500/35 transition-all duration-300 shadow-md">
+                  <img
+                    src={album.image}
+                    alt={album.title}
+                    loading="lazy"
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                   />
-                ))}
-              </div>
-            ) : (
-              <div className="bg-zinc-900/40 border border-white/5 rounded-2xl p-12 text-center flex flex-col items-center justify-center backdrop-blur-md">
-                <History size={48} className="text-zinc-600 mb-4" />
-                <h3 className="text-xl font-bold mb-2">No recent activity</h3>
-                <p className="text-zinc-500 mb-6 max-w-sm">Start listening to music to see your recent activity here.</p>
-                <Link href="/">
-                  <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} className="px-6 py-2 bg-white/10 hover:bg-white/20 text-white rounded-full font-medium transition-colors">
-                    Browse Music
-                  </motion.button>
-                </Link>
-              </div>
-            )}
-          </motion.section>
+                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                    <Play size={14} fill="white" className="text-white" />
+                  </div>
+                </div>
+                <div className="px-0.5">
+                  <p className="font-display text-[13px] font-bold text-zinc-300 group-hover:text-white transition-colors truncate">
+                    {album.title}
+                  </p>
+                  <p className="text-[11px] text-zinc-555 truncate mt-0.5">{album.artist}</p>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        </section>
 
-          {/* Playlists Preview */}
-          {playlists.length > 0 && (
-            <motion.section initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="mb-16">
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-2xl font-bold tracking-tight">Your Playlists</h2>
-                <Link href="/playlists" className="text-sm font-medium text-zinc-400 hover:text-white transition-colors">See all</Link>
-              </div>
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6">
-                {playlists.slice(0, 6).map((playlist) => (
-                  <Link href={`/playlists/${playlist.id}`} key={playlist.id}>
-                    <motion.div whileHover={{ y: -6 }} className="group p-4 bg-white/[0.03] hover:bg-white/[0.08] rounded-2xl border border-white/5 hover:border-white/20 transition-all cursor-pointer">
-                      <div className="relative aspect-square rounded-xl overflow-hidden bg-gradient-to-br from-zinc-800 to-zinc-900 mb-4 shadow-lg flex items-center justify-center">
-                        {playlist.songs[0] ? (
-                          <img src={playlist.songs[0].thumbnail} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" alt={playlist.name} />
-                        ) : (
-                          <ListMusic size={40} className="text-zinc-700" />
-                        )}
-                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                          <div className="w-12 h-12 bg-purple-600 rounded-full flex items-center justify-center text-white shadow-lg transform scale-75 group-hover:scale-100 transition-transform">
-                            <Play size={20} className="ml-1" fill="currentColor" />
-                          </div>
+        {/* 5. Your Playlists */}
+        <section className="px-6 md:px-10 space-y-6">
+          <div className="flex items-end justify-between">
+            <div>
+              <p className="text-[9px] font-black uppercase tracking-[0.18em] text-zinc-600 mb-1.5">
+                Saved Collections
+              </p>
+              <h2 className="font-display text-[22px] font-black text-white tracking-tight leading-none">
+                Your Playlists
+              </h2>
+            </div>
+            <Link href="/playlists">
+              <motion.button
+                whileHover={{ scale: 1.04 }}
+                whileTap={{ scale: 0.96 }}
+                className="px-5 py-2 rounded-full font-bold text-[11px] uppercase tracking-wider flex items-center gap-1.5 text-zinc-300 hover:text-white bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.05] transition-all"
+              >
+                <Plus size={13} /> New Playlist
+              </motion.button>
+            </Link>
+          </div>
+
+          {playlists.length > 0 ? (
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-5">
+              {playlists.slice(0, 4).map((playlist) => (
+                <Link href={`/playlists/${playlist.id}`} key={playlist.id}>
+                  <motion.div
+                    whileHover={{ y: -6 }}
+                    className="group flex flex-col gap-3 cursor-pointer focus:outline-none"
+                  >
+                    <div className="relative aspect-square rounded-[22px] overflow-hidden bg-zinc-900 border border-white/[0.05] shadow-[0_8px_24px_rgba(0,0,0,0.5)]">
+                      {playlist.songs[0] ? (
+                        <img
+                          src={playlist.songs[0].thumbnail}
+                          alt={playlist.name}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center bg-zinc-950 border border-white/[0.02]">
+                          <ListMusic size={36} className="text-zinc-700" />
+                        </div>
+                      )}
+                      <div className="absolute inset-0 bg-black/35 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                        <div className="w-11 h-11 rounded-full bg-white flex items-center justify-center shadow-lg">
+                          <Play size={16} fill="black" className="text-black ml-0.5" />
                         </div>
                       </div>
-                      <h3 className="font-bold text-white truncate">{playlist.name}</h3>
-                      <p className="text-sm text-zinc-500 mt-1">{playlist.songs.length} songs</p>
-                    </motion.div>
-                  </Link>
-                ))}
-              </div>
-            </motion.section>
-          )}
-
-          {/* Favorite Artists */}
-          <motion.section initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}>
-            <h2 className="text-2xl font-bold mb-6 tracking-tight">Favorite Artists</h2>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6">
-              {[
-  {
-    name: "Arijit Singh",
-    image:
-      "https://yt3.googleusercontent.com/ytc/AIdro_n5OQ=s176-c-k-c0x00ffffff-no-rj",
-  },
-  {
-    name: "Atif Aslam",
-    image:
-      "https://yt3.googleusercontent.com/ytc/AIdro_k8kA=s176-c-k-c0x00ffffff-no-rj",
-  },
-  {
-    name: "Shreya Ghoshal",
-    image:
-      "https://yt3.googleusercontent.com/ytc/AIdro_m9P=s176-c-k-c0x00ffffff-no-rj",
-  },
-  {
-    name: "Sonu Nigam",
-    image:
-      "https://yt3.googleusercontent.com/ytc/AIdro_l7D=s176-c-k-c0x00ffffff-no-rj",
-  },
-  {
-    name: "Armaan Malik",
-    image:
-      "https://yt3.googleusercontent.com/ytc/AIdro_q2R=s176-c-k-c0x00ffffff-no-rj",
-  },
-].map((artist, idx) => (
-                <Link key={artist.name} href={`/artist/${encodeURIComponent(artist.name)}`}>
-                  <motion.div whileHover={{ y: -6 }} className="group bg-white/[0.02] hover:bg-white/[0.06] border border-white/5 hover:border-white/10 rounded-2xl p-5 flex flex-col items-center transition-all cursor-pointer">
-                    <div className="relative w-28 h-28 mb-4">
-                      <div className="absolute inset-0 rounded-full bg-purple-500/20 blur-xl group-hover:scale-110 transition-transform" />
-                      <img
-  src={artist.image}
-  alt={artist.name}
-  className="w-full h-full object-cover rounded-full shadow-lg border-2 border-transparent group-hover:border-purple-500 transition-colors relative z-10"
-  loading="lazy"
-  onError={(e) => {
-    (e.currentTarget as HTMLImageElement).src =
-      `https://ui-avatars.com/api/?name=${encodeURIComponent(
-        artist.name
-      )}&background=7c3aed&color=fff&size=256`;
-  }}
-/>
                     </div>
-                    <h3 className="font-bold text-center text-white truncate w-full">{artist.name}</h3>
-                    <span className="text-[10px] font-bold tracking-wider uppercase text-zinc-500 mt-2">Artist</span>
+                    <div>
+                      <h3 className="font-display text-[13px] font-bold text-zinc-200 group-hover:text-white transition-colors truncate">
+                        {playlist.name}
+                      </h3>
+                      <div className="flex items-center justify-between mt-1 text-[11px] text-zinc-555">
+                        <span>{playlist.songs.length} Songs</span>
+                        <span className="text-[10px] text-zinc-650 font-medium">Updated recently</span>
+                      </div>
+                    </div>
                   </motion.div>
                 </Link>
               ))}
             </div>
-          </motion.section>
+          ) : (
+            <div
+              className="p-10 rounded-[24px] text-center flex flex-col items-center border border-white/[0.04]"
+              style={{ background: "rgba(255,255,255,0.01)" }}
+            >
+              <ListMusic size={34} className="text-zinc-700 mb-3" />
+              <p className="text-[13px] text-zinc-400 font-semibold">No playlists created yet</p>
+              <p className="text-[11px] text-zinc-500 mt-0.5">Click the button above to build your first collection.</p>
+            </div>
+          )}
+        </section>
 
-        </div>
+        {/* 6. Recommended For You */}
+        <section className="px-6 md:px-10 space-y-6">
+          <div>
+            <p className="text-[9px] font-black uppercase tracking-[0.18em] text-zinc-600 mb-1.5">
+              Personalized
+            </p>
+            <h2 className="font-display text-[22px] font-black text-white tracking-tight leading-none">
+              Recommended For You
+            </h2>
+          </div>
+          <div className="flex gap-5 overflow-x-auto scrollbar-none pb-4 -mx-6 md:-mx-10 px-6 md:px-10">
+            {ALBUM_CARDS.map((album) => (
+              <motion.div
+                key={`rec-${album.id}`}
+                whileHover={{ y: -6 }}
+                onClick={() => router.push(`/album/${album.id}`)}
+                className="group shrink-0 w-[140px] md:w-[160px] flex flex-col gap-3 cursor-pointer text-left"
+              >
+                <div className="relative rounded-[20px] overflow-hidden bg-zinc-900 aspect-square border border-white/[0.05] group-hover:border-purple-500/35 transition-all duration-300 shadow-[0_8px_24px_rgba(0,0,0,0.5)]">
+                  <img
+                    src={album.image}
+                    alt={album.title}
+                    loading="lazy"
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                  />
+                </div>
+                <div className="px-0.5">
+                  <p className="font-display text-[12px] font-bold text-zinc-300 group-hover:text-white transition-colors truncate">
+                    {album.title}
+                  </p>
+                  <p className="text-[10px] text-zinc-555 font-medium truncate mt-0.5">{album.artist}</p>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        </section>
+
       </main>
     </ProtectedRoute>
   );

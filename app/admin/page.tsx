@@ -7,6 +7,7 @@ import { usePlayerStore } from "@/store/player-store";
 import { useShallow } from "zustand/react/shallow";
 import { Shield, Users, Music, Layers, RefreshCw, CheckCircle, Database } from "lucide-react";
 import { motion } from "framer-motion";
+import { Track } from "@/types/music";
 
 export default function AdminPage() {
   const { user } = useAuth();
@@ -14,8 +15,12 @@ export default function AdminPage() {
     playlists: s.playlists,
     likedSongs: s.likedSongs,
   })));
+  interface ImportStats {
+    success: boolean;
+    imported: number;
+  }
   const [importing, setImporting] = useState(false);
-  const [importStats, setImportStats] = useState<any>(null);
+  const [importStats, setImportStats] = useState<ImportStats | null>(null);
   const [dbStats, setDbStats] = useState({ songsCount: 24, artistsCount: 6 });
 
   // Simulate or retrieve DB stats
@@ -29,7 +34,7 @@ export default function AdminPage() {
       .then((data) => {
         if (data && data.length) {
           // Derive unique artists count
-          const uniqueArtists = new Set(data.map((t: any) => t.artistId));
+          const uniqueArtists = new Set(data.map((t: Track) => t.artist));
           setDbStats({
             songsCount: data.length,
             artistsCount: uniqueArtists.size || 6,
@@ -44,7 +49,7 @@ export default function AdminPage() {
     setImportStats(null);
     try {
       const res = await fetch("/api/admin/import-jamendo");
-      const data = await res.ok ? await res.json() : { success: false };
+      const data = res.ok ? await res.json() : { success: false, imported: 0 };
       setImportStats(data);
       if (data.success) {
         alert(`Successfully imported ${data.imported} new tracks from Jamendo! 🎉`);

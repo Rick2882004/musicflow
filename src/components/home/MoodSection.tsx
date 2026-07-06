@@ -3,45 +3,48 @@
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 
+const moods = [
+  { name: "Romance", emoji: "💕", color: "hover:border-pink-500/30 hover:bg-pink-500/5 hover:text-pink-300" },
+  { name: "Workout", emoji: "⚡", color: "hover:border-orange-500/30 hover:bg-orange-500/5 hover:text-orange-300" },
+  { name: "Chill", emoji: "🌊", color: "hover:border-teal-500/30 hover:bg-teal-500/5 hover:text-teal-300" },
+  { name: "Focus", emoji: "🎯", color: "hover:border-blue-500/30 hover:bg-blue-500/5 hover:text-blue-300" },
+  { name: "Party", emoji: "🎉", color: "hover:border-purple-500/30 hover:bg-purple-500/5 hover:text-purple-300" },
+  { name: "Sleep", emoji: "🌙", color: "hover:border-cyan-500/30 hover:bg-cyan-500/5 hover:text-cyan-300" },
+  { name: "Bollywood", emoji: "🎬", color: "hover:border-red-500/30 hover:bg-red-500/5 hover:text-red-300" },
+  { name: "Punjabi", emoji: "🥁", color: "hover:border-amber-500/30 hover:bg-amber-500/5 hover:text-amber-300" },
+  { name: "Lo-Fi", emoji: "☁️", color: "hover:border-indigo-500/30 hover:bg-indigo-500/5 hover:text-indigo-300" },
+];
+
 export default function MoodSection() {
   const router = useRouter();
 
-  const moods = [
-    { name: "Romance", color: "from-pink-500/20 to-rose-500/20 border-pink-500/30" },
-    { name: "Workout", color: "from-orange-500/20 to-red-500/20 border-orange-500/30" },
-    { name: "Chill", color: "from-teal-500/20 to-emerald-500/20 border-teal-500/30" },
-    { name: "Focus", color: "from-blue-500/20 to-indigo-500/20 border-blue-500/30" },
-    { name: "Party", color: "from-purple-500/20 to-fuchsia-500/20 border-purple-500/30" },
-    { name: "Sleep", color: "from-cyan-500/20 to-sky-500/20 border-cyan-500/30" },
-    { name: "Bollywood", color: "from-red-500/20 to-pink-500/20 border-red-500/30" },
-    { name: "Punjabi", color: "from-amber-500/20 to-orange-500/20 border-amber-500/30" },
-    { name: "LoFi", color: "from-violet-500/20 to-purple-500/20 border-violet-500/30" },
-    { name: "Happy", color: "from-yellow-500/20 to-amber-500/20 border-yellow-500/30" },
-    { name: "Sad", color: "from-slate-500/20 to-zinc-500/20 border-slate-500/30" },
-  ];
-
   return (
-    <section className="pb-16 mt-8">
+    <section className="px-6 md:px-10 pb-14 text-left">
+      {/* Header */}
       <div className="mb-6">
-        <h2 className="text-xl md:text-2xl font-bold tracking-tight text-white select-none">
-          Moods & Genres
+        <p className="text-[9px] font-black uppercase tracking-[0.18em] text-zinc-600 mb-1.5">
+          Vibe
+        </p>
+        <h2 className="font-display text-[22px] font-black text-white tracking-tight leading-none">
+          Moods &amp; Genres
         </h2>
-        <p className="text-xs text-zinc-500">Pick a playlist based on your mood</p>
       </div>
 
-      <div className="flex flex-wrap gap-3">
+      {/* Pill cloud */}
+      <div className="flex flex-wrap gap-2.5">
         {moods.map((mood, idx) => (
           <motion.button
             key={mood.name}
-            initial={{ opacity: 0, scale: 0.95 }}
+            initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.3, delay: idx * 0.03 }}
-            whileHover={{ scale: 1.05, y: -2 }}
+            transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1], delay: idx * 0.02 }}
+            whileHover={{ y: -2 }}
             whileTap={{ scale: 0.95 }}
             onClick={() => router.push(`/search?q=${encodeURIComponent(mood.name)}`)}
-            className={`px-6 py-3.5 rounded-2xl bg-gradient-to-br ${mood.color} border hover:shadow-lg hover:shadow-purple-500/5 text-zinc-200 hover:text-white text-xs font-bold transition-all duration-300 cursor-pointer`}
+            className={`flex items-center gap-2 px-4.5 py-2.5 rounded-full bg-white/[0.015] border border-white/[0.05] text-[12px] font-bold text-zinc-400 transition-all duration-200 cursor-pointer select-none focus:outline-none ${mood.color}`}
           >
-            {mood.name}
+            <span>{mood.emoji}</span>
+            <span>{mood.name}</span>
           </motion.button>
         ))}
       </div>
