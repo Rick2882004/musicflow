@@ -15,13 +15,18 @@ export default function LoginForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
+  const [errorMsg, setErrorMsg] = useState("");
+  const [successMsg, setSuccessMsg] = useState("");
+
   const handleLogin = async (
     e: React.FormEvent<HTMLFormElement>
   ) => {
     e.preventDefault();
+    setErrorMsg("");
+    setSuccessMsg("");
 
     if (!email || !password) {
-      alert("Please fill all fields.");
+      setErrorMsg("Please fill all fields.");
       return;
     }
 
@@ -34,10 +39,12 @@ export default function LoginForm() {
         password
       );
 
-      alert("Login Successful 🎉");
-      router.push("/");
+      setSuccessMsg("Login Successful! Redirecting...");
+      setTimeout(() => {
+        router.push("/");
+      }, 1000);
     } catch (error: unknown) {
-      alert((error as Error).message);
+      setErrorMsg((error as Error).message);
     } finally {
       setLoading(false);
     }
@@ -48,6 +55,16 @@ export default function LoginForm() {
       onSubmit={handleLogin}
       className="space-y-4"
     >
+      {errorMsg && (
+        <div className="p-3.5 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-[11px] font-semibold text-center">
+          {errorMsg}
+        </div>
+      )}
+      {successMsg && (
+        <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[11px] font-semibold text-center animate-pulse">
+          {successMsg}
+        </div>
+      )}
       <div className="relative">
         <Mail className="absolute left-3.5 top-3.5 w-4 h-4 text-zinc-650" />
         <input

@@ -10,6 +10,7 @@ import { motion, Variants } from "framer-motion";
 import { Search, Compass, Play, Sparkles, Flame, Plus, ArrowRight, Disc, Music, Smile, Layers } from "lucide-react";
 import Link from "next/link";
 import PopularArtists from "../../src/components/home/PopularArtists";
+import { SafeImage } from "@/components/ui/SafeImage";
 
 const GENRES = [
   { name: "Bollywood", emoji: "🎬", color: "hover:border-red-500/30 hover:bg-red-500/5 hover:text-red-300" },
@@ -55,12 +56,31 @@ const EDITORS_PICKS = [
   { id: "pick2", title: "Retro Synths", artist: "Synthwave Club", image: "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=400&q=80" },
 ];
 
+const MOCK_PODCASTS = [
+  { id: "pod1", title: "The Huberman Lab", host: "Dr. Andrew Huberman", image: "https://images.unsplash.com/photo-1590602847861-f357a9332bbc?w=400&q=80", desc: "Neuroscience and science-based tools for everyday life." },
+  { id: "pod2", title: "Lex Fridman Podcast", host: "Lex Fridman", image: "https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=400&q=80", desc: "Conversations about science, tech, history, and philosophy." },
+  { id: "pod3", title: "The Daily", host: "The New York Times", image: "https://images.unsplash.com/photo-1585829365295-ab7cd400c167?w=400&q=80", desc: "This is what the news should sound like. Twenty minutes a day." },
+];
+
+const MOCK_AUDIOBOOKS = [
+  { id: "ab1", title: "Atomic Habits", author: "James Clear", image: "https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=400&q=80", duration: "5h 35m", desc: "An easy and proven way to build good habits and break bad ones." },
+  { id: "ab2", title: "The Creative Act", author: "Rick Rubin", image: "https://images.unsplash.com/photo-1512820790803-83ca734da794?w=400&q=80", duration: "6h 12m", desc: "A beautiful and inspiring book about creativity and art." },
+  { id: "ab3", title: "Greenlights", author: "Matthew McConaughey", image: "https://images.unsplash.com/photo-1476275466078-4007374efbbe?w=400&q=80", duration: "7h 04m", desc: "An album of Matthew McConaughey's life, lessons, and stories." },
+];
+
+const MOCK_RADIO = [
+  { id: "rad1", title: "BBC Radio 1", freq: "98.1 FM", image: "https://images.unsplash.com/photo-1590602847861-f357a9332bbc?w=400&q=80", desc: "Hot new UK chart hits and music news." },
+  { id: "rad2", title: "Jazz FM", freq: "102.5 FM", image: "https://images.unsplash.com/photo-1511192336575-5a79af67a629?w=400&q=80", desc: "Smooth jazz and classical instrumentals." },
+  { id: "rad3", title: "NPR News Radio", freq: "89.3 FM", image: "https://images.unsplash.com/photo-1585829365295-ab7cd400c167?w=400&q=80", desc: "National Public Radio news and discussions." },
+];
+
 export default function ExplorePage() {
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState("");
   const [isFocused, setIsFocused] = useState(false);
   const [trendingSongs, setTrendingSongs] = useState<Track[]>([]);
   const [loading, setLoading] = useState(true);
+  const [activeCategory, setActiveCategory] = useState<"music" | "podcasts" | "audiobooks" | "radio">("music");
 
   const { setTrack, setQueue } = usePlayerStore(
     useShallow((s) => ({
@@ -164,9 +184,36 @@ export default function ExplorePage() {
                 </button>
               </div>
             </form>
+
+            {/* Multi-Format Content Tabs */}
+            <div className="flex gap-2.5 mt-8 flex-wrap">
+              {[
+                { id: "music", label: "Music", emoji: "🎵" },
+                { id: "podcasts", label: "Podcasts", emoji: "🎙️" },
+                { id: "audiobooks", label: "Audiobooks", emoji: "📚" },
+                { id: "radio", label: "Live Radio", emoji: "📻" },
+              ].map((cat) => (
+                <button
+                  key={cat.id}
+                  onClick={() => setActiveCategory(cat.id as "music" | "podcasts" | "audiobooks" | "radio")}
+                  className={`px-4.5 py-2 rounded-full text-[10px] font-black uppercase tracking-wider transition-all duration-200 cursor-pointer border flex items-center gap-1.5 ${
+                    activeCategory === cat.id
+                      ? "bg-white text-black border-white shadow-[0_4px_16px_rgba(255,255,255,0.15)]"
+                      : "bg-white/[0.02] text-zinc-400 border-white/[0.05] hover:bg-white/[0.05] hover:text-white"
+                  }`}
+                >
+                  <span>{cat.emoji}</span>
+                  <span>{cat.label}</span>
+                </button>
+              ))}
+            </div>
+
           </div>
         </motion.div>
       </section>
+
+      {activeCategory === "music" ? (
+        <>
 
       {/* 3. Popular Genres (Horizontal Scroll) */}
       <section className="px-6 md:px-10 space-y-6">
@@ -225,11 +272,11 @@ export default function ExplorePage() {
                 className="group shrink-0 w-[160px] md:w-[185px] flex flex-col gap-3 cursor-pointer text-left focus:outline-none"
               >
                 <div className="relative rounded-[22px] overflow-hidden bg-zinc-900 aspect-square border border-white/[0.05] group-hover:border-purple-500/30 transition-all duration-300 shadow-[0_8px_28px_rgba(0,0,0,0.6)]">
-                  <img
+                  <SafeImage
                     src={album.image}
                     alt={album.title}
-                    loading="lazy"
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                    fallbackType="album"
                   />
                   <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
                     <div className="w-11 h-11 rounded-full bg-white flex items-center justify-center text-black shadow-lg">
@@ -268,11 +315,11 @@ export default function ExplorePage() {
               onClick={() => router.push(`/search?q=${encodeURIComponent(playlist.title)}`)}
             >
               <div className="w-20 h-20 rounded-2xl overflow-hidden shrink-0 bg-zinc-950 border border-white/5 shadow-md">
-                <img
+                <SafeImage
                   src={playlist.image}
                   alt={playlist.title}
-                  loading="lazy"
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                  fallbackType="song"
                 />
               </div>
               <div className="flex flex-col justify-center min-w-0">
@@ -321,11 +368,11 @@ export default function ExplorePage() {
               className="group shrink-0 w-[140px] md:w-[160px] flex flex-col gap-3 cursor-pointer text-left focus:outline-none"
             >
               <div className="relative rounded-[20px] overflow-hidden bg-zinc-900 aspect-square border border-white/[0.05] group-hover:border-purple-500/30 transition-all duration-300 shadow-[0_8px_24px_rgba(0,0,0,0.5)]">
-                <img
+                <SafeImage
                   src={album.image}
                   alt={album.title}
-                  loading="lazy"
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                  fallbackType="album"
                 />
               </div>
               <div className="px-0.5">
@@ -390,11 +437,11 @@ export default function ExplorePage() {
               className="group relative p-4 rounded-3xl bg-white/[0.015] border border-white/[0.04] hover:border-purple-500/20 hover:bg-white/[0.03] transition-all duration-300 cursor-pointer flex gap-4 overflow-hidden"
             >
               <div className="w-16 h-16 rounded-2xl overflow-hidden shrink-0 bg-zinc-900 border border-white/5">
-                <img
+                <SafeImage
                   src={pick.image}
                   alt={pick.title}
-                  loading="lazy"
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                  fallbackType="album"
                 />
               </div>
               <div className="flex flex-col justify-center min-w-0">
@@ -443,11 +490,11 @@ export default function ExplorePage() {
                     {index + 1}
                   </span>
                   <div className="w-12 h-12 rounded-xl overflow-hidden shrink-0 border border-white/5 bg-zinc-950">
-                    <img
+                    <SafeImage
                       src={song.thumbnail}
+                      videoId={song.videoId}
                       alt={song.title}
                       className="w-full h-full object-cover"
-                      loading="lazy"
                     />
                   </div>
                   <div className="min-w-0">
@@ -473,6 +520,111 @@ export default function ExplorePage() {
           </div>
         )}
       </section>
+
+        </>
+      ) : activeCategory === "podcasts" ? (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="px-4 md:px-10 space-y-12 text-left"
+        >
+          <div>
+            <p className="text-[9px] font-black uppercase tracking-[0.18em] text-purple-400 mb-1.5">Curated Shows</p>
+            <h2 className="font-display text-[22px] font-black text-white tracking-tight leading-none">Popular Podcasts</h2>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-5">
+            {MOCK_PODCASTS.map((pod) => (
+              <motion.div
+                key={pod.id}
+                whileHover={{ y: -5 }}
+                className="group p-5 rounded-3xl bg-white/[0.015] border border-white/[0.04] hover:bg-white/[0.03] hover:border-purple-500/20 transition-all duration-300 flex flex-col gap-4"
+              >
+                <div className="relative aspect-video rounded-2xl overflow-hidden bg-zinc-900 border border-white/5 shadow-md">
+                  <SafeImage src={pod.image} alt={pod.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" fallbackType="album" />
+                  <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center text-black shadow-lg">
+                      <Play size={14} fill="black" className="text-black ml-0.5" />
+                    </div>
+                  </div>
+                </div>
+                <div className="min-w-0">
+                  <span className="text-[8px] font-bold text-zinc-555 uppercase tracking-wider block">{pod.host}</span>
+                  <h3 className="font-display text-[14px] font-bold text-zinc-200 mt-1 group-hover:text-white transition-colors truncate">{pod.title}</h3>
+                  <p className="text-[11px] text-zinc-500 mt-1.5 font-medium leading-relaxed line-clamp-2">{pod.desc}</p>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        </motion.div>
+      ) : activeCategory === "audiobooks" ? (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="px-4 md:px-10 space-y-12 text-left"
+        >
+          <div>
+            <p className="text-[9px] font-black uppercase tracking-[0.18em] text-purple-400 mb-1.5">Bestsellers</p>
+            <h2 className="font-display text-[22px] font-black text-white tracking-tight leading-none">Featured Audiobooks</h2>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-5">
+            {MOCK_AUDIOBOOKS.map((ab) => (
+              <motion.div
+                key={ab.id}
+                whileHover={{ y: -5 }}
+                className="group flex flex-col gap-3 cursor-pointer text-left"
+              >
+                <div className="relative rounded-[22px] overflow-hidden bg-zinc-900 aspect-[3/4] border border-white/[0.05] group-hover:border-purple-500/30 transition-all duration-300 shadow-lg">
+                  <SafeImage src={ab.image} alt={ab.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" fallbackType="album" />
+                  <div className="absolute inset-0 bg-black/45 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                    <Play size={15} fill="white" className="text-white" />
+                  </div>
+                </div>
+                <div className="px-0.5 min-w-0">
+                  <h3 className="font-display text-[13px] font-bold text-zinc-300 group-hover:text-white transition-colors truncate">{ab.title}</h3>
+                  <div className="flex items-center justify-between mt-1 text-[11px] text-zinc-555">
+                    <span className="truncate">{ab.author}</span>
+                    <span className="font-mono text-[9px] font-bold text-zinc-650 shrink-0">{ab.duration}</span>
+                  </div>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        </motion.div>
+      ) : (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="px-4 md:px-10 space-y-12 text-left"
+        >
+          <div>
+            <p className="text-[9px] font-black uppercase tracking-[0.18em] text-purple-400 mb-1.5">Broadcast FM</p>
+            <h2 className="font-display text-[22px] font-black text-white tracking-tight leading-none">Live Stations</h2>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-5">
+            {MOCK_RADIO.map((rad) => (
+              <motion.div
+                key={rad.id}
+                whileHover={{ y: -5 }}
+                className="group p-5 rounded-3xl bg-white/[0.015] border border-white/[0.04] hover:bg-white/[0.03] hover:border-purple-500/20 transition-all duration-300 flex items-center gap-4 cursor-pointer"
+              >
+                <div className="w-14 h-14 rounded-2xl overflow-hidden bg-zinc-900 border border-white/5 shrink-0 relative">
+                  <SafeImage src={rad.image} alt={rad.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" fallbackType="album" />
+                  <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                    <Play size={10} fill="white" className="text-white" />
+                  </div>
+                </div>
+                <div className="min-w-0 text-left">
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-display text-[14px] font-bold text-zinc-200 group-hover:text-white transition-colors truncate">{rad.title}</h3>
+                    <span className="px-1.5 py-0.5 rounded bg-purple-550/15 border border-purple-550/20 text-[8px] font-mono font-bold text-purple-400 shrink-0">{rad.freq}</span>
+                  </div>
+                  <p className="text-[11px] text-zinc-500 mt-1 truncate font-medium">{rad.desc}</p>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        </motion.div>
+      )}
 
     </main>
   );

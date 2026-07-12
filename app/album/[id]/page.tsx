@@ -8,6 +8,7 @@ import { motion } from "framer-motion";
 import { Play, Shuffle, Calendar, Music, Clock } from "lucide-react";
 import Link from "next/link";
 import { Track, Album } from "@/types/music";
+import { SafeImage } from "@/components/ui/SafeImage";
 
 function formatDur(s: number = 0) {
   const m = Math.floor(s / 60), sec = Math.floor(s % 60);
@@ -107,10 +108,11 @@ export default function AlbumPage() {
         <div className="absolute top-0 right-0 w-[500px] h-[350px] rounded-full bg-purple-900/[0.06] blur-[140px] pointer-events-none" />
 
         <div className="relative bg-white/[0.015] border border-white/[0.05] p-8 md:p-10 flex flex-col md:flex-row items-center gap-8 shadow-2xl rounded-[24px]">
-          <img
+          <SafeImage
             src={coverImage}
             alt={album.name}
             className="w-40 h-40 md:w-44 md:h-44 rounded-[22px] object-cover shadow-2xl border border-white/[0.08] shrink-0"
+            fallbackType="album"
           />
 
           <div className="space-y-3.5 text-center md:text-left min-w-0 flex-grow">

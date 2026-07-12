@@ -28,6 +28,12 @@ export default function YoutubePlayer({ videoId }: Props) {
     playerRef.current = event.target;
     setPlayer(event.target);
     setDuration(event.target.getDuration());
+    
+    // Seek to the saved currentTime if any on load
+    const savedTime = usePlayerStore.getState().currentTime;
+    if (savedTime > 0) {
+      event.target.seekTo(savedTime, true);
+    }
   };
 
   const onStateChange = (event: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -41,10 +47,6 @@ export default function YoutubePlayer({ videoId }: Props) {
     }
   };
 
-  useEffect(() => {
-    // interval moved to BottomPlayer
-  }, []);
-
   return (
     <YouTube
       videoId={videoId}
@@ -54,7 +56,7 @@ export default function YoutubePlayer({ videoId }: Props) {
         width: "100%",
         height: "500",
         playerVars: {
-          autoplay: 1,
+          autoplay: usePlayerStore.getState().isPlaying ? 1 : 0,
         },
       }}
     />

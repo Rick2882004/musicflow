@@ -9,6 +9,8 @@ import ProtectedRoute from "../../src/components/auth/ProtectedRoute";
 import { motion, AnimatePresence, type Variants } from "framer-motion";
 import { ListMusic, Plus, Search, Play, Music, Sparkles, Heart, MoreHorizontal, Compass, Clock, Check, X } from "lucide-react";
 import { Playlist } from "@/types/music";
+import { useHasMounted } from "@/hooks/useHasMounted";
+import { SafeImage } from "@/components/ui/SafeImage";
 
 const QUICK_COLLECTIONS = [
   { name: "Workout", emoji: "⚡", bg: "from-orange-500/10 to-transparent", hoverBorder: "group-hover:border-orange-500/30" },
@@ -40,6 +42,7 @@ const itemVariants: Variants = {
 
 export default function PlaylistsPage() {
   const router = useRouter();
+  const mounted = useHasMounted();
   const [name,       setName]       = useState("");
   const [search,     setSearch]     = useState("");
   const [isCreating, setIsCreating] = useState(false);
@@ -52,6 +55,16 @@ export default function PlaylistsPage() {
       addPlaylist: s.addPlaylist,
     }))
   );
+
+  if (!mounted) {
+    return (
+      <ProtectedRoute>
+        <div className="h-screen flex items-center justify-center">
+          <div className="text-zinc-450 text-xl font-bold animate-pulse">Loading Playlists...</div>
+        </div>
+      </ProtectedRoute>
+    );
+  }
 
   const totalSongs = playlists.reduce((total, p) => total + p.songs.length, 0);
   const totalHours = Math.round(totalSongs * 3.5 / 60);
@@ -72,7 +85,7 @@ export default function PlaylistsPage() {
       <main className="min-h-screen pb-36 text-white text-left space-y-16" style={{ background: "#07070A" }}>
 
         {/* 1. Hero Section */}
-        <section className="relative px-6 md:px-10 pt-10 pb-6 overflow-hidden">
+        <section className="relative px-4 md:px-10 pt-6 md:pt-10 pb-6 overflow-hidden">
           {/* Ambient Background Orbs */}
           <div className="absolute top-0 left-[-10%] w-[600px] h-[400px] rounded-full bg-purple-950/[0.08] blur-[140px] pointer-events-none" />
           <div className="absolute top-20 right-0 w-[450px] h-[320px] rounded-full bg-fuchsia-950/[0.06] blur-[120px] pointer-events-none" />
@@ -157,7 +170,7 @@ export default function PlaylistsPage() {
         {/* Create playlist collapse */}
         <AnimatePresence>
           {isCreating && (
-            <section className="px-6 md:px-10">
+            <section className="px-4 md:px-10">
               <motion.div
                 initial={{ opacity: 0, y: -10 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -200,7 +213,7 @@ export default function PlaylistsPage() {
         </AnimatePresence>
 
         {/* 2. Search & Filter Bar */}
-        <section className="px-6 md:px-10">
+        <section className="px-4 md:px-10">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-2xl bg-white/[0.015] border border-white/[0.04]">
             
             {/* Search */}
@@ -244,7 +257,7 @@ export default function PlaylistsPage() {
         </section>
 
         {/* 3. Playlist Grid */}
-        <section className="px-6 md:px-10 space-y-6">
+        <section className="px-4 md:px-10 space-y-6">
           {playlists.length === 0 ? (
             <div
               className="p-16 rounded-[32px] text-center flex flex-col items-center border border-white/[0.04]"
@@ -258,7 +271,7 @@ export default function PlaylistsPage() {
             </div>
           ) : filteredPlaylists.length === 0 ? (
             <div className="text-center py-20">
-              <p className="text-[14px] text-zinc-650">No playlists found matching &quot;{search}&quot;</p>
+              <p className="text-[14px] text-zinc-650">{"No playlists found matching \""}{search}{"\""}</p>
             </div>
           ) : (
             <motion.div
@@ -277,10 +290,12 @@ export default function PlaylistsPage() {
                           className="relative aspect-square rounded-[22px] overflow-hidden bg-zinc-900 border border-white/[0.05] shadow-[0_8px_24px_rgba(0,0,0,0.6)] group-hover:border-purple-500/25 transition-all duration-300"
                         >
                           {playlist.songs[0] ? (
-                            <img
+                            <SafeImage
                               src={playlist.songs[0].thumbnail}
+                              videoId={playlist.songs[0].videoId}
                               alt={playlist.name}
                               className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                              fallbackType="song"
                             />
                           ) : (
                             <div className="w-full h-full flex items-center justify-center bg-zinc-950">
@@ -316,7 +331,7 @@ export default function PlaylistsPage() {
         </section>
 
         {/* 4. Quick Collections */}
-        <section className="px-6 md:px-10 space-y-6">
+        <section className="px-4 md:px-10 space-y-6">
           <div>
             <p className="text-[9px] font-black uppercase tracking-[0.18em] text-zinc-600 mb-1.5">
               Suggestions
@@ -345,7 +360,7 @@ export default function PlaylistsPage() {
 
         {/* 5. Recently Updated (Horizontal Carousel) */}
         {playlists.length > 0 && (
-          <section className="px-6 md:px-10 space-y-6">
+          <section className="px-4 md:px-10 space-y-6">
             <div className="flex items-end justify-between">
               <div>
                 <p className="text-[9px] font-black uppercase tracking-[0.18em] text-zinc-600 mb-1.5">
@@ -356,7 +371,7 @@ export default function PlaylistsPage() {
                 </h2>
               </div>
             </div>
-            <div className="flex gap-5 overflow-x-auto scrollbar-none pb-4 -mx-6 md:-mx-10 px-6 md:px-10">
+            <div className="flex gap-5 overflow-x-auto scrollbar-none pb-4 -mx-4 md:-mx-10 px-4 md:px-10">
               {playlists.slice(0, 5).map((playlist) => (
                 <motion.div
                   key={`updated-${playlist.id}`}
@@ -366,7 +381,7 @@ export default function PlaylistsPage() {
                 >
                   <div className="relative aspect-square rounded-[14px] overflow-hidden bg-zinc-950 border border-white/5 shadow-sm mb-3">
                     {playlist.songs[0] ? (
-                      <img src={playlist.songs[0].thumbnail} alt={playlist.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                      <SafeImage src={playlist.songs[0].thumbnail} videoId={playlist.songs[0].videoId} alt={playlist.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" fallbackType="song" />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center bg-zinc-950">
                         <Music size={28} className="text-zinc-800" />
@@ -380,6 +395,18 @@ export default function PlaylistsPage() {
             </div>
           </section>
         )}
+
+        {/* Mobile Floating Action Button (FAB) to create playlist */}
+        <button
+          onClick={() => {
+            setIsCreating(true);
+            window.scrollTo({ top: 0, behavior: "smooth" });
+          }}
+          className="md:hidden fixed bottom-24 right-5 z-45 w-12 h-12 rounded-full bg-purple-600 border border-purple-500 shadow-[0_8px_24px_rgba(147,51,234,0.4)] flex items-center justify-center text-white active:scale-90 transition-transform duration-150 cursor-pointer"
+          aria-label="Create new playlist"
+        >
+          <Plus size={20} />
+        </button>
 
       </main>
     </ProtectedRoute>

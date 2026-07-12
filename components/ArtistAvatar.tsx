@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 
+import { SafeImage } from "@/components/ui/SafeImage";
+
 export default function ArtistAvatar({
   artist,
 }: {
@@ -23,7 +25,7 @@ export default function ArtistAvatar({
   }, [artist]);
 
   return (
-    <img
+    <SafeImage
       src={
         image ||
         `https://ui-avatars.com/api/?name=${encodeURIComponent(
@@ -31,14 +33,8 @@ export default function ArtistAvatar({
         )}`
       }
       alt={artist}
-      className="
-        w-24
-        h-24
-        rounded-full
-        object-cover
-        mx-auto
-        mb-4
-      "
+      className="w-24 h-24 rounded-full object-cover mx-auto mb-4"
+      fallbackType="artist"
     />
   );
 }

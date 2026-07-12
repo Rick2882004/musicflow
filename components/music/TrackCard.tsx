@@ -1,5 +1,4 @@
-"use client";
-
+import { SafeImage } from "@/components/ui/SafeImage";
 import { Play } from "lucide-react";
 
 type TrackCardProps = {
@@ -7,6 +6,7 @@ type TrackCardProps = {
   artist: string;
   audioUrl: string;
   coverImage?: string | null;
+  videoId?: string;
 };
 
 export default function TrackCard({
@@ -14,6 +14,7 @@ export default function TrackCard({
   artist,
   audioUrl,
   coverImage,
+  videoId,
 }: TrackCardProps) {
   return (
     <div
@@ -31,23 +32,12 @@ export default function TrackCard({
       "
     >
       <div className="relative">
-        <img
-          src={
-            coverImage ||
-            "https://placehold.co/500x500/png"
-          }
+        <SafeImage
+          src={coverImage || undefined}
+          videoId={videoId}
           alt={title}
-          loading="lazy"
-          onError={(e) => {
-            e.currentTarget.onerror = null;
-            e.currentTarget.src = "https://placehold.co/500x500/png";
-          }}
-          className="
-            aspect-square
-            w-full
-            object-cover
-            rounded-xl
-          "
+          className="aspect-square w-full object-cover rounded-xl"
+          fallbackType="song"
         />
 
         <button

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useHasMounted } from "@/hooks/useHasMounted";
 import {
   Home,
   Heart,
@@ -34,6 +35,7 @@ const NAV_ITEMS = [
 
 export function Sidebar() {
   const pathname = usePathname();
+  const mounted = useHasMounted();
   const { playlists, addPlaylist } = usePlayerStore(
     useShallow((s) => ({
       playlists: s.playlists,
@@ -151,26 +153,33 @@ export function Sidebar() {
 
           {/* Playlists List */}
           <div className="space-y-0.5 mt-2 max-h-[220px] overflow-y-auto scrollbar-none pr-0.5">
-            {playlists.map((pl: Playlist) => {
-              const active = pathname === `/playlists/${pl.id}`;
-              return (
-                <Link
-                  key={pl.id}
-                  href={`/playlists/${pl.id}`}
-                  className={cn(
-                    "flex items-center justify-between px-3.5 py-2 text-[12px] rounded-lg transition-all group",
-                    active
-                      ? "bg-purple-500/10 border border-purple-500/20 text-purple-300 font-bold"
-                      : "text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.02]"
-                  )}
-                >
-                  <span className="truncate max-w-[150px]">{pl.name}</span>
-                  <span className="text-[9px] text-zinc-550 group-hover:text-zinc-450 font-bold bg-white/[0.04] px-1.5 py-0.5 rounded-full border border-white/[0.03]">
-                    {pl.songs.length}
-                  </span>
-                </Link>
-              );
-            })}
+            {mounted ? (
+              playlists.map((pl: Playlist) => {
+                const active = pathname === `/playlists/${pl.id}`;
+                return (
+                  <Link
+                    key={pl.id}
+                    href={`/playlists/${pl.id}`}
+                    className={cn(
+                      "flex items-center justify-between px-3.5 py-2 text-[12px] rounded-lg transition-all group",
+                      active
+                        ? "bg-purple-500/10 border border-purple-500/20 text-purple-300 font-bold"
+                        : "text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.02]"
+                    )}
+                  >
+                    <span className="truncate max-w-[150px]">{pl.name}</span>
+                    <span className="text-[9px] text-zinc-550 group-hover:text-zinc-450 font-bold bg-white/[0.04] px-1.5 py-0.5 rounded-full border border-white/[0.03]">
+                      {pl.songs.length}
+                    </span>
+                  </Link>
+                );
+              })
+            ) : (
+              <div className="space-y-2.5 px-3.5 py-2.5">
+                <div className="h-3 w-28 bg-white/5 rounded animate-pulse" />
+                <div className="h-3 w-20 bg-white/5 rounded animate-pulse" />
+              </div>
+            )}
           </div>
         </nav>
 

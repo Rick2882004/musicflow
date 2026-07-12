@@ -2,13 +2,15 @@
 
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { usePlayerStore } from "@/store/player-store";
 import { useShallow } from "zustand/react/shallow";
 import { Play, Shuffle, Trash, Check, Edit2, ShieldAlert, Users, Clock, Share2, Heart, MoreHorizontal, Sparkles, HelpCircle } from "lucide-react";
 import { Track, Playlist } from "@/types/music";
 import { motion, AnimatePresence } from "framer-motion";
 import ProtectedRoute from "../../../src/components/auth/ProtectedRoute";
+import { useHasMounted } from "@/hooks/useHasMounted";
+import { SafeImage } from "@/components/ui/SafeImage";
 
 function formatDur(s: number = 0) {
   const m = Math.floor(s / 60), sec = Math.floor(s % 60);
@@ -51,14 +53,37 @@ export default function PlaylistPage() {
     isPlaying: s.isPlaying,
   })));
 
+
   const playlist = playlists.find(
     (p: Playlist) => p.id.toString() === params.id
   );
 
+  const mounted = useHasMounted();
   const [editMode, setEditMode] = useState(false);
-  const [playlistName, setPlaylistName] = useState(playlist?.name || "");
-  const [playlistDesc, setPlaylistDesc] = useState(playlist?.description || "");
-  const [isCollab, setIsCollab] = useState(playlist?.isCollaborative || false);
+  const [playlistName, setPlaylistName] = useState("");
+  const [playlistDesc, setPlaylistDesc] = useState("");
+  const [isCollab, setIsCollab] = useState(false);
+
+  useEffect(() => {
+    if (playlist) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setPlaylistName(playlist.name);
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setPlaylistDesc(playlist.description || "");
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setIsCollab(playlist.isCollaborative || false);
+    }
+  }, [playlist]);
+
+  if (!mounted) {
+    return (
+      <ProtectedRoute>
+        <main className="min-h-screen text-zinc-400 select-none text-left flex flex-col items-center justify-center p-8">
+          <div className="text-zinc-450 text-xl font-bold animate-pulse">Loading Playlist...</div>
+        </main>
+      </ProtectedRoute>
+    );
+  }
 
   if (!playlist) {
     return (
@@ -122,14 +147,11 @@ export default function PlaylistPage() {
       return (
         <div className="grid grid-cols-2 grid-rows-2 w-40 h-40 md:w-48 md:h-48 rounded-[24px] overflow-hidden shadow-2xl shrink-0 border border-white/5 bg-zinc-950">
           {playlist.songs.slice(0, 4).map((song, i) => (
-            <img
+            <SafeImage
               key={i}
-              src={song.thumbnail || "https://placehold.co/100x100/111/fff?text=♪"}
+              src={song.thumbnail}
+              videoId={song.videoId}
               alt=""
-              onError={(e) => {
-                e.currentTarget.onerror = null;
-                e.currentTarget.src = "https://placehold.co/100x100/111/fff?text=♪";
-              }}
               className="w-full h-full object-cover"
             />
           ))}
@@ -138,13 +160,10 @@ export default function PlaylistPage() {
     }
     if (playlist.songs.length > 0) {
       return (
-        <img
-          src={playlist.songs[0].thumbnail || "https://placehold.co/500x500/111/fff?text=♪"}
+        <SafeImage
+          src={playlist.songs[0].thumbnail}
+          videoId={playlist.songs[0].videoId}
           alt=""
-          onError={(e) => {
-            e.currentTarget.onerror = null;
-            e.currentTarget.src = "https://placehold.co/500x500/111/fff?text=♪";
-          }}
           className="w-40 h-40 md:w-48 md:h-48 rounded-[24px] object-cover shadow-2xl shrink-0 border border-white/5 bg-zinc-950"
         />
       );
@@ -338,13 +357,10 @@ export default function PlaylistPage() {
                             <td className="py-3.5 px-4">
                               <div className="flex items-center gap-3.5 min-w-0">
                                 <div className="w-10 h-10 rounded-lg overflow-hidden shrink-0 border border-white/5 bg-zinc-950 animate-fade-in">
-                                  <img 
-                                    src={song.thumbnail || "https://placehold.co/100x100/111/fff?text=♪"} 
+                                  <SafeImage 
+                                    src={song.thumbnail} 
+                                    videoId={song.videoId}
                                     alt={song.title} 
-                                    onError={(e) => {
-                                      e.currentTarget.onerror = null;
-                                      e.currentTarget.src = "https://placehold.co/100x100/111/fff?text=♪";
-                                    }}
                                     className="w-full h-full object-cover" 
                                   />
                                 </div>
@@ -416,11 +432,12 @@ export default function PlaylistPage() {
                 <div className="flex items-center gap-2">
                   <div className="flex -space-x-2.5 overflow-hidden">
                     {COLLABORATORS.map((userObj) => (
-                      <img
+                      <SafeImage
                         key={userObj.name}
                         className="inline-block h-7 w-7 rounded-full ring-2 ring-zinc-950 object-cover"
                         src={userObj.avatar}
                         alt={userObj.name}
+                        fallbackType="artist"
                       />
                     ))}
                   </div>
@@ -443,13 +460,10 @@ export default function PlaylistPage() {
                     >
                       <div className="flex items-center gap-2.5 min-w-0">
                         <div className="w-9 h-9 rounded-lg overflow-hidden shrink-0 border border-white/5">
-                          <img
-                            src={song.thumbnail || "https://placehold.co/100x100/111/fff?text=♪"}
+                          <SafeImage
+                            src={song.thumbnail}
+                            videoId={song.videoId}
                             alt={song.title}
-                            onError={(e) => {
-                              e.currentTarget.onerror = null;
-                              e.currentTarget.src = "https://placehold.co/100x100/111/fff?text=♪";
-                            }}
                             className="w-full h-full object-cover"
                           />
                         </div>

@@ -26,9 +26,13 @@ import { useRouter } from "next/navigation";
 const ToggleSwitch = ({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) => (
   <div
     onClick={() => onChange(!checked)}
-    className={`w-9 h-5 rounded-full p-0.5 cursor-pointer transition-colors duration-200 shrink-0 ${checked ? "bg-purple-550" : "bg-zinc-800"}`}
+    className="w-12 h-10 flex items-center justify-center cursor-pointer active:scale-95 transition shrink-0"
   >
-    <div className={`w-4 h-4 bg-white rounded-full transition-transform duration-200 shadow-md ${checked ? "translate-x-4" : "translate-x-0"}`} />
+    <div
+      className={`w-9 h-5 rounded-full p-0.5 transition-colors duration-200 ${checked ? "bg-purple-550" : "bg-zinc-800"}`}
+    >
+      <div className={`w-4 h-4 bg-white rounded-full transition-transform duration-200 shadow-md ${checked ? "translate-x-4" : "translate-x-0"}`} />
+    </div>
   </div>
 );
 
@@ -44,6 +48,9 @@ export default function SettingsPage() {
   const [streamQuality, setStreamQuality] = useState("auto");
   const [cacheSize, setCacheSize] = useState("142 MB");
   const [isPrivate, setIsPrivate] = useState(false);
+  const [crossfade, setCrossfade] = useState(5);
+  const [equalizer, setEqualizer] = useState("flat");
+  const [autoplay, setAutoplay] = useState(true);
   const [savedMsg, setSavedMsg] = useState("");
 
   useEffect(() => {
@@ -93,7 +100,7 @@ export default function SettingsPage() {
         </AnimatePresence>
 
         {/* 1. Page Header */}
-        <div className="relative px-6 md:px-10 pt-10 pb-4 overflow-hidden text-left flex items-center justify-between">
+        <div className="relative px-4 md:px-10 pt-6 md:pt-10 pb-4 overflow-hidden text-left flex items-center justify-between">
           {/* Ambient Glow */}
           <div className="absolute top-0 left-[-10%] w-[500px] h-[300px] rounded-full bg-purple-900/[0.06] blur-[120px] pointer-events-none" />
           
@@ -104,7 +111,7 @@ export default function SettingsPage() {
             <h1 className="font-display text-[44px] sm:text-[60px] font-black leading-[0.92] tracking-tighter text-white select-none">
               Settings.
             </h1>
-            <p className="text-[12px] text-zinc-500 font-semibold mt-2">
+            <p className="text-[12px] text-zinc-550 font-semibold mt-2">
               Configure playback, downloads, system notifications, and privacy preferences.
             </p>
           </div>
@@ -117,7 +124,7 @@ export default function SettingsPage() {
           </button>
         </div>
 
-        <div className="px-6 md:px-10 space-y-6">
+        <div className="px-4 md:px-10 space-y-6">
           
           {/* Category: Account Details */}
           <section className={sectionCardStyle}>
@@ -208,6 +215,51 @@ export default function SettingsPage() {
                   <option value="normal">Standard (128kbps)</option>
                 </select>
               </div>
+
+              <div className="flex items-center justify-between">
+                <div>
+                  <span className={labelStyle}>Audio Equalizer Preset</span>
+                  <span className={descStyle}>Configure frequencies response curve</span>
+                </div>
+                <select
+                  value={equalizer}
+                  onChange={(e) => setEqualizer(e.target.value)}
+                  className={selectStyle}
+                >
+                  <option value="flat">Flat / Normal</option>
+                  <option value="bass">Bass Booster</option>
+                  <option value="acoustic">Acoustic</option>
+                  <option value="electronic">Electronic</option>
+                  <option value="classical">Classical</option>
+                  <option value="pop">Pop</option>
+                </select>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div>
+                  <span className={labelStyle}>Crossfade Duration</span>
+                  <span className={descStyle}>Transition overlaps between playing tracks: {crossfade} seconds</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="range"
+                    min={0}
+                    max={12}
+                    value={crossfade}
+                    onChange={(e) => setCrossfade(Number(e.target.value))}
+                    className="w-24 h-1 bg-zinc-850 outline-none rounded-full cursor-pointer appearance-none accent-purple-550"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div>
+                  <span className={labelStyle}>Autoplay Similar Content</span>
+                  <span className={descStyle}>Keep playing similar tracks when queue reaches the end</span>
+                </div>
+                <ToggleSwitch checked={autoplay} onChange={setAutoplay} />
+              </div>
+
             </div>
           </section>
 

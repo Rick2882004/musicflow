@@ -8,11 +8,13 @@ import { motion } from "framer-motion";
 import { useShallow } from "zustand/react/shallow";
 import Link from "next/link";
 import { Play } from "lucide-react";
+import { SafeImage } from "@/components/ui/SafeImage";
+import { getPersonalizedMixes, MixDefinition } from "@/lib/personalization";
 
 // ── Skeleton Loader ──
 const SectionSkeleton = memo(function SectionSkeleton() {
   return (
-    <div className="space-y-4 px-6 md:px-10">
+    <div className="space-y-4 px-4 md:px-10">
       <div className="flex items-center gap-3">
         <div className="w-28 h-5 mf-skeleton rounded-lg" />
         <div className="w-14 h-3 mf-skeleton rounded-lg opacity-40" />
@@ -51,7 +53,7 @@ const HScrollSection = memo(function HScrollSection({
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
     >
-      <div className="flex items-end justify-between px-6 md:px-10 mb-5 text-left">
+      <div className="flex items-end justify-between px-4 md:px-10 mb-5 text-left">
         <div>
           {subtitle && (
             <p className="text-[9px] font-black uppercase tracking-[0.18em] text-zinc-600 mb-1.5">
@@ -72,11 +74,11 @@ const HScrollSection = memo(function HScrollSection({
         )}
       </div>
 
-      <div className="flex gap-4 overflow-x-auto scrollbar-none pb-4 -mx-6 md:-mx-10 px-6 md:px-10">
+      <div className="flex gap-4 overflow-x-auto scrollbar-none pb-4 -mx-4 md:-mx-10 px-4 md:px-10">
         {songs.map((song, index) => (
           <div
             key={`${song.videoId}-${index}`}
-            className="shrink-0 w-[160px] md:w-[180px]"
+            className="shrink-0 w-[160px] md:w-[180px] text-left cursor-pointer"
             onClick={() => onPlay(song, index, songs)}
           >
             <SongCard
@@ -88,6 +90,12 @@ const HScrollSection = memo(function HScrollSection({
                 duration: song.duration || 180,
               }}
             />
+            {/* Dynamic AI Scoring Explanation Badge */}
+            {(song as { recommendationReason?: string }).recommendationReason && (
+              <span className="text-[9px] text-purple-400 font-black uppercase tracking-wider block mt-2 px-1 truncate select-none">
+                ✨ {(song as { recommendationReason?: string }).recommendationReason}
+              </span>
+            )}
           </div>
         ))}
       </div>
@@ -124,12 +132,11 @@ const AlbumTile = memo(function AlbumTile({
         className="group shrink-0 w-[160px] md:w-[180px] flex flex-col gap-3 cursor-pointer text-left focus:outline-none"
       >
         <div className="relative rounded-[22px] overflow-hidden bg-zinc-900 aspect-square border border-white/[0.05] group-hover:border-purple-500/30 transition-all duration-300 shadow-[0_8px_24px_rgba(0,0,0,0.5)]">
-          <img
+          <SafeImage
             src={image}
             alt={title}
-            loading="lazy"
-            onError={handleErr}
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+            fallbackType="album"
           />
           <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
             <Play size={14} fill="white" className="text-white" />
@@ -161,6 +168,44 @@ export default function HomeRecommendations() {
   const [recommendedSongs, setRecommendedSongs] = useState<Track[]>([]);
   const [likedFallbackSongs, setLikedFallbackSongs] = useState<Track[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMixId, setLoadingMixId] = useState<string | null>(null);
+
+  const [skipList, setSkipList] = useState<string[]>([]);
+  const [completionList, setCompletionList] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const skipped = JSON.parse(localStorage.getItem("musicflow-skips") || "[]");
+        const completed = JSON.parse(localStorage.getItem("musicflow-completions") || "[]");
+        setTimeout(() => {
+          setSkipList(skipped);
+          setCompletionList(completed);
+        }, 0);
+      } catch (err) {
+        console.error("Failed to parse local preferences:", err);
+      }
+    }
+  }, []);
+
+  const personalizedMixes = getPersonalizedMixes(likedSongs, recentSongs);
+
+  const playMix = async (mix: MixDefinition) => {
+    setLoadingMixId(mix.id);
+    try {
+      const res = await fetch(`/api/search?q=${encodeURIComponent(mix.query)}`);
+      const json = await res.json();
+      const songs = json.results || [];
+      if (songs.length > 0) {
+        setQueue(songs);
+        setTrack(songs[0].videoId, songs[0].title, songs[0].artist, songs[0].thumbnail, 0);
+      }
+    } catch (err) {
+      console.error("Failed to load mix:", err);
+    } finally {
+      setLoadingMixId(null);
+    }
+  };
 
   const loadTrending = useCallback(async () => {
     try {
@@ -188,11 +233,26 @@ export default function HomeRecommendations() {
         likedSongs.length > 0 ? `${likedSongs[0].artist} radio` : "Chill Lofi Beats";
       const res = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
       const json = await res.json();
-      setRecommendedSongs(json.results?.slice(0, 8) || []);
+      const rawTracks = json.results || [];
+
+      // Send to server-side hybrid personalization processor to score and explain
+      const recRes = await fetch("/api/recommendations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          candidateTracks: rawTracks,
+          likedSongs,
+          recentSongs,
+          skipList,
+          completionList,
+        }),
+      });
+      const recJson = await recRes.json();
+      setRecommendedSongs(recJson.results || rawTracks.slice(0, 8));
     } catch (error) {
       console.error(error);
     }
-  }, [likedSongs]);
+  }, [likedSongs, recentSongs, skipList, completionList]);
 
   const loadLikedFallback = useCallback(async () => {
     if (likedSongs.length === 0) return;
@@ -294,6 +354,49 @@ export default function HomeRecommendations() {
         />
       )}
 
+      {/* ── Personalized AI Mixes ── */}
+      <section>
+        <div className="flex items-end justify-between px-4 md:px-10 mb-5">
+          <div>
+            <p className="text-[9px] font-black uppercase tracking-[0.18em] text-purple-400 mb-1.5">
+              AI Powered
+            </p>
+            <h2 className="font-display text-[22px] font-black text-white tracking-tight leading-none">
+              Your Personalized Mixes
+            </h2>
+          </div>
+        </div>
+        <div className="flex gap-4 overflow-x-auto scrollbar-none pb-4 -mx-4 md:-mx-10 px-4 md:px-10">
+          {personalizedMixes.map((mix) => (
+            <motion.div
+              key={mix.id}
+              whileHover={{ y: -5 }}
+              onClick={() => playMix(mix)}
+              className={`shrink-0 w-[145px] md:w-[165px] h-40 p-4 rounded-3xl cursor-pointer bg-gradient-to-br ${mix.color} border border-white/[0.04] hover:border-white/10 transition-all duration-300 flex flex-col justify-between relative overflow-hidden`}
+            >
+              <div className="absolute top-[-10%] right-[-10%] w-20 h-20 rounded-full bg-white/[0.02] blur-xl pointer-events-none" />
+              
+              <div className="w-10 h-10 rounded-xl bg-white/[0.04] border border-white/[0.05] flex items-center justify-center text-lg shadow-sm">
+                {loadingMixId === mix.id ? (
+                  <span className="w-4 h-4 border-2 border-purple-400 border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <span>{mix.emoji}</span>
+                )}
+              </div>
+
+              <div className="text-left">
+                <p className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest leading-none mb-1">
+                  {mix.subtitle}
+                </p>
+                <h3 className="font-display text-[13px] font-black text-white tracking-tight leading-snug">
+                  {mix.name}
+                </h3>
+              </div>
+            </motion.div>
+          ))}
+        </div>
+      </section>
+
       {/* Trending Now */}
       <HScrollSection
         title="Trending Now"
@@ -304,7 +407,7 @@ export default function HomeRecommendations() {
 
       {/* Recommended Albums */}
       <section>
-        <div className="flex items-end justify-between px-6 md:px-10 mb-5">
+        <div className="flex items-end justify-between px-4 md:px-10 mb-5">
           <div>
             <p className="text-[9px] font-black uppercase tracking-[0.18em] text-zinc-600 mb-1.5">
               Curated
@@ -320,7 +423,7 @@ export default function HomeRecommendations() {
             See all
           </Link>
         </div>
-        <div className="flex gap-4 overflow-x-auto scrollbar-none pb-4 -mx-6 md:-mx-10 px-6 md:px-10">
+        <div className="flex gap-4 overflow-x-auto scrollbar-none pb-4 -mx-4 md:-mx-10 px-4 md:px-10">
           {trendingAlbums.map((album, idx) => (
             <AlbumTile key={`${album.id}-${idx}`} {...album} idx={idx} />
           ))}

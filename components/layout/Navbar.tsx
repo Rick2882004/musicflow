@@ -17,12 +17,15 @@ import { signOut } from "firebase/auth";
 import { auth } from "../../src/lib/firebase";
 import { useAuth } from "../../src/context/AuthContext";
 import { motion, AnimatePresence } from "framer-motion";
+import { SafeImage } from "@/components/ui/SafeImage";
+import { AIDJModal } from "@/components/ui/AIDJModal";
 
 export default function Navbar() {
   const router = useRouter();
   const pathname = usePathname();
   const { user, loading } = useAuth();
   const [open, setOpen] = useState(false);
+  const [djOpen, setDjOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -59,7 +62,7 @@ export default function Navbar() {
   };
 
   return (
-    <header className="sticky top-4 z-30 mx-4 md:mx-6 h-14 rounded-2xl bg-zinc-950/40 backdrop-blur-3xl border border-white/[0.06] shadow-[0_8px_32px_rgba(0,0,0,0.4)] flex items-center justify-between px-5 shrink-0 transition-all duration-300">
+    <header className="sticky top-0 md:top-4 z-30 mx-0 md:mx-6 h-14 rounded-none md:rounded-2xl bg-[#07070a]/75 md:bg-zinc-950/40 backdrop-blur-3xl border-t-0 border-x-0 md:border border-b border-white/[0.04] md:border-white/[0.06] shadow-none md:shadow-[0_8px_32px_rgba(0,0,0,0.4)] flex items-center justify-between px-4 md:px-5 shrink-0 transition-all duration-300">
       {/* Navigation Arrows & Page Title */}
       <div className="flex items-center gap-4">
         <div className="hidden sm:flex items-center gap-1.5">
@@ -102,6 +105,17 @@ export default function Navbar() {
           <kbd className="bg-white/[0.06] border border-white/[0.08] px-1.5 py-0.5 rounded text-[8px] font-mono font-normal select-none">/</kbd>
         </Link>
 
+        {/* AI DJ Assistant */}
+        {user && (
+          <button
+            onClick={() => setDjOpen(true)}
+            className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-650/10 to-pink-650/10 border border-purple-500/20 hover:border-purple-500/40 flex items-center justify-center text-purple-400 hover:text-white transition cursor-pointer group shadow-[0_2px_10px_rgba(168,85,247,0.1)] active:scale-90"
+            title="Open AI DJ"
+          >
+            <Sparkles size={13} className="text-purple-400 group-hover:scale-110 transition animate-pulse" />
+          </button>
+        )}
+
         {/* Notifications Bell */}
         {user && (
           <button className="relative w-8 h-8 rounded-full bg-white/[0.02] border border-white/[0.04] flex items-center justify-center text-zinc-450 hover:text-white transition cursor-pointer">
@@ -126,7 +140,7 @@ export default function Navbar() {
               onClick={() => setOpen(!open)}
               className="flex items-center gap-2 hover:bg-white/[0.04] rounded-full p-1 transition border border-transparent hover:border-white/[0.05] active:scale-95"
             >
-              <img
+              <SafeImage
                 src={
                   user.photoURL ||
                   `https://ui-avatars.com/api/?background=7c3aed&color=fff&name=${encodeURIComponent(
@@ -135,6 +149,7 @@ export default function Navbar() {
                 }
                 alt={user.displayName || "User Avatar"}
                 className="w-6.5 h-6.5 rounded-full object-cover shadow-md"
+                fallbackType="artist"
               />
               <span className="hidden sm:inline text-xs font-semibold text-zinc-300 pr-2">
                 {user.displayName || "User"}
@@ -201,6 +216,11 @@ export default function Navbar() {
           </Link>
         )}
       </div>
+      <AIDJModal
+        isOpen={djOpen}
+        onClose={() => setDjOpen(false)}
+      />
+
     </header>
   );
 }

@@ -9,6 +9,8 @@ import { History, Play, Shuffle, Clock, Music, Disc, Layers } from "lucide-react
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Track } from "@/types/music";
+import { useHasMounted } from "@/hooks/useHasMounted";
+import { SafeImage } from "@/components/ui/SafeImage";
 
 const FAVORITE_ARTISTS = [
   { name: "Arijit Singh", image: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300&q=80" },
@@ -34,6 +36,7 @@ const itemVariants: Variants = {
 
 export default function RecentlyPlayedPage() {
   const router = useRouter();
+  const mounted = useHasMounted();
   const { recentSongs, setTrack, setQueue } = usePlayerStore(
     useShallow((s) => ({
       recentSongs: s.recentSongs,
@@ -41,6 +44,16 @@ export default function RecentlyPlayedPage() {
       setQueue:    s.setQueue,
     }))
   );
+
+  if (!mounted) {
+    return (
+      <ProtectedRoute>
+        <div className="h-screen flex items-center justify-center">
+          <div className="text-zinc-450 text-xl font-bold animate-pulse">Loading Recently Played...</div>
+        </div>
+      </ProtectedRoute>
+    );
+  }
 
   const uniqueRecentSongs = Array.from(
     new Map(recentSongs.map((song) => [song.videoId, song])).values()
@@ -344,7 +357,7 @@ export default function RecentlyPlayedPage() {
                 className="group flex flex-col items-center gap-3 cursor-pointer shrink-0 w-24"
               >
                 <div className="w-20 h-20 rounded-full overflow-hidden bg-zinc-950 border border-white/[0.05] group-hover:border-purple-500/30 transition-all duration-300 shadow-md">
-                  <img src={artist.image} alt={artist.name} className="w-full h-full object-cover" />
+                  <SafeImage src={artist.image} alt={artist.name} className="w-full h-full object-cover" fallbackType="artist" />
                 </div>
                 <p className="text-[12px] font-bold text-zinc-300 group-hover:text-white transition-colors truncate w-full">{artist.name}</p>
               </motion.div>
@@ -371,7 +384,7 @@ export default function RecentlyPlayedPage() {
                 className="group shrink-0 w-[140px] md:w-[160px] flex flex-col gap-3 cursor-pointer text-left"
               >
                 <div className="relative rounded-[20px] overflow-hidden bg-zinc-900 aspect-square border border-white/[0.05] group-hover:border-purple-500/35 transition-all duration-300 shadow-[0_8px_24px_rgba(0,0,0,0.5)]">
-                  <img src={album.image} alt={album.title} className="w-full h-full object-cover" />
+                  <SafeImage src={album.image} alt={album.title} className="w-full h-full object-cover" fallbackType="album" />
                 </div>
                 <div className="px-0.5">
                   <p className="font-display text-[12px] font-bold text-zinc-300 group-hover:text-white truncate leading-tight tracking-tight">{album.title}</p>

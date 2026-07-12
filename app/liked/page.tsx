@@ -8,6 +8,8 @@ import { Play, Shuffle, Heart, Clock, Music, Search, ArrowUpDown, MoreHorizontal
 import Link from "next/link";
 import { Track } from "@/types/music";
 import { useState } from "react";
+import { useHasMounted } from "@/hooks/useHasMounted";
+import { SafeImage } from "@/components/ui/SafeImage";
 
 const containerVariants: Variants = {
   hidden: { opacity: 0 },
@@ -27,6 +29,7 @@ const itemVariants: Variants = {
 };
 
 export default function LikedSongsPage() {
+  const mounted = useHasMounted();
   const { likedSongs, setTrack, setQueue, toggleLike, videoId, isPlaying } = usePlayerStore(
     useShallow((s) => ({
       likedSongs: s.likedSongs,
@@ -40,6 +43,16 @@ export default function LikedSongsPage() {
 
   const [localSearch, setLocalSearch] = useState("");
   const [sortBy, setSortBy] = useState<"added" | "artist" | "title" | "duration">("added");
+
+  if (!mounted) {
+    return (
+      <ProtectedRoute>
+        <div className="h-screen flex items-center justify-center">
+          <div className="text-zinc-450 text-xl font-bold animate-pulse">Loading Liked Songs...</div>
+        </div>
+      </ProtectedRoute>
+    );
+  }
 
   const totalDuration = likedSongs.reduce((acc, song) => acc + (song.duration || 0), 0);
   const hours   = Math.floor(totalDuration / 3600);
@@ -286,7 +299,7 @@ export default function LikedSongsPage() {
                       <td className="py-3.5 px-4">
                         <div className="flex items-center gap-3.5 min-w-0">
                           <div className="w-10 h-10 rounded-lg overflow-hidden shrink-0 border border-white/5 bg-zinc-950">
-                            <img src={song.thumbnail} alt={song.title} className="w-full h-full object-cover" />
+                            <SafeImage src={song.thumbnail} videoId={song.videoId} alt={song.title} className="w-full h-full object-cover" />
                           </div>
                           <div className="min-w-0">
                             <p className={`text-xs font-bold truncate ${isCurrent ? "text-pink-500 font-black" : "text-zinc-200"}`}>

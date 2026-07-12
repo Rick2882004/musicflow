@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import Link from "next/link";
+import { SafeImage } from "@/components/ui/SafeImage";
 
 const artists = [
   { name: "Arijit Singh", image: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300&q=80", genre: "Bollywood" },
@@ -19,7 +20,7 @@ export default function PopularArtists() {
   const router = useRouter();
 
   return (
-    <section className="px-6 md:px-10 pt-10 pb-4 text-left relative overflow-hidden">
+    <section className="px-4 md:px-10 pt-10 pb-4 text-left relative overflow-hidden">
       {/* Header */}
       <div className="flex items-end justify-between mb-6">
         <div>
@@ -39,7 +40,7 @@ export default function PopularArtists() {
       </div>
 
       {/* Horizontal Scroll Layout */}
-      <div className="flex gap-5 overflow-x-auto scrollbar-none pb-4 -mx-6 md:-mx-10 px-6 md:px-10">
+      <div className="flex gap-5 overflow-x-auto scrollbar-none pb-4 -mx-4 md:-mx-10 px-4 md:px-10">
         {artists.map((artist, idx) => (
           <motion.button
             key={artist.name}
@@ -53,17 +54,11 @@ export default function PopularArtists() {
           >
             {/* Avatar Frame with custom border and shadow */}
             <div className="relative w-24 h-24 md:w-28 md:h-28 rounded-full overflow-hidden bg-zinc-900 border border-white/[0.06] group-hover:border-purple-500/40 transition-colors duration-300 shadow-[0_8px_24px_rgba(0,0,0,0.5)]">
-              <img
+              <SafeImage
                 src={artist.image}
                 alt={artist.name}
-                loading="lazy"
-                onError={(e) => {
-                  e.currentTarget.onerror = null;
-                  e.currentTarget.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(
-                    artist.name
-                  )}&background=111118&color=fff&size=256`;
-                }}
                 className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                fallbackType="artist"
               />
               {/* Inner overlay */}
               <div className="absolute inset-0 bg-black/10 group-hover:bg-black/0 transition-colors" />

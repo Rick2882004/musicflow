@@ -19,7 +19,7 @@ export default function MoodSection() {
   const router = useRouter();
 
   return (
-    <section className="px-6 md:px-10 pb-14 text-left">
+    <section className="px-4 md:px-10 pb-14 text-left">
       {/* Header */}
       <div className="mb-6">
         <p className="text-[9px] font-black uppercase tracking-[0.18em] text-zinc-600 mb-1.5">
@@ -31,7 +31,7 @@ export default function MoodSection() {
       </div>
 
       {/* Pill cloud */}
-      <div className="flex flex-wrap gap-2.5">
+      <div className="flex overflow-x-auto scrollbar-none pb-2 -mx-4 px-4 md:flex-wrap md:mx-0 md:px-0 gap-2.5">
         {moods.map((mood, idx) => (
           <motion.button
             key={mood.name}

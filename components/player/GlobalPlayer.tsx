@@ -4,6 +4,8 @@ import YoutubePlayer from "./YoutubePlayer";
 import { useShallow } from "zustand/react/shallow";
 import { usePlayerStore } from "@/store/player-store";
 
+import { SafeImage } from "@/components/ui/SafeImage";
+
 export default function GlobalPlayer() {
   const {
     videoId,
@@ -40,12 +42,14 @@ export default function GlobalPlayer() {
     ">
       <div className="flex items-center gap-4">
        {thumbnail && (
-  <img
-    src={thumbnail}
-    alt={title}
-    className="w-14 h-14 rounded-lg"
-  />
-)}
+          <SafeImage
+            src={thumbnail}
+            videoId={videoId}
+            alt={title}
+            className="w-14 h-14 rounded-lg"
+            fallbackType="song"
+          />
+        )}
 
         <div>
           <h3 className="text-white font-semibold">

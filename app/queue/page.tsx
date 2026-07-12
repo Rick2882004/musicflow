@@ -8,6 +8,8 @@ import { Track } from "@/types/music";
 import { motion, AnimatePresence } from "framer-motion";
 import { useState } from "react";
 import ProtectedRoute from "../../src/components/auth/ProtectedRoute";
+import { useHasMounted } from "@/hooks/useHasMounted";
+import { SafeImage } from "@/components/ui/SafeImage";
 
 function formatDur(s: number = 0) {
   const m = Math.floor(s / 60), sec = Math.floor(s % 60);
@@ -15,6 +17,7 @@ function formatDur(s: number = 0) {
 }
 
 export default function QueuePage() {
+  const mounted = useHasMounted();
   const {
     queue,
     currentIndex,
@@ -108,6 +111,16 @@ export default function QueuePage() {
 
   const progressPercent = duration > 0 ? (currentTime / duration) * 100 : 0;
   const isLiked = currentTrack ? likedSongs.some(s => s.videoId === currentTrack.videoId) : false;
+
+  if (!mounted) {
+    return (
+      <ProtectedRoute>
+        <div className="h-screen flex items-center justify-center">
+          <div className="text-zinc-450 text-xl font-bold animate-pulse">Loading Play Queue...</div>
+        </div>
+      </ProtectedRoute>
+    );
+  }
 
   return (
     <ProtectedRoute>
@@ -232,9 +245,8 @@ export default function QueuePage() {
                     animate={{ opacity: 1, scale: 1 }}
                     className="p-5 rounded-[24px] bg-white/[0.015] border border-white/[0.04] shadow-2xl space-y-5 text-left"
                   >
-                    {/* Cover Frame */}
                     <div className="relative aspect-square rounded-[18px] overflow-hidden bg-zinc-900 border border-white/[0.05] shadow-lg group">
-                      <img src={currentTrack.thumbnail} alt={currentTrack.title} className="w-full h-full object-cover" />
+                      <SafeImage src={currentTrack.thumbnail} videoId={currentTrack.videoId} alt={currentTrack.title} className="w-full h-full object-cover" />
                       <div className="absolute inset-0 bg-black/25 flex items-center justify-center">
                         <Disc size={36} className={`text-white/60 ${isPlaying ? "animate-[spin_6s_linear_infinite]" : ""}`} />
                       </div>
@@ -324,7 +336,7 @@ export default function QueuePage() {
                             <GripVertical size={12} className="text-zinc-700 group-hover:text-zinc-500 shrink-0 cursor-grab" />
                             
                             <div className="w-10 h-10 rounded-lg overflow-hidden shrink-0 border border-white/5 bg-zinc-950">
-                              <img src={song.thumbnail} alt="" className="w-full h-full object-cover" />
+                              <SafeImage src={song.thumbnail} videoId={song.videoId} alt="" className="w-full h-full object-cover" />
                             </div>
 
                             <div className="min-w-0 text-left">

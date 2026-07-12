@@ -4,6 +4,7 @@ import { usePlayerStore } from "@/store/player-store";
 import { useShallow } from "zustand/react/shallow";
 import { useState, useEffect, useRef, memo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useHasMounted } from "@/hooks/useHasMounted";
 import {
   Play,
   Pause,
@@ -24,6 +25,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import QueueDrawer from "./QueueDrawer";
+import { SafeImage } from "@/components/ui/SafeImage";
 
 function formatTime(secs: number) {
   const m = Math.floor(secs / 60);
@@ -31,34 +33,7 @@ function formatTime(secs: number) {
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
-const SafeImage = memo(function SafeImage({
-  src,
-  alt,
-  className,
-}: {
-  src: string;
-  alt: string;
-  className?: string;
-}) {
-  const [currentSrc, setCurrentSrc] = useState(src);
-  const [prevSrc, setPrevSrc] = useState(src);
-
-  if (src !== prevSrc) {
-    setCurrentSrc(src);
-    setPrevSrc(src);
-  }
-
-  return (
-    <img
-      src={currentSrc || "https://placehold.co/100x100/111/fff?text=♪"}
-      alt={alt}
-      loading="lazy"
-      onError={() => setCurrentSrc("https://placehold.co/100x100/111/fff?text=♪")}
-      className={className}
-    />
-  );
-});
-SafeImage.displayName = "SafeImage";
+// Local SafeImage helper removed - using global SafeImage instead
 
 // Icon button helper
 function IconBtn({
@@ -120,6 +95,10 @@ export default function BottomPlayer() {
     setPlaybackSpeed,
     sleepTimer,
     setSleepTimer,
+    volume,
+    setVolume,
+    isMuted,
+    setIsMuted,
   } = usePlayerStore(
     useShallow((s) => ({
       videoId: s.videoId,
@@ -147,19 +126,24 @@ export default function BottomPlayer() {
       setPlaybackSpeed: s.setPlaybackSpeed,
       sleepTimer: s.sleepTimer,
       setSleepTimer: s.setSleepTimer,
+      volume: s.volume,
+      setVolume: s.setVolume,
+      isMuted: s.isMuted,
+      setIsMuted: s.setIsMuted,
     }))
   );
 
   const currentTrack = { videoId, title, artist, thumbnail, duration };
   const isLiked = likedSongs.some((song) => song.videoId === videoId);
 
-  const [isMuted, setIsMuted] = useState(false);
+  const mounted = useHasMounted();
   const [isMobileExpanded, setIsMobileExpanded] = useState(false);
-  const [volume, setVolumeState] = useState(80);
   const [showSpeedMenu, setShowSpeedMenu] = useState(false);
   const [showTimerMenu, setShowTimerMenu] = useState(false);
   const [isLyricsOpen, setIsLyricsOpen] = useState(false);
   const [showDeviceMenu, setShowDeviceMenu] = useState(false);
+  const [lyrics, setLyrics] = useState<string[] | null>(null);
+  const [lyricsLoading, setLyricsLoading] = useState(false);
 
   const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
   const progressRef = useRef<HTMLInputElement>(null);
@@ -186,19 +170,7 @@ export default function BottomPlayer() {
   };
 
   const toggleMute = () => {
-    if (!player) return;
-    if (isMuted) {
-      player.unMute();
-      setIsMuted(false);
-    } else {
-      player.mute();
-      setIsMuted(true);
-    }
-  };
-
-  const setVolume = (value: number) => {
-    setVolumeState(value);
-    if (player) player.setVolume(value);
+    setIsMuted(!isMuted);
   };
 
   // Sleep Timer
@@ -229,52 +201,105 @@ export default function BottomPlayer() {
     return () => clearInterval(interval);
   }, [player, setCurrentTime, setDuration]);
 
+  // Fetch lyrics dynamically when lyrics panel opens or videoId changes
+  useEffect(() => {
+    if (!videoId || !isLyricsOpen) return;
+    async function fetchLyrics() {
+      setLyricsLoading(true);
+      setLyrics(null);
+      try {
+        const res = await fetch(`/api/lyrics?videoId=${encodeURIComponent(videoId)}`);
+        if (res.ok) {
+          const data = await res.json();
+          setLyrics(data.lyrics || null);
+        }
+      } catch (err) {
+        console.error("Error fetching lyrics in BottomPlayer:", err);
+      } finally {
+        setLyricsLoading(false);
+      }
+    }
+    fetchLyrics();
+  }, [videoId, isLyricsOpen]);
+
   // Keyboard Shortcuts
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
+      const activeEl = document.activeElement as HTMLElement | null;
       if (
-        document.activeElement?.tagName === "INPUT" ||
-        document.activeElement?.tagName === "TEXTAREA"
-      )
+        activeEl && (
+          activeEl.tagName === "INPUT" ||
+          activeEl.tagName === "TEXTAREA" ||
+          activeEl.tagName === "SELECT" ||
+          activeEl.isContentEditable ||
+          activeEl.tagName === "BUTTON" ||
+          activeEl.getAttribute("role") === "button"
+        )
+      ) {
         return;
+      }
+
+      const store = usePlayerStore.getState();
+      const currentTrackObj = {
+        videoId: store.videoId,
+        title: store.title,
+        artist: store.artist,
+        thumbnail: store.thumbnail,
+        duration: store.duration
+      };
+
       switch (e.code) {
         case "Space":
           e.preventDefault();
-          togglePlay();
+          if (store.player) {
+            if (store.isPlaying) {
+              store.player.pauseVideo();
+              store.setIsPlaying(false);
+            } else {
+              store.player.playVideo();
+              store.setIsPlaying(true);
+            }
+          }
           break;
         case "ArrowLeft":
           e.preventDefault();
-          seekDelta(-5);
+          if (store.player) {
+            store.player.seekTo(Math.max(store.player.getCurrentTime() - 5, 0), true);
+          }
           break;
         case "ArrowRight":
           e.preventDefault();
-          seekDelta(5);
+          if (store.player) {
+            store.player.seekTo(Math.min(store.player.getCurrentTime() + 5, store.duration), true);
+          }
           break;
         case "ArrowUp":
           e.preventDefault();
-          adjustVolume(5);
+          store.setVolume(Math.min(store.volume + 5, 100));
           break;
         case "ArrowDown":
           e.preventDefault();
-          adjustVolume(-5);
+          store.setVolume(Math.max(store.volume - 5, 0));
           break;
         case "KeyL":
           e.preventDefault();
-          toggleLike(currentTrack);
+          if (currentTrackObj.videoId) {
+            void store.toggleLike(currentTrackObj);
+          }
           break;
         case "KeyN":
           e.preventDefault();
-          nextTrack();
+          store.nextTrack();
           break;
         case "KeyP":
           e.preventDefault();
-          prevTrack();
+          store.prevTrack();
           break;
       }
     }
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [videoId, player, isPlaying, volume, isMuted, likedSongs]);
+  }, []);
 
   const speedOptions = [0.5, 1.0, 1.25, 1.5, 2.0];
   const timerOptions = [
@@ -285,7 +310,7 @@ export default function BottomPlayer() {
     { label: "60 min", value: 60 },
   ];
 
-  if (!title) return null;
+  if (!mounted || !title) return null;
 
   const art = thumbnail || "https://placehold.co/100x100/111/fff?text=♪";
   const progressStyle = `linear-gradient(to right, #8B5CF6 ${progress}%, rgba(255,255,255,0.06) ${progress}%)`;
@@ -326,7 +351,7 @@ export default function BottomPlayer() {
                 boxShadow: isPlaying ? "0 8px 24px rgba(139,92,246,0.15)" : undefined,
               }}
             >
-              <SafeImage src={art} alt={title} className="w-full h-full object-cover" />
+              <SafeImage src={art} videoId={videoId} alt={title} className="w-full h-full object-cover" />
             </div>
           </motion.div>
           <div className="min-w-0 flex-1">
@@ -595,16 +620,16 @@ export default function BottomPlayer() {
 
       {/* ── MOBILE MINI PLAYER ── */}
       <div
-        className="md:hidden fixed bottom-24 left-4 right-4 h-15 rounded-2xl bg-zinc-950/70 border border-white/[0.06] backdrop-blur-3xl flex items-center justify-between px-3 z-40 select-none cursor-pointer shadow-[0_16px_40px_rgba(0,0,0,0.8)]"
+        className="md:hidden fixed bottom-[72px] left-3 right-3 h-14 rounded-2xl bg-zinc-950/80 border border-white/[0.08] backdrop-blur-3xl flex items-center justify-between px-3.5 z-40 select-none cursor-pointer shadow-[0_12px_36px_rgba(0,0,0,0.6)]"
         onClick={() => setIsMobileExpanded(true)}
       >
         <div className="flex items-center gap-3 min-w-0">
-          <div className="w-10 h-10 rounded-xl overflow-hidden shrink-0">
-            <SafeImage src={art} alt="" className="w-full h-full object-cover" />
+          <div className="w-9 h-9 rounded-xl overflow-hidden shrink-0">
+            <SafeImage src={art} videoId={videoId} alt="" className="w-full h-full object-cover" />
           </div>
           <div className="min-w-0">
-            <h4 className="text-xs font-bold text-white truncate leading-tight tracking-tight">{title}</h4>
-            <p className="text-[10px] text-zinc-500 truncate mt-0.5 font-medium">{artist}</p>
+            <h4 className="text-[11px] font-bold text-white truncate leading-tight tracking-tight">{title}</h4>
+            <p className="text-[9px] text-zinc-555 truncate mt-0.5 font-medium">{artist}</p>
           </div>
         </div>
 
@@ -629,28 +654,53 @@ export default function BottomPlayer() {
           />
         </div>
       </div>
-
-      {/* ── MOBILE FULL-SCREEN PLAYER ── */}
       <AnimatePresence>
         {isMobileExpanded && (
           <motion.div
+            drag="y"
+            dragConstraints={{ top: 0 }}
+            dragElastic={{ top: 0.1, bottom: 0.8 }}
+            onDragEnd={(e, info) => {
+              if (info.offset.y > 150) {
+                setIsMobileExpanded(false);
+              }
+            }}
             initial={{ y: "100%" }}
             animate={{ y: 0 }}
             exit={{ y: "100%" }}
             transition={{ ease: [0.16, 1, 0.3, 1], duration: 0.55 }}
-            className="md:hidden fixed inset-0 z-[60] flex flex-col select-none overflow-hidden bg-[#07070A]"
+            className="md:hidden fixed inset-0 z-[60] flex flex-col select-none overflow-hidden bg-[#07070A] touch-none"
           >
-            {/* Blurred background artwork */}
-            <div className="absolute inset-0 overflow-hidden">
-              <img
-                src={art}
-                alt=""
-                className="w-full h-full object-cover scale-150 blur-[100px] opacity-[0.14]"
-              />
-              <div className="absolute inset-0 bg-[#07070A]/90" />
+            {/* Pull Dismiss Indicator Bar */}
+            <div className="absolute top-2 left-0 right-0 z-20 flex justify-center py-2">
+              <div className="w-12 h-1 bg-white/20 rounded-full" />
             </div>
 
-            <div className="relative z-10 flex flex-col h-full px-6 pt-12 justify-between pb-8">
+            {/* Blurred background artwork with dynamic rotating glow */}
+            <div className="absolute inset-0 overflow-hidden pointer-events-none">
+              <SafeImage
+                src={art}
+                videoId={videoId}
+                alt=""
+                className="w-full h-full object-cover scale-150 blur-[100px] opacity-[0.12]"
+              />
+              <div className="absolute inset-0 bg-[#07070A]/85" />
+              {/* Active ambient glow orb rotating */}
+              <motion.div
+                animate={{
+                  rotate: [0, 360],
+                  scale: [1, 1.08, 1],
+                }}
+                transition={{
+                  duration: 25,
+                  repeat: Infinity,
+                  ease: "linear",
+                }}
+                className="absolute -top-[20%] -left-[20%] w-[140%] h-[140%] bg-[radial-gradient(circle_at_30%_30%,rgba(168,85,247,0.18),rgba(236,72,153,0.12),transparent_50%)]"
+              />
+            </div>
+
+            <div className="relative z-10 flex flex-col h-full px-6 pt-10 justify-between pb-8">
               {/* Header */}
               <div className="flex items-center justify-between py-4">
                 <button
@@ -670,14 +720,14 @@ export default function BottomPlayer() {
                 </button>
               </div>
 
-              {/* Album art */}
+              {/* Album art with subtle interactive float */}
               <div className="flex-1 flex items-center justify-center py-4">
                 <motion.div
                   animate={{ scale: isPlaying ? 1 : 0.93 }}
                   transition={{ type: "spring", stiffness: 200, damping: 22 }}
-                  className="w-68 h-68 rounded-[32px] overflow-hidden shadow-[0_24px_50px_rgba(0,0,0,0.8)] border border-white/[0.08]"
+                  className="w-68 h-68 rounded-[32px] overflow-hidden shadow-[0_24px_50px_rgba(0,0,0,0.85)] border border-white/[0.08]"
                 >
-                  <SafeImage src={art} alt="" className="w-full h-full object-cover" />
+                  <SafeImage src={art} videoId={videoId} alt="" className="w-full h-full object-cover" />
                 </motion.div>
               </div>
 
@@ -725,7 +775,7 @@ export default function BottomPlayer() {
                 </div>
 
                 {/* Major controls row */}
-                <div className="flex items-center justify-between py-2 px-1">
+                <div className="flex items-center justify-between py-1 px-1">
                   <button
                     onClick={toggleShuffle}
                     className={cn("p-2", isShuffle ? "text-purple-400" : "text-zinc-650")}
@@ -741,7 +791,7 @@ export default function BottomPlayer() {
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.92 }}
                     onClick={togglePlay}
-                    className="w-14 h-14 rounded-full bg-white flex items-center justify-center text-black"
+                    className="w-14 h-14 rounded-full bg-white flex items-center justify-center text-black shadow-lg"
                   >
                     {isPlaying ? <Pause size={20} fill="currentColor" /> : <Play size={20} fill="currentColor" className="ml-0.5" />}
                   </motion.button>
@@ -756,6 +806,26 @@ export default function BottomPlayer() {
                   >
                     <Repeat size={18} />
                   </button>
+                </div>
+
+                {/* Mobile Volume Control Slider */}
+                <div className="flex items-center gap-3 px-1.5 py-1">
+                  <button
+                    onClick={toggleMute}
+                    className="text-zinc-500 hover:text-zinc-300 transition"
+                  >
+                    {isMuted ? <VolumeX size={14} /> : <Volume2 size={14} />}
+                  </button>
+                  <input
+                    type="range"
+                    min={0}
+                    max={100}
+                    value={isMuted ? 0 : volume}
+                    onChange={(e) => setVolume(Number(e.target.value))}
+                    className="w-full h-1 cursor-pointer outline-none rounded-full"
+                    style={{ background: volumeStyle, appearance: "none" }}
+                    aria-label="Mobile Volume Control"
+                  />
                 </div>
 
                 {/* Footer details */}
@@ -806,7 +876,12 @@ export default function BottomPlayer() {
               <div className="flex items-center justify-between border-b border-white/[0.06] pb-4">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-xl overflow-hidden bg-zinc-900 border border-white/[0.08]">
-                    <SafeImage src={art} alt="" className="w-full h-full object-cover" />
+                    <SafeImage
+                      src={art}
+                      videoId={videoId}
+                      alt=""
+                      className="w-full h-full object-cover"
+                    />
                   </div>
                   <div className="text-left">
                     <h4 className="text-xs font-bold text-white leading-tight">{title}</h4>
@@ -822,19 +897,34 @@ export default function BottomPlayer() {
               </div>
 
               {/* Dynamic scrollable content */}
-              <div className="flex-1 overflow-y-auto my-8 scrollbar-none space-y-6 flex flex-col justify-center text-center px-4">
-                <p className="text-lg font-bold text-zinc-600 transition-colors duration-200">
-                  {title} • {artist}
-                </p>
-                <p className="text-2xl font-black text-white tracking-tight leading-snug drop-shadow-sm">
-                  Audio streaming in high-fidelity mode.
-                </p>
-                <p className="text-lg font-bold text-zinc-650">
-                  MusicFlow brings you premium sound.
-                </p>
-                <p className="text-xs font-semibold text-zinc-500">
-                  (Lyrics Sync Active • V3 Audio Engine)
-                </p>
+              <div className="flex-1 overflow-y-auto my-8 scrollbar-none space-y-6 text-center px-4 py-2">
+                {lyricsLoading ? (
+                  <div className="space-y-4 animate-pulse pt-10">
+                    {[1, 2, 3, 4, 5].map((i) => (
+                      <div key={i} className="h-6 bg-white/5 rounded-md w-3/4 mx-auto" />
+                    ))}
+                  </div>
+                ) : lyrics && lyrics.length > 0 ? (
+                  <div className="space-y-5 py-4">
+                    {lyrics.map((line, idx) => (
+                      <p
+                        key={idx}
+                        className="text-base sm:text-lg font-bold text-zinc-350 hover:text-white transition-all duration-200"
+                      >
+                        {line}
+                      </p>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="space-y-4 pt-10">
+                    <p className="text-lg font-bold text-zinc-400">
+                      Lyrics not available for this track
+                    </p>
+                    <p className="text-xs text-zinc-650">
+                      We couldn&apos;t retrieve lines for &quot;{title}&quot;.
+                    </p>
+                  </div>
+                )}
               </div>
 
               {/* Footer details */}

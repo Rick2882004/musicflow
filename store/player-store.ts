@@ -25,6 +25,8 @@ interface PlayerState {
   isQueueOpen: boolean;
   playbackSpeed: number;
   sleepTimer: number | null; // minutes remaining, or null
+  volume: number;
+  isMuted: boolean;
 
   setCurrentTime: (time: number) => void;
   setDuration: (duration: number) => void;
@@ -70,6 +72,8 @@ interface PlayerState {
   
   setPlaybackSpeed: (speed: number) => void;
   setSleepTimer: (minutes: number | null) => void;
+  setVolume: (volume: number) => void;
+  setIsMuted: (isMuted: boolean) => void;
 }
 
 export const usePlayerStore = create<PlayerState>()(
@@ -93,13 +97,25 @@ export const usePlayerStore = create<PlayerState>()(
       isQueueOpen: false,
       playbackSpeed: 1.0,
       sleepTimer: null,
+      volume: 80,
+      isMuted: false,
 
       setCurrentTime: (time) => set({ currentTime: time }),
       setDuration: (duration) => set({ duration }),
       setPlayer: (player) => {
         set({ player });
-        if (player && player.setPlaybackRate) {
-          player.setPlaybackRate(get().playbackSpeed);
+        if (player) {
+          if (player.setPlaybackRate) {
+            player.setPlaybackRate(get().playbackSpeed);
+          }
+          if (player.setVolume) {
+            player.setVolume(get().volume);
+          }
+          if (get().isMuted && player.mute) {
+            player.mute();
+          } else if (!get().isMuted && player.unMute) {
+            player.unMute();
+          }
         }
       },
       setIsPlaying: (playing) => set({ isPlaying: playing }),
@@ -319,6 +335,24 @@ export const usePlayerStore = create<PlayerState>()(
       },
 
       setSleepTimer: (minutes) => set({ sleepTimer: minutes }),
+      setVolume: (volume) => {
+        set({ volume });
+        const { player } = get();
+        if (player && player.setVolume) {
+          player.setVolume(volume);
+        }
+      },
+      setIsMuted: (isMuted) => {
+        set({ isMuted });
+        const { player } = get();
+        if (player) {
+          if (isMuted && player.mute) {
+            player.mute();
+          } else if (!isMuted && player.unMute) {
+            player.unMute();
+          }
+        }
+      },
     }),
     {
       name: "musicflow-player",
@@ -329,6 +363,16 @@ export const usePlayerStore = create<PlayerState>()(
         isShuffle: state.isShuffle,
         isRepeat: state.isRepeat,
         playbackSpeed: state.playbackSpeed,
+        videoId: state.videoId,
+        title: state.title,
+        artist: state.artist,
+        thumbnail: state.thumbnail,
+        currentTime: state.currentTime,
+        duration: state.duration,
+        queue: state.queue,
+        currentIndex: state.currentIndex,
+        volume: state.volume,
+        isMuted: state.isMuted,
       }),
     }
   )

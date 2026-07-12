@@ -9,6 +9,8 @@ import ProtectedRoute from "../../src/components/auth/ProtectedRoute";
 import { motion, Variants } from "framer-motion";
 import { Play, ListMusic, Heart, History, Compass, Plus, Sparkles, Disc, Music, Clock } from "lucide-react";
 import { Track } from "@/types/music";
+import { useHasMounted } from "@/hooks/useHasMounted";
+import { SafeImage } from "@/components/ui/SafeImage";
 
 const ALBUM_CARDS = [
   { id: "MPREb_HtIOxExZ0cj", title: "Arijit Singh Hits", artist: "Arijit Singh", image: "https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=400&q=80" },
@@ -36,6 +38,7 @@ const itemVariants: Variants = {
 
 export default function LibraryPage() {
   const router = useRouter();
+  const mounted = useHasMounted();
   const { likedSongs, playlists, recentSongs, setTrack, setQueue } = usePlayerStore(
     useShallow((s) => ({
       likedSongs:  s.likedSongs,
@@ -57,12 +60,22 @@ export default function LibraryPage() {
     setTrack(song.videoId, song.title, song.artist, song.thumbnail, index);
   };
 
+  if (!mounted) {
+    return (
+      <ProtectedRoute>
+        <div className="h-screen flex items-center justify-center">
+          <div className="text-zinc-450 text-xl font-bold animate-pulse">Loading My Library...</div>
+        </div>
+      </ProtectedRoute>
+    );
+  }
+
   return (
     <ProtectedRoute>
       <main className="min-h-screen pb-36 text-white text-left space-y-16" style={{ background: "#07070A" }}>
 
         {/* 1. Hero & Stats Container */}
-        <section className="relative px-6 md:px-10 pt-10 pb-6 overflow-hidden">
+        <section className="relative px-4 md:px-10 pt-6 md:pt-10 pb-6 overflow-hidden">
           {/* Ambient Background Glow */}
           <div className="absolute top-0 left-[-10%] w-[600px] h-[400px] rounded-full bg-purple-950/[0.08] blur-[140px] pointer-events-none" />
           <div className="absolute top-20 right-0 w-[450px] h-[320px] rounded-full bg-pink-950/[0.06] blur-[120px] pointer-events-none" />
@@ -135,7 +148,7 @@ export default function LibraryPage() {
         </section>
 
         {/* 2. Quick Access Cards */}
-        <section className="px-6 md:px-10 space-y-6">
+        <section className="px-4 md:px-10 space-y-6">
           <div>
             <p className="text-[9px] font-black uppercase tracking-[0.18em] text-zinc-600 mb-1.5">
               Shortcuts
@@ -235,7 +248,7 @@ export default function LibraryPage() {
 
         {/* 3. Continue Listening (Uses Home song cards) */}
         {uniqueRecentSongs.length > 0 && (
-          <section className="px-6 md:px-10 space-y-6">
+          <section className="px-4 md:px-10 space-y-6">
             <div className="flex items-end justify-between">
               <div>
                 <p className="text-[9px] font-black uppercase tracking-[0.18em] text-zinc-600 mb-1.5">
@@ -249,7 +262,7 @@ export default function LibraryPage() {
                 See all
               </Link>
             </div>
-            <div className="flex gap-5 overflow-x-auto scrollbar-none pb-4 -mx-6 md:-mx-10 px-6 md:px-10">
+            <div className="flex gap-5 overflow-x-auto scrollbar-none pb-4 -mx-4 md:-mx-10 px-4 md:px-10">
               {uniqueRecentSongs.slice(0, 8).map((song, index) => (
                 <SongCard
                   key={`lib-recent-${song.videoId}-${index}`}
@@ -267,7 +280,7 @@ export default function LibraryPage() {
         )}
 
         {/* 4. Recently Added */}
-        <section className="px-6 md:px-10 space-y-6">
+        <section className="px-4 md:px-10 space-y-6">
           <div>
             <p className="text-[9px] font-black uppercase tracking-[0.18em] text-zinc-600 mb-1.5">
               History
@@ -285,11 +298,11 @@ export default function LibraryPage() {
                 className="group flex flex-col gap-3 cursor-pointer text-left"
               >
                 <div className="relative rounded-[22px] overflow-hidden bg-zinc-900 aspect-square border border-white/[0.05] group-hover:border-purple-500/35 transition-all duration-300 shadow-md">
-                  <img
+                  <SafeImage
                     src={album.image}
                     alt={album.title}
-                    loading="lazy"
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                    fallbackType="album"
                   />
                   <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                     <Play size={14} fill="white" className="text-white" />
@@ -307,7 +320,7 @@ export default function LibraryPage() {
         </section>
 
         {/* 5. Your Playlists */}
-        <section className="px-6 md:px-10 space-y-6">
+        <section className="px-4 md:px-10 space-y-6">
           <div className="flex items-end justify-between">
             <div>
               <p className="text-[9px] font-black uppercase tracking-[0.18em] text-zinc-600 mb-1.5">
@@ -338,10 +351,12 @@ export default function LibraryPage() {
                   >
                     <div className="relative aspect-square rounded-[22px] overflow-hidden bg-zinc-900 border border-white/[0.05] shadow-[0_8px_24px_rgba(0,0,0,0.5)]">
                       {playlist.songs[0] ? (
-                        <img
+                        <SafeImage
                           src={playlist.songs[0].thumbnail}
+                          videoId={playlist.songs[0].videoId}
                           alt={playlist.name}
                           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                          fallbackType="song"
                         />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center bg-zinc-950 border border-white/[0.02]">
@@ -380,7 +395,7 @@ export default function LibraryPage() {
         </section>
 
         {/* 6. Recommended For You */}
-        <section className="px-6 md:px-10 space-y-6">
+        <section className="px-4 md:px-10 space-y-6">
           <div>
             <p className="text-[9px] font-black uppercase tracking-[0.18em] text-zinc-600 mb-1.5">
               Personalized
@@ -389,7 +404,7 @@ export default function LibraryPage() {
               Recommended For You
             </h2>
           </div>
-          <div className="flex gap-5 overflow-x-auto scrollbar-none pb-4 -mx-6 md:-mx-10 px-6 md:px-10">
+          <div className="flex gap-5 overflow-x-auto scrollbar-none pb-4 -mx-4 md:-mx-10 px-4 md:px-10">
             {ALBUM_CARDS.map((album) => (
               <motion.div
                 key={`rec-${album.id}`}
@@ -398,11 +413,11 @@ export default function LibraryPage() {
                 className="group shrink-0 w-[140px] md:w-[160px] flex flex-col gap-3 cursor-pointer text-left"
               >
                 <div className="relative rounded-[20px] overflow-hidden bg-zinc-900 aspect-square border border-white/[0.05] group-hover:border-purple-500/35 transition-all duration-300 shadow-[0_8px_24px_rgba(0,0,0,0.5)]">
-                  <img
+                  <SafeImage
                     src={album.image}
                     alt={album.title}
-                    loading="lazy"
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                    fallbackType="album"
                   />
                 </div>
                 <div className="px-0.5">

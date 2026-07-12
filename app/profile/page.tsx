@@ -6,8 +6,12 @@ import { useAuth } from "../../src/context/AuthContext";
 import { usePlayerStore } from "@/store/player-store";
 import { useShallow } from "zustand/react/shallow";
 import { motion, AnimatePresence } from "framer-motion";
-import { Edit2, Check, Mail, Award, Flame, Disc, BarChart, Settings, Play, ShieldAlert, Sparkles, Zap, Clock, Compass, Activity, Star, Calendar, Music, ListMusic } from "lucide-react";
+import { Edit2, Check, Mail, Award, Flame, Disc, BarChart, Settings, Play, ShieldAlert, Sparkles, Zap, Clock, Compass, Activity, Star, Calendar, Music, ListMusic, Heart } from "lucide-react";
 import { Track } from "@/types/music";
+import { useHasMounted } from "@/hooks/useHasMounted";
+import { SafeImage } from "@/components/ui/SafeImage";
+import { WrappedModal } from "@/components/ui/WrappedModal";
+import { calculateListeningStats } from "@/lib/analytics";
 
 const ACHIEVEMENTS = [
   { name: "Pioneer", desc: "Early platform adopter", icon: Star, color: "from-amber-500 to-yellow-400" },
@@ -18,18 +22,31 @@ const ACHIEVEMENTS = [
 
 export default function ProfilePage() {
   const { user } = useAuth();
-  const { recentSongs, playlists, setTrack, setQueue } = usePlayerStore(useShallow((s) => ({
+  const mounted = useHasMounted();
+  const { recentSongs, likedSongs, playlists, setTrack, setQueue } = usePlayerStore(useShallow((s) => ({
     recentSongs: s.recentSongs,
+    likedSongs:  s.likedSongs,
     playlists:   s.playlists,
     setTrack:    s.setTrack,
     setQueue:    s.setQueue,
   })));
 
   const [editMode, setEditMode] = useState(false);
-  const [displayName, setDisplayName] = useState(user?.displayName || "MusicFlow User");
+  const [wrappedOpen, setWrappedOpen] = useState(false);
+  const [displayName, setDisplayName] = useState("");
   const [bio, setBio] = useState("");
-  const [photoURL, setPhotoURL] = useState(user?.photoURL || "");
+  const [photoURL, setPhotoURL] = useState("");
   const [themePref, setThemePref] = useState("glass");
+
+  // Sync display profile name on user state change/mount
+  useEffect(() => {
+    if (user) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setDisplayName(user.displayName || user.email?.split("@")[0] || "MusicFlow User");
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setPhotoURL(user.photoURL || "");
+    }
+  }, [user]);
 
   useEffect(() => {
     if (user?.uid) {
@@ -43,6 +60,16 @@ export default function ProfilePage() {
       }, 0);
     }
   }, [user]);
+
+  if (!mounted) {
+    return (
+      <ProtectedRoute>
+        <div className="h-screen flex items-center justify-center">
+          <div className="text-zinc-450 text-xl font-bold animate-pulse">Loading Profile...</div>
+        </div>
+      </ProtectedRoute>
+    );
+  }
 
   const saveProfile = () => {
     if (user?.uid) {
@@ -86,6 +113,15 @@ export default function ProfilePage() {
   const listeningHours = Math.round(totalListened * 3.5 / 60 * 10) / 10;
   const listeningLevel = Math.floor(totalListened / 10) + 1;
 
+  const stats = calculateListeningStats(recentSongs, likedSongs);
+
+  const getAchievementIcon = (id: string) => {
+    if (id === "ach1") return Star;
+    if (id === "ach2") return Heart;
+    if (id === "ach3") return Flame;
+    return Award;
+  };
+
   const handlePlaySong = (song: Track, index: number) => {
     setQueue(recentSongs);
     setTrack(song.videoId, song.title, song.artist, song.thumbnail, index);
@@ -96,7 +132,7 @@ export default function ProfilePage() {
       <main className="min-h-screen pb-36 text-white text-left space-y-16" style={{ background: "#07070A" }}>
 
         {/* 1. Profile Hero & Stats Header */}
-        <section className="relative px-6 md:px-10 pt-10 pb-6 overflow-hidden">
+        <section className="relative px-4 md:px-10 pt-6 md:pt-10 pb-6 overflow-hidden">
           {/* Ambient Glow */}
           <div className="absolute top-0 left-[-10%] w-[600px] h-[400px] rounded-full bg-purple-950/[0.08] blur-[140px] pointer-events-none" />
           <div className="absolute top-20 right-0 w-[450px] h-[320px] rounded-full bg-pink-950/[0.06] blur-[120px] pointer-events-none" />
@@ -115,7 +151,7 @@ export default function ProfilePage() {
                 {/* Avatar */}
                 <div className="relative shrink-0 group">
                   <div className="w-32 h-32 md:w-36 md:h-36 rounded-full overflow-hidden border border-white/[0.08] shadow-2xl bg-zinc-950">
-                    <img
+                    <SafeImage
                       src={
                         photoURL ||
                         user?.photoURL ||
@@ -123,6 +159,7 @@ export default function ProfilePage() {
                       }
                       alt="Avatar"
                       className="w-full h-full object-cover"
+                      fallbackType="artist"
                     />
                   </div>
                   <div className="absolute -bottom-2 -right-2 w-8 h-8 rounded-full bg-purple-550 border border-zinc-950 flex items-center justify-center text-white">
@@ -184,7 +221,7 @@ export default function ProfilePage() {
 
               {/* Actions & Streaks */}
               <div className="flex flex-col sm:flex-row items-center gap-6 shrink-0">
-                <div className="flex items-center gap-6 text-zinc-500 font-semibold text-xs border-r border-white/5 pr-6 hidden sm:flex">
+                <div className="flex items-center gap-6 text-zinc-500 font-semibold text-xs sm:border-r sm:border-white/5 sm:pr-6">
                   <div className="text-center">
                     <p className="text-[10px] uppercase text-zinc-600 font-bold tracking-wider">Level</p>
                     <p className="text-xl font-black text-zinc-200 mt-1">Lvl {listeningLevel}</p>
@@ -197,7 +234,7 @@ export default function ProfilePage() {
                   </div>
                 </div>
 
-                <div className="shrink-0 flex items-center justify-center">
+                <div className="shrink-0 flex items-center justify-center gap-2">
                   {editMode ? (
                     <button
                       onClick={saveProfile}
@@ -206,12 +243,20 @@ export default function ProfilePage() {
                       <Check size={13} /> Save Profile
                     </button>
                   ) : (
-                    <button
-                      onClick={() => setEditMode(true)}
-                      className="px-5 py-2.5 rounded-full bg-white/[0.03] hover:bg-white/[0.07] border border-white/[0.06] text-zinc-350 hover:text-white font-bold text-xs flex items-center gap-1.5 transition active:scale-95"
-                    >
-                      <Edit2 size={11} /> Edit Profile
-                    </button>
+                    <>
+                      <button
+                        onClick={() => setWrappedOpen(true)}
+                        className="px-5 py-2.5 rounded-full bg-gradient-to-r from-purple-650 to-pink-650 text-white font-black text-xs flex items-center gap-1.5 transition active:scale-95 shadow-[0_4px_16px_rgba(168,85,247,0.3)] hover:brightness-110 cursor-pointer"
+                      >
+                        <Sparkles size={12} className="animate-pulse" /> Show My Wrapped
+                      </button>
+                      <button
+                        onClick={() => setEditMode(true)}
+                        className="px-5 py-2.5 rounded-full bg-white/[0.03] hover:bg-white/[0.07] border border-white/[0.06] text-zinc-350 hover:text-white font-bold text-xs flex items-center gap-1.5 transition active:scale-95"
+                      >
+                        <Edit2 size={11} /> Edit Profile
+                      </button>
+                    </>
                   )}
                 </div>
               </div>
@@ -221,7 +266,7 @@ export default function ProfilePage() {
         </section>
 
         {/* 2. Stats Dashboard & Info Grid */}
-        <section className="px-6 md:px-10">
+        <section className="px-4 md:px-10">
           <div className="grid grid-cols-1 lg:grid-cols-[1.2fr_1.8fr] gap-8">
             
             {/* Left Column: Stats & Settings */}
@@ -234,28 +279,40 @@ export default function ProfilePage() {
               {/* Metrics cards */}
               <div className="grid grid-cols-2 gap-3.5">
                 <div className="p-4 rounded-2xl bg-white/[0.015] border border-white/[0.04] flex flex-col justify-between h-20">
-                  <span className="text-[10px] text-zinc-550 font-bold uppercase tracking-wider flex items-center gap-1.5">
+                  <span className="text-[10px] text-zinc-555 font-bold uppercase tracking-wider flex items-center gap-1.5">
                     <Music size={11} className="text-purple-400" /> Tracks Played
                   </span>
-                  <span className="text-xl font-black text-white font-mono">{totalListened}</span>
+                  <span className="text-xl font-black text-white font-mono">{stats.songsPlayed}</span>
                 </div>
                 <div className="p-4 rounded-2xl bg-white/[0.015] border border-white/[0.04] flex flex-col justify-between h-20">
                   <span className="text-[10px] text-zinc-555 font-bold uppercase tracking-wider flex items-center gap-1.5">
                     <Clock size={11} className="text-indigo-400" /> Listening Time
                   </span>
-                  <span className="text-xl font-black text-white font-mono">{listeningHours} hrs</span>
+                  <span className="text-xl font-black text-white font-mono">{stats.listeningHours} hrs</span>
                 </div>
                 <div className="p-4 rounded-2xl bg-white/[0.015] border border-white/[0.04] flex flex-col justify-between h-20">
                   <span className="text-[10px] text-zinc-555 font-bold uppercase tracking-wider flex items-center gap-1.5">
                     <Disc size={11} className="text-teal-400" /> Top Genre
                   </span>
-                  <span className="text-xs font-black text-zinc-200 truncate">Lofi Bollywood</span>
+                  <span className="text-xs font-black text-zinc-200 truncate">{stats.favoriteGenre}</span>
                 </div>
                 <div className="p-4 rounded-2xl bg-white/[0.015] border border-white/[0.04] flex flex-col justify-between h-20">
                   <span className="text-[10px] text-zinc-555 font-bold uppercase tracking-wider flex items-center gap-1.5">
                     <Star size={11} className="text-pink-400" /> Top Artist
                   </span>
-                  <span className="text-xs font-black text-zinc-200 truncate">{topArtists[0]?.name || "None"}</span>
+                  <span className="text-xs font-black text-zinc-200 truncate">{stats.favoriteArtist}</span>
+                </div>
+                <div className="p-4 rounded-2xl bg-white/[0.015] border border-white/[0.04] flex flex-col justify-between h-20">
+                  <span className="text-[10px] text-zinc-555 font-bold uppercase tracking-wider flex items-center gap-1.5">
+                    <Flame size={11} className="text-orange-400" /> Current Streak
+                  </span>
+                  <span className="text-xl font-black text-white font-mono">{stats.listeningStreak} days</span>
+                </div>
+                <div className="p-4 rounded-2xl bg-white/[0.015] border border-white/[0.04] flex flex-col justify-between h-20">
+                  <span className="text-[10px] text-zinc-555 font-bold uppercase tracking-wider flex items-center gap-1.5">
+                    <Activity size={11} className="text-rose-400" /> Completion Rate
+                  </span>
+                  <span className="text-xl font-black text-white font-mono">{stats.completionRate}%</span>
                 </div>
               </div>
 
@@ -293,20 +350,33 @@ export default function ProfilePage() {
                 <h2 className="font-display text-[18px] font-black text-white tracking-tight leading-none">Achievements</h2>
               </div>
               <div className="grid grid-cols-2 gap-4">
-                {ACHIEVEMENTS.map((ach) => (
-                  <div
-                    key={ach.name}
-                    className="p-4 rounded-2xl bg-white/[0.015] border border-white/[0.04] flex items-center gap-3.5"
-                  >
-                    <div className={`w-9 h-9 rounded-xl bg-gradient-to-br ${ach.color} flex items-center justify-center text-black shadow-md shrink-0`}>
-                      <ach.icon size={16} />
+                {stats.achievements.map((ach) => {
+                  const Icon = getAchievementIcon(ach.id);
+                  return (
+                    <div
+                      key={ach.id}
+                      className="p-4 rounded-2xl bg-white/[0.015] border border-white/[0.04] flex items-center gap-3.5"
+                    >
+                      <div className={`w-9 h-9 rounded-xl bg-gradient-to-br ${ach.color} flex items-center justify-center text-black shadow-md shrink-0`}>
+                        <Icon size={16} />
+                      </div>
+                      <div className="text-left min-w-0">
+                        <span className="text-xs font-bold text-zinc-200 block truncate">{ach.name}</span>
+                        <span className="text-[9px] text-zinc-555 block font-medium truncate mt-0.5">{ach.desc}</span>
+                      </div>
                     </div>
-                    <div className="text-left min-w-0">
-                      <span className="text-xs font-bold text-zinc-200 block truncate">{ach.name}</span>
-                      <span className="text-[9px] text-zinc-555 block font-medium truncate mt-0.5">{ach.desc}</span>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
+              </div>
+
+              {/* Listening Personality */}
+              <div className="p-5 rounded-2xl bg-gradient-to-br from-purple-900/10 via-white/[0.015] to-zinc-950/20 border border-white/[0.05] space-y-3 text-left">
+                <div className="flex items-center gap-2">
+                  <Sparkles size={13} className="text-purple-400 animate-pulse" />
+                  <span className="text-[9px] font-black uppercase tracking-[0.18em] text-purple-400">Listening Style</span>
+                </div>
+                <h3 className="font-display text-base font-black text-white">{stats.personality.title} ({stats.personality.type})</h3>
+                <p className="text-xs text-zinc-400 font-medium leading-relaxed">{stats.personality.description}</p>
               </div>
 
             </div>
@@ -315,7 +385,7 @@ export default function ProfilePage() {
         </section>
 
         {/* 3. Top Tracks & Top Artists */}
-        <section className="px-6 md:px-10">
+        <section className="px-4 md:px-10">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             
             {/* Column: Top Artists */}
@@ -363,7 +433,7 @@ export default function ProfilePage() {
                       <div className="flex items-center gap-3 min-w-0">
                         <span className="text-[12px] font-mono text-zinc-650 w-4 text-center shrink-0">{idx + 1}</span>
                         <div className="w-10 h-10 rounded-lg overflow-hidden shrink-0 border border-white/5 bg-zinc-950">
-                          <img src={item.song.thumbnail} alt="" className="w-full h-full object-cover" />
+                          <SafeImage src={item.song.thumbnail} videoId={item.song.videoId} alt="" className="w-full h-full object-cover" />
                         </div>
                         <div className="min-w-0 text-left">
                           <p className="text-xs font-bold text-zinc-250 group-hover:text-purple-300 truncate leading-snug">{item.song.title}</p>
@@ -385,7 +455,7 @@ export default function ProfilePage() {
         </section>
 
         {/* 4. Activity Timeline */}
-        <section className="px-6 md:px-10 space-y-6">
+        <section className="px-4 md:px-10 space-y-6">
           <div>
             <p className="text-[9px] font-black uppercase tracking-[0.18em] text-zinc-600 mb-1.5">Logs</p>
             <h2 className="font-display text-[22px] font-black text-white tracking-tight leading-none">Activity Timeline</h2>
@@ -422,12 +492,12 @@ export default function ProfilePage() {
 
         {/* 5. Recent Playlists (Carousel) */}
         {playlists.length > 0 && (
-          <section className="px-6 md:px-10 space-y-6">
+          <section className="px-4 md:px-10 space-y-6">
             <div>
               <p className="text-[9px] font-black uppercase tracking-[0.18em] text-zinc-600 mb-1.5">Collections</p>
               <h2 className="font-display text-[22px] font-black text-white tracking-tight leading-none">Recent Playlists</h2>
             </div>
-            <div className="flex gap-5 overflow-x-auto scrollbar-none pb-4 -mx-6 md:-mx-10 px-6 md:px-10">
+            <div className="flex gap-5 overflow-x-auto scrollbar-none pb-4 -mx-4 md:-mx-10 px-4 md:px-10">
               {playlists.slice(0, 6).map((playlist) => (
                 <motion.div
                   key={`profile-playlist-${playlist.id}`}
@@ -436,7 +506,7 @@ export default function ProfilePage() {
                 >
                   <div className="relative aspect-square rounded-[14px] overflow-hidden bg-zinc-950 border border-white/5 shadow-sm mb-3">
                     {playlist.songs[0] ? (
-                      <img src={playlist.songs[0].thumbnail} alt={playlist.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                      <SafeImage src={playlist.songs[0].thumbnail} videoId={playlist.songs[0].videoId} alt={playlist.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" fallbackType="song" />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center bg-zinc-950">
                         <Music size={28} className="text-zinc-800" />
@@ -450,6 +520,13 @@ export default function ProfilePage() {
             </div>
           </section>
         )}
+
+        <WrappedModal
+          isOpen={wrappedOpen}
+          onClose={() => setWrappedOpen(false)}
+          likedSongs={likedSongs}
+          recentSongs={recentSongs}
+        />
 
       </main>
     </ProtectedRoute>

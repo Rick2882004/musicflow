@@ -8,6 +8,7 @@ import { motion } from "framer-motion";
 import { Play, Shuffle, Heart, Share2, Award, Calendar, Users } from "lucide-react";
 import Link from "next/link";
 import { Track, Artist } from "@/types/music";
+import { SafeImage } from "@/components/ui/SafeImage";
 
 function formatDur(s: number = 0) {
   const m = Math.floor(s / 60), sec = Math.floor(s % 60);
@@ -217,11 +218,11 @@ export default function ArtistPage() {
                     {index + 1}
                   </span>
                   <div className="w-11 h-11 rounded-[10px] overflow-hidden bg-zinc-900 shrink-0 border border-white/5 shadow-md">
-                    <img
+                    <SafeImage
                       src={song.thumbnail}
+                      videoId={song.videoId}
                       alt=""
                       className="w-full h-full object-cover"
-                      loading="lazy"
                     />
                   </div>
                   <div className="min-w-0">
@@ -267,10 +268,11 @@ export default function ArtistPage() {
                   className="group shrink-0 w-[160px] md:w-[180px] flex flex-col gap-3 cursor-pointer text-left focus:outline-none"
                 >
                   <div className="relative rounded-[22px] overflow-hidden bg-zinc-900 aspect-square border border-white/[0.05] group-hover:border-purple-500/30 transition-all duration-300 shadow-[0_8px_24px_rgba(0,0,0,0.5)]">
-                    <img
+                    <SafeImage
                       src={album.thumbnail}
                       alt={album.name}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                      fallbackType="album"
                     />
                   </div>
                   <div className="px-0.5">
@@ -329,10 +331,11 @@ export default function ArtistPage() {
                   className="cursor-pointer group flex flex-col items-center gap-3 shrink-0 focus:outline-none w-[110px]"
                 >
                   <div className="relative w-20 h-20 sm:w-24 sm:h-24 rounded-full overflow-hidden bg-zinc-900 border border-white/[0.06] group-hover:border-purple-500/40 transition-colors duration-300 shadow-[0_8px_24px_rgba(0,0,0,0.5)]">
-                    <img
+                    <SafeImage
                       src={simImage}
                       alt={sim.name}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                      fallbackType="artist"
                     />
                   </div>
                   <div className="text-center w-full">

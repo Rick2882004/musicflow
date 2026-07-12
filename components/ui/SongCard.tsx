@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Play, Heart, Pause } from "lucide-react";
 import { useShallow } from "zustand/react/shallow";
 import { usePlayerStore } from "@/store/player-store";
+import { SafeImage } from "./SafeImage";
 
 type Song = {
   id: string;
@@ -99,18 +100,18 @@ export const SongCard = memo(function SongCard({
           </span>
         )}
 
-        <motion.img
+        <motion.div
+          className="h-full w-full"
           animate={{ scale: hovered ? 1.06 : 1 }}
           transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-          src={song.thumbnail || "https://placehold.co/500x500/111/fff?text=♪"}
-          alt={song.title}
-          loading="lazy"
-          onError={(e) => {
-            e.currentTarget.onerror = null;
-            e.currentTarget.src = "https://placehold.co/500x500/111/fff?text=♪";
-          }}
-          className="h-full w-full object-cover"
-        />
+        >
+          <SafeImage
+            src={song.thumbnail}
+            videoId={song.id}
+            alt={song.title}
+            className="h-full w-full object-cover"
+          />
+        </motion.div>
 
         {/* Hover overlay */}
         <motion.div

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { auth } from "../../lib/firebase";
-import { createUserWithEmailAndPassword } from "firebase/auth";
+import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
 import Link from "next/link";
 import { User, Mail, Lock, Eye, EyeOff, ArrowRight } from "lucide-react";
 
@@ -17,10 +17,15 @@ export default function SignupForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
+  const [errorMsg, setErrorMsg] = useState("");
+  const [successMsg, setSuccessMsg] = useState("");
+
   const handleSignup = async (
     e: React.FormEvent<HTMLFormElement>
   ) => {
     e.preventDefault();
+    setErrorMsg("");
+    setSuccessMsg("");
 
     if (
       !name ||
@@ -28,12 +33,12 @@ export default function SignupForm() {
       !password ||
       !confirmPassword
     ) {
-      alert("Please fill all fields.");
+      setErrorMsg("Please fill all fields.");
       return;
     }
 
     if (password !== confirmPassword) {
-      alert("Passwords do not match.");
+      setErrorMsg("Passwords do not match.");
       return;
     }
 
@@ -47,12 +52,18 @@ export default function SignupForm() {
       );
 
       const user = userCredential.user;
+      await updateProfile(user, {
+        displayName: name,
+      });
+
       console.log("USER CREATED:", user.uid);
 
-      alert("Signup Success 🎉");
-      router.push("/");
+      setSuccessMsg("Signup Success! Redirecting...");
+      setTimeout(() => {
+        router.push("/");
+      }, 1500);
     } catch (error: unknown) {
-      alert((error as Error).message);
+      setErrorMsg((error as Error).message);
     } finally {
       setLoading(false);
     }
@@ -63,6 +74,16 @@ export default function SignupForm() {
       onSubmit={handleSignup}
       className="space-y-4"
     >
+      {errorMsg && (
+        <div className="p-3.5 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-[11px] font-semibold text-center">
+          {errorMsg}
+        </div>
+      )}
+      {successMsg && (
+        <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[11px] font-semibold text-center animate-pulse">
+          {successMsg}
+        </div>
+      )}
       <div className="relative">
         <User className="absolute left-3.5 top-3.5 w-4 h-4 text-zinc-650" />
         <input

@@ -5,6 +5,7 @@ import { useShallow } from "zustand/react/shallow";
 import { ArrowUp, ArrowDown, Trash2, X, AlertCircle } from "lucide-react";
 import { Track } from "@/types/music";
 import { motion, AnimatePresence } from "framer-motion";
+import { SafeImage } from "@/components/ui/SafeImage";
 
 export default function QueueDrawer() {
   const {
@@ -98,8 +99,9 @@ export default function QueueDrawer() {
                   }`}
                 >
                   <div className="flex items-center gap-3 min-w-0">
-                    <img
+                    <SafeImage
                       src={song.thumbnail}
+                      videoId={song.videoId}
                       alt=""
                       className="w-10 h-10 rounded-lg object-cover shrink-0"
                     />

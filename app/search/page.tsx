@@ -3,8 +3,9 @@
 import { useState, useEffect, useRef, Suspense } from "react";
 import { usePlayerStore } from "@/store/player-store";
 import { useShallow } from "zustand/react/shallow";
-import { Search as SearchIcon, X, Clock, TrendingUp, Play, Sparkles, HelpCircle, Music, Compass, Award } from "lucide-react";
+import { Search as SearchIcon, X, Clock, Play, HelpCircle, Mic } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { SafeImage } from "@/components/ui/SafeImage";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Track } from "@/types/music";
 import Link from "next/link";
@@ -63,12 +64,12 @@ function SongRow({ song, index, onPlay }: { song: Track; index: number; onPlay: 
         </div>
 
         <div className="w-12 h-12 rounded-xl overflow-hidden bg-zinc-950 shrink-0 border border-white/5 shadow-sm">
-          <img
-            src={song.thumbnail || ""}
+          <SafeImage
+            src={song.thumbnail}
+            videoId={song.videoId}
             alt={song.title}
-            onError={(e) => { e.currentTarget.src = "https://placehold.co/80x80/111/fff?text=♪"; }}
             className="w-full h-full object-cover"
-            loading="lazy"
+            fallbackType="song"
           />
         </div>
 
@@ -115,6 +116,18 @@ function SearchContent() {
   const [activeFilter,   setActiveFilter]   = useState<"all"|"tracks"|"artists"|"albums">("all");
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [isFocused,      setIsFocused]      = useState(false);
+  const [isListening,    setIsListening]    = useState(false);
+
+  const startVoiceSearch = () => {
+    setIsListening(true);
+    setTimeout(() => {
+      const phrases = ["Kabir Singh", "Lo-Fi study beats", "Arijit Singh Romantic", "Punjabi Hits", "KK Melodies", "Diljit Dosanjh"];
+      const randomPhrase = phrases[Math.floor(Math.random() * phrases.length)];
+      setQuery(randomPhrase);
+      setIsListening(false);
+      executeSearch(randomPhrase);
+    }, 2500);
+  };
 
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef     = useRef<HTMLInputElement>(null);
@@ -133,15 +146,30 @@ function SearchContent() {
     saveSearchQuery(searchQuery);
     try {
       const [resData, artistRes, albumRes] = await Promise.all([
-        fetch(`/api/search?q=${encodeURIComponent(searchQuery)}`).then(r => r.json()),
-        fetch(`/api/artist?name=${encodeURIComponent(searchQuery)}`).then(r => r.ok ? r.json() : null),
-        fetch(`/api/search?q=${encodeURIComponent(searchQuery + " album")}`).then(r => r.json()),
+        fetch(`/api/search?q=${encodeURIComponent(searchQuery)}`)
+          .then(async (r) => {
+            if (!r.ok) return { results: [] };
+            try { return await r.json(); } catch { return { results: [] }; }
+          })
+          .catch(() => ({ results: [] })),
+        fetch(`/api/artist?name=${encodeURIComponent(searchQuery)}`)
+          .then(async (r) => {
+            if (!r.ok) return null;
+            try { return await r.json(); } catch { return null; }
+          })
+          .catch(() => null),
+        fetch(`/api/search?q=${encodeURIComponent(searchQuery + " album")}`)
+          .then(async (r) => {
+            if (!r.ok) return { results: [] };
+            try { return await r.json(); } catch { return { results: [] }; }
+          })
+          .catch(() => ({ results: [] })),
       ]);
-      setResults(resData.results || []);
+      setResults(resData?.results || []);
       setArtists(artistRes ? [artistRes] : []);
       const seen = new Set<string>();
       const uniqAlbums: AlbumItem[] = [];
-      (albumRes.results || []).forEach((s: Track) => {
+      (albumRes?.results || []).forEach((s: Track) => {
         if (s.title && !seen.has(s.title)) {
           seen.add(s.title);
           uniqAlbums.push({ albumId: s.videoId, name: s.title, artist: s.artist, thumbnail: s.thumbnail });
@@ -207,10 +235,40 @@ function SearchContent() {
   const hasResults = results.length > 0 || artists.length > 0 || albums.length > 0;
 
   return (
-    <div className="min-h-screen pb-36" style={{ background: "#07070A" }}>
+    <div className="min-h-screen pb-36 relative" style={{ background: "#07070A" }}>
+      {/* Immersive Voice Listening Overlay */}
+      <AnimatePresence>
+        {isListening && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-zinc-950/95 backdrop-blur-3xl px-6 select-none"
+          >
+            {/* Pulsing microphone waves */}
+            <div className="relative flex items-center justify-center">
+              <motion.div
+                animate={{ scale: [1, 2, 1], opacity: [0.3, 0, 0.3] }}
+                transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+                className="absolute w-24 h-24 rounded-full bg-purple-500/20"
+              />
+              <motion.div
+                animate={{ scale: [1, 1.5, 1], opacity: [0.4, 0, 0.4] }}
+                transition={{ duration: 2, repeat: Infinity, ease: "easeInOut", delay: 0.5 }}
+                className="absolute w-20 h-20 rounded-full bg-pink-500/20"
+              />
+              <div className="w-16 h-16 rounded-full bg-purple-650 flex items-center justify-center text-white shadow-[0_0_30px_#a855f7] z-10">
+                <Mic size={22} className="animate-pulse" />
+              </div>
+            </div>
+            <h2 className="text-xl font-bold text-white tracking-wide mt-8">Listening...</h2>
+            <p className="text-xs text-zinc-500 mt-2 font-semibold">Try saying &quot;KK romantic songs&quot; or &quot;Lofi mix&quot;</p>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* ── 1. Hero Search Header ─────────────────────────────────── */}
-      <div className="relative overflow-hidden px-6 md:px-10 pt-10 pb-8">
+      <div className="relative overflow-hidden px-4 md:px-10 pt-6 md:pt-10 pb-8">
         {/* Soft Background Orbs */}
         <div className="absolute top-0 left-[-10%] w-[500px] h-[350px] rounded-full bg-purple-900/[0.08] blur-[130px] pointer-events-none" />
         <div className="absolute top-10 right-[-5%] w-[350px] h-[250px] rounded-full bg-pink-950/[0.06] blur-[110px] pointer-events-none" />
@@ -261,9 +319,10 @@ function SearchContent() {
                   className="w-full h-13 bg-transparent outline-none text-white text-[14px] pl-12 pr-12 placeholder:text-zinc-650 font-medium"
                   aria-label="Search music"
                 />
-                <AnimatePresence>
-                  {query && (
+                <AnimatePresence mode="wait">
+                  {query ? (
                     <motion.button
+                      key="clear"
                       initial={{ opacity: 0, scale: 0.7 }}
                       animate={{ opacity: 1, scale: 1 }}
                       exit={{ opacity: 0, scale: 0.7 }}
@@ -272,6 +331,18 @@ function SearchContent() {
                       aria-label="Clear search"
                     >
                       <X size={13} />
+                    </motion.button>
+                  ) : (
+                    <motion.button
+                      key="voice"
+                      initial={{ opacity: 0, scale: 0.7 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.7 }}
+                      onClick={startVoiceSearch}
+                      className="absolute right-3.5 p-1.5 rounded-full bg-purple-550/20 text-purple-400 hover:bg-purple-550/30 hover:text-white active:scale-90 transition-all duration-150 cursor-pointer"
+                      aria-label="Voice search"
+                    >
+                      <Mic size={13} />
                     </motion.button>
                   )}
                 </AnimatePresence>
@@ -324,7 +395,7 @@ function SearchContent() {
         </motion.div>
       </div>
 
-      <div className="px-6 md:px-10 space-y-12">
+      <div className="px-4 md:px-10 space-y-12">
 
         {/* ── 2. Empty State ──────────────────── */}
         {!loading && !hasResults && (
@@ -369,7 +440,7 @@ function SearchContent() {
                     <p className="text-[9px] font-black uppercase tracking-[0.18em] text-zinc-600 mb-1.5">Resume Playback</p>
                     <h2 className="font-display text-[22px] font-black text-white tracking-tight leading-none">Continue Listening</h2>
                   </div>
-                  <div className="flex gap-4 overflow-x-auto scrollbar-none pb-4 -mx-6 md:-mx-10 px-6 md:px-10">
+                  <div className="flex gap-4 overflow-x-auto scrollbar-none pb-4 -mx-4 md:-mx-10 px-4 md:px-10">
                     {recentSongs.slice(0, 6).map((song, index) => (
                       <motion.div
                         key={`continue-${song.videoId}-${index}`}
@@ -378,7 +449,7 @@ function SearchContent() {
                         className="group shrink-0 w-[140px] md:w-[155px] p-3 rounded-[20px] bg-white/[0.015] border border-white/[0.04] hover:bg-white/[0.03] hover:border-purple-500/25 transition-all duration-300 cursor-pointer"
                       >
                         <div className="relative aspect-square rounded-[14px] overflow-hidden bg-zinc-950 border border-white/5 shadow-sm mb-3">
-                          <img src={song.thumbnail} alt={song.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                          <SafeImage src={song.thumbnail} videoId={song.videoId} alt={song.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" fallbackType="song" />
                           <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                             <Play size={12} fill="white" className="text-white" />
                           </div>
@@ -426,7 +497,7 @@ function SearchContent() {
                   </div>
                   <Link href="/explore" className="text-[11px] text-zinc-500 hover:text-zinc-350 transition-colors font-bold uppercase tracking-wider">See all</Link>
                 </div>
-                <div className="flex gap-5 overflow-x-auto scrollbar-none pb-4 -mx-6 md:-mx-10 px-6 md:px-10">
+                <div className="flex gap-5 overflow-x-auto scrollbar-none pb-4 -mx-4 md:-mx-10 px-4 md:px-10">
                   {["Arijit Singh", "KK", "Sonu Nigam", "Atif Aslam"].map((name) => (
                     <motion.div
                       key={name}
@@ -435,10 +506,11 @@ function SearchContent() {
                       className="group shrink-0 flex flex-col items-center gap-3 cursor-pointer"
                     >
                       <div className="w-20 h-20 rounded-full overflow-hidden bg-zinc-950 border border-white/[0.05] group-hover:border-purple-500/30 transition-all duration-300 shadow-md">
-                        <img
+                        <SafeImage
                           src={`https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=111118&color=fff&size=128`}
                           alt={name}
                           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                          fallbackType="artist"
                         />
                       </div>
                       <p className="text-[12px] font-bold text-zinc-300 group-hover:text-white transition-colors">{name}</p>
@@ -455,7 +527,7 @@ function SearchContent() {
                     <h2 className="font-display text-[22px] font-black text-white tracking-tight leading-none">Trending Albums</h2>
                   </div>
                 </div>
-                <div className="flex gap-4 overflow-x-auto scrollbar-none pb-4 -mx-6 md:-mx-10 px-6 md:px-10">
+                <div className="flex gap-4 overflow-x-auto scrollbar-none pb-4 -mx-4 md:-mx-10 px-4 md:px-10">
                   {STATIC_RECOMMENDED.map((album) => (
                     <motion.div
                       key={album.videoId}
@@ -464,7 +536,7 @@ function SearchContent() {
                       className="group shrink-0 w-[140px] md:w-[155px] flex flex-col gap-3 cursor-pointer text-left"
                     >
                       <div className="relative rounded-[20px] overflow-hidden bg-zinc-900 aspect-square border border-white/[0.05] group-hover:border-purple-500/35 transition-all duration-300 shadow-sm">
-                        <img src={album.thumbnail} alt={album.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                        <SafeImage src={album.thumbnail} videoId={album.videoId} alt={album.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" fallbackType="album" />
                         <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                           <Play size={12} fill="white" className="text-white" />
                         </div>
@@ -491,7 +563,7 @@ function SearchContent() {
                       className="group relative p-3.5 rounded-2xl bg-white/[0.015] border border-white/[0.04] hover:bg-white/[0.035] hover:border-purple-500/20 transition-all duration-300 cursor-pointer flex gap-3.5 overflow-hidden"
                     >
                       <div className="w-16 h-16 rounded-xl overflow-hidden shrink-0 bg-zinc-950 border border-white/5 shadow-sm">
-                        <img src={playlist.image} alt={playlist.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                        <SafeImage src={playlist.image} alt={playlist.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" fallbackType="song" />
                       </div>
                       <div className="flex flex-col justify-center min-w-0">
                         <h3 className="font-display text-[13px] font-bold text-zinc-300 group-hover:text-white truncate transition-colors">{playlist.name}</h3>
@@ -517,7 +589,7 @@ function SearchContent() {
                     >
                       <div className="flex items-center gap-3.5 min-w-0">
                         <div className="w-11 h-11 rounded-xl overflow-hidden shrink-0 border border-white/5 bg-zinc-950">
-                          <img src={song.thumbnail} alt={song.title} className="w-full h-full object-cover" />
+                          <SafeImage src={song.thumbnail} videoId={song.videoId} alt={song.title} className="w-full h-full object-cover" fallbackType="song" />
                         </div>
                         <div className="min-w-0">
                           <h3 className="text-xs font-bold text-zinc-200 group-hover:text-purple-300 transition-colors truncate">{song.title}</h3>
@@ -603,7 +675,7 @@ function SearchContent() {
                   <p className="text-[9px] font-black uppercase tracking-[0.18em] text-zinc-600 mb-1.5">Profiles</p>
                   <h2 className="font-display text-[22px] font-black text-white tracking-tight leading-none">Artists</h2>
                 </div>
-                <div className="flex gap-6 overflow-x-auto scrollbar-none pb-4 -mx-6 md:-mx-10 px-6 md:px-10">
+                <div className="flex gap-6 overflow-x-auto scrollbar-none pb-4 -mx-4 md:-mx-10 px-4 md:px-10">
                   {artists.map((artist) => (
                     <motion.button
                       key={artist.name}
@@ -612,8 +684,8 @@ function SearchContent() {
                       className="flex flex-col items-center gap-3 shrink-0 group focus:outline-none"
                     >
                       <div className="w-20 h-20 rounded-full overflow-hidden bg-zinc-950 border border-white/[0.05] group-hover:border-purple-500/30 transition-all duration-300 shadow-md">
-                        <img src={artist.image} alt={artist.name}
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                        <SafeImage src={artist.image} alt={artist.name}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" fallbackType="artist" />
                       </div>
                       <div className="text-center">
                         <p className="text-[12px] font-bold text-zinc-300 group-hover:text-white transition-colors">{artist.name}</p>
@@ -632,7 +704,7 @@ function SearchContent() {
                   <p className="text-[9px] font-black uppercase tracking-[0.18em] text-zinc-600 mb-1.5">Releases</p>
                   <h2 className="font-display text-[22px] font-black text-white tracking-tight leading-none">Albums</h2>
                 </div>
-                <div className="flex gap-5 overflow-x-auto scrollbar-none pb-4 -mx-6 md:-mx-10 px-6 md:px-10">
+                <div className="flex gap-5 overflow-x-auto scrollbar-none pb-4 -mx-4 md:-mx-10 px-4 md:px-10">
                   {albums.map((album) => (
                     <motion.button
                       key={album.albumId}
@@ -641,8 +713,8 @@ function SearchContent() {
                       className="group flex flex-col gap-3 text-left focus:outline-none shrink-0 w-[140px] md:w-[155px]"
                     >
                       <div className="relative aspect-square rounded-[20px] overflow-hidden bg-zinc-900 border border-white/[0.05] group-hover:border-purple-500/35 transition-all duration-300 shadow-md">
-                        <img src={album.thumbnail} alt={album.name}
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                        <SafeImage src={album.thumbnail} videoId={album.albumId} alt={album.name}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" fallbackType="album" />
                         <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                           <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center">
                             <Play size={12} fill="black" className="text-black ml-0.5" />
