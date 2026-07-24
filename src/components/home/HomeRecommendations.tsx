@@ -117,11 +117,6 @@ const AlbumTile = memo(function AlbumTile({
   image: string;
   idx: number;
 }) {
-  const handleErr = (e: React.SyntheticEvent<HTMLImageElement>) => {
-    e.currentTarget.onerror = null;
-    e.currentTarget.src = "https://placehold.co/500x500/111/fff?text=Album";
-  };
-
   return (
     <Link href={`/album/${id}`}>
       <motion.div
@@ -301,7 +296,7 @@ export default function HomeRecommendations() {
       id: "MPREb_HtIOxExZ0cj",
       title: "Arijit Singh Hits",
       artist: "Arijit Singh",
-      image: "https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=400&q=80",
+      image: "https://img.youtube.com/vi/T94PHkuyd8c/hqdefault.jpg",
     },
     {
       id: "MPREb_FCKWeH9GnWF",
@@ -321,13 +316,13 @@ export default function HomeRecommendations() {
       id: "MPREb_HtIOxExZ0cj",
       title: "Kabir Singh",
       artist: "Sachet Tandon",
-      image: "https://images.unsplash.com/photo-1498038432885-c6f3f1b912ee?w=400&q=80",
+      image: "https://img.youtube.com/vi/V0KD0nDkbpM/hqdefault.jpg",
     },
     {
       id: "MPREb_HtIOxExZ0ck",
       title: "Lofi Bollywood",
       artist: "Lofi Fruit",
-      image: "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=400&q=80",
+      image: "https://img.youtube.com/vi/JgP0vE3D-g8/hqdefault.jpg",
     },
   ];
 

@@ -2,9 +2,8 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { X, Sparkles, Send, Play } from "lucide-react";
+import { X, Sparkles, Send } from "lucide-react";
 import { usePlayerStore } from "@/store/player-store";
-import { SafeImage } from "./SafeImage";
 
 interface AIDJModalProps {
   isOpen: boolean;

@@ -4,8 +4,9 @@ import { usePlayerStore } from "@/store/player-store";
 import { useShallow } from "zustand/react/shallow";
 import { useEffect, useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Music, Play } from "lucide-react";
+import { Music } from "lucide-react";
 import { SafeImage } from "@/components/ui/SafeImage";
+import { AudioVisualizer } from "@/components/player/AudioVisualizer";
 
 export default function LyricsPage() {
   const { videoId, title, artist, thumbnail, currentTime, duration, player } = usePlayerStore(
@@ -100,7 +101,7 @@ export default function LyricsPage() {
             fallbackType="song"
           />
         </div>
-        <div className="min-w-0 text-left">
+        <div className="min-w-0 text-left flex-grow">
           <span className="text-[9px] font-black uppercase tracking-[0.18em] text-purple-400">
             Real-Time Sync Lyrics
           </span>
@@ -108,6 +109,9 @@ export default function LyricsPage() {
             {title}
           </h1>
           <p className="text-xs sm:text-sm text-zinc-400 truncate mt-0.5">{artist}</p>
+        </div>
+        <div className="shrink-0 hidden sm:block">
+          <AudioVisualizer isPlaying={Boolean(videoId && player)} bars={12} barColor="bg-purple-400" />
         </div>
       </div>
 

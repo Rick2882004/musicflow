@@ -5,20 +5,13 @@ import ProtectedRoute from "../../src/components/auth/ProtectedRoute";
 import { useAuth } from "../../src/context/AuthContext";
 import { usePlayerStore } from "@/store/player-store";
 import { useShallow } from "zustand/react/shallow";
-import { motion, AnimatePresence } from "framer-motion";
-import { Edit2, Check, Mail, Award, Flame, Disc, BarChart, Settings, Play, ShieldAlert, Sparkles, Zap, Clock, Compass, Activity, Star, Calendar, Music, ListMusic, Heart } from "lucide-react";
+import { motion } from "framer-motion";
+import { Edit2, Check, Mail, Award, Flame, Settings, Sparkles, Clock, Star, Music, Disc, Activity } from "lucide-react";
 import { Track } from "@/types/music";
 import { useHasMounted } from "@/hooks/useHasMounted";
 import { SafeImage } from "@/components/ui/SafeImage";
 import { WrappedModal } from "@/components/ui/WrappedModal";
 import { calculateListeningStats } from "@/lib/analytics";
-
-const ACHIEVEMENTS = [
-  { name: "Pioneer", desc: "Early platform adopter", icon: Star, color: "from-amber-500 to-yellow-400" },
-  { name: "Night Owl", desc: "Listen past midnight", icon: Flame, color: "from-purple-500 to-indigo-500" },
-  { name: "Streak Starter", desc: "7 days active listening", icon: Zap, color: "from-pink-500 to-rose-400" },
-  { name: "Connoisseur", desc: "100+ tracks listened", icon: Award, color: "from-teal-500 to-emerald-450" },
-];
 
 export default function ProfilePage() {
   const { user } = useAuth();
@@ -41,10 +34,10 @@ export default function ProfilePage() {
   // Sync display profile name on user state change/mount
   useEffect(() => {
     if (user) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setDisplayName(user.displayName || user.email?.split("@")[0] || "MusicFlow User");
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setPhotoURL(user.photoURL || "");
+      setTimeout(() => {
+        setDisplayName(user.displayName || user.email?.split("@")[0] || "MusicFlow User");
+        setPhotoURL(user.photoURL || "");
+      }, 0);
     }
   }, [user]);
 
@@ -109,17 +102,16 @@ export default function ProfilePage() {
 
   const topArtists = getTopArtists();
   const topTracks = getTopTracks();
-  const totalListened = recentSongs.length;
-  const listeningHours = Math.round(totalListened * 3.5 / 60 * 10) / 10;
-  const listeningLevel = Math.floor(totalListened / 10) + 1;
-
   const stats = calculateListeningStats(recentSongs, likedSongs);
+  const listeningLevel = Math.floor(stats.songsPlayed / 10) + 1;
 
   const getAchievementIcon = (id: string) => {
-    if (id === "ach1") return Star;
-    if (id === "ach2") return Heart;
-    if (id === "ach3") return Flame;
-    return Award;
+    switch (id) {
+      case "night-owl": return Clock;
+      case "trendsetter": return Star;
+      case "superfan": return Flame;
+      default: return Award;
+    }
   };
 
   const handlePlaySong = (song: Track, index: number) => {
@@ -225,6 +217,14 @@ export default function ProfilePage() {
                   <div className="text-center">
                     <p className="text-[10px] uppercase text-zinc-600 font-bold tracking-wider">Level</p>
                     <p className="text-xl font-black text-zinc-200 mt-1">Lvl {listeningLevel}</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-[10px] uppercase text-zinc-600 font-bold tracking-wider">Followers</p>
+                    <p className="text-xl font-black text-zinc-200 mt-1">148</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-[10px] uppercase text-zinc-600 font-bold tracking-wider">Following</p>
+                    <p className="text-xl font-black text-zinc-200 mt-1">42</p>
                   </div>
                   <div className="text-center">
                     <p className="text-[10px] uppercase text-zinc-600 font-bold tracking-wider">Streak</p>
@@ -350,7 +350,7 @@ export default function ProfilePage() {
                 <h2 className="font-display text-[18px] font-black text-white tracking-tight leading-none">Achievements</h2>
               </div>
               <div className="grid grid-cols-2 gap-4">
-                {stats.achievements.map((ach) => {
+                {stats.achievements.map((ach: { id: string; name: string; desc: string; color: string }) => {
                   const Icon = getAchievementIcon(ach.id);
                   return (
                     <div

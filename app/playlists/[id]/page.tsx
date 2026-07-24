@@ -1,32 +1,26 @@
 "use client";
 
-import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import { usePlayerStore } from "@/store/player-store";
 import { useShallow } from "zustand/react/shallow";
-import { Play, Shuffle, Trash, Check, Edit2, ShieldAlert, Users, Clock, Share2, Heart, MoreHorizontal, Sparkles, HelpCircle } from "lucide-react";
-import { Track, Playlist } from "@/types/music";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
+import { Play, Shuffle, Trash, Check, Edit2, ShieldAlert, Users, Clock, Share2, Heart } from "lucide-react";
+import { Playlist, Track } from "@/types/music";
 import ProtectedRoute from "../../../src/components/auth/ProtectedRoute";
 import { useHasMounted } from "@/hooks/useHasMounted";
 import { SafeImage } from "@/components/ui/SafeImage";
+import { ShareModal } from "@/components/social/ShareModal";
 
 function formatDur(s: number = 0) {
   const m = Math.floor(s / 60), sec = Math.floor(s % 60);
   return `${m}:${String(sec).padStart(2, "0")}`;
 }
 
-const COLLABORATORS = [
-  { name: "Abhishek", avatar: "https://ui-avatars.com/api/?name=Abhishek&background=7c3aed&color=fff" },
-  { name: "John Doe", avatar: "https://ui-avatars.com/api/?name=John+Doe&background=059669&color=fff" },
-  { name: "Sarah K.", avatar: "https://ui-avatars.com/api/?name=Sarah+K&background=db2777&color=fff" },
-];
-
 const SUGGESTED_SONGS = [
-  { videoId: "V0KD0nDkbpM", title: "Arijit Singh Hits", artist: "Arijit Singh", thumbnail: "https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=400&q=80", duration: 180 },
-  { videoId: "xRb8hxwN5zc", title: "Kabir Singh", artist: "Sachet Tandon", thumbnail: "https://images.unsplash.com/photo-1498038432885-c6f3f1b912ee?w=400&q=80", duration: 240 },
-  { videoId: "OkpIoEC44kk", title: "Lofi Bollywood", artist: "Lofi Fruit", thumbnail: "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=400&q=80", duration: 210 },
+  { videoId: "V0KD0nDkbpM", title: "Arijit Singh Hits", artist: "Arijit Singh", thumbnail: "https://img.youtube.com/vi/V0KD0nDkbpM/hqdefault.jpg", duration: 180 },
+  { videoId: "xRb8hxwN5zc", title: "Kabir Singh", artist: "Sachet Tandon", thumbnail: "https://img.youtube.com/vi/xRb8hxwN5zc/hqdefault.jpg", duration: 240 },
+  { videoId: "OkpIoEC44kk", title: "Lofi Bollywood", artist: "Lofi Fruit", thumbnail: "https://img.youtube.com/vi/OkpIoEC44kk/hqdefault.jpg", duration: 210 },
 ];
 
 export default function PlaylistPage() {
@@ -41,7 +35,6 @@ export default function PlaylistPage() {
     deletePlaylist,
     updatePlaylist,
     videoId,
-    isPlaying,
   } = usePlayerStore(useShallow((s) => ({
     playlists: s.playlists,
     setTrack: s.setTrack,
@@ -50,7 +43,6 @@ export default function PlaylistPage() {
     deletePlaylist: s.deletePlaylist,
     updatePlaylist: s.updatePlaylist,
     videoId: s.videoId,
-    isPlaying: s.isPlaying,
   })));
 
 
@@ -63,15 +55,15 @@ export default function PlaylistPage() {
   const [playlistName, setPlaylistName] = useState("");
   const [playlistDesc, setPlaylistDesc] = useState("");
   const [isCollab, setIsCollab] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
 
   useEffect(() => {
     if (playlist) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setPlaylistName(playlist.name);
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setPlaylistDesc(playlist.description || "");
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setIsCollab(playlist.isCollaborative || false);
+      setTimeout(() => {
+        setPlaylistName(playlist.name);
+        setPlaylistDesc(playlist.description || "");
+        setIsCollab(playlist.isCollaborative || false);
+      }, 0);
     }
   }, [playlist]);
 
@@ -300,7 +292,11 @@ export default function PlaylistPage() {
                     </motion.button>
                   </>
                 )}
-                <button className="p-2.5 rounded-full bg-white/[0.02] border border-white/[0.04] text-zinc-450 hover:text-white transition cursor-pointer">
+                <button
+                  onClick={() => setShareOpen(true)}
+                  aria-label="Share playlist"
+                  className="p-2.5 rounded-full bg-white/[0.02] border border-white/[0.04] text-zinc-450 hover:text-white transition cursor-pointer"
+                >
                   <Share2 size={13} />
                 </button>
               </div>
@@ -423,25 +419,19 @@ export default function PlaylistPage() {
             {/* Col 2: Sidebar (Suggested, Collaborators) */}
             <div className="space-y-8">
               
-              {/* Playlist Collaborators */}
+              {/* Playlist Info */}
               <div className="p-5 rounded-2xl bg-white/[0.015] border border-white/[0.04] space-y-4">
                 <div>
-                  <p className="text-[8px] font-black uppercase tracking-[0.16em] text-zinc-600 mb-0.5">Members</p>
-                  <h4 className="font-display text-xs font-black text-white uppercase tracking-wider">Collaborators</h4>
+                  <p className="text-[8px] font-black uppercase tracking-[0.16em] text-zinc-600 mb-0.5">Playlist</p>
+                  <h4 className="font-display text-xs font-black text-white uppercase tracking-wider">Access & Permissions</h4>
                 </div>
                 <div className="flex items-center gap-2">
-                  <div className="flex -space-x-2.5 overflow-hidden">
-                    {COLLABORATORS.map((userObj) => (
-                      <SafeImage
-                        key={userObj.name}
-                        className="inline-block h-7 w-7 rounded-full ring-2 ring-zinc-950 object-cover"
-                        src={userObj.avatar}
-                        alt={userObj.name}
-                        fallbackType="artist"
-                      />
-                    ))}
+                  <div className="w-7 h-7 rounded-full bg-purple-600/30 border border-purple-500/40 flex items-center justify-center text-purple-300 font-bold text-[10px]">
+                    {playlist.name.charAt(0).toUpperCase()}
                   </div>
-                  <span className="text-[11px] text-zinc-500 font-semibold">Active online</span>
+                  <span className="text-[11px] text-zinc-400 font-semibold">
+                    {playlist.isCollaborative ? "Collaborative Playlist" : "Personal Collection"}
+                  </span>
                 </div>
               </div>
 
@@ -485,6 +475,17 @@ export default function PlaylistPage() {
           </div>
         </section>
 
+        {playlist && (
+          <ShareModal
+            isOpen={shareOpen}
+            onClose={() => setShareOpen(false)}
+            title={playlist.name}
+            subtitle={`${playlist.songs.length} tracks · MusicFlow Playlist`}
+            thumbnail={playlist.coverImage || playlist.songs[0]?.thumbnail}
+            type="playlist"
+            isPublic={!playlist.isCollaborative}
+          />
+        )}
       </main>
     </ProtectedRoute>
   );

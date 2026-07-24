@@ -5,6 +5,9 @@ import DatabaseLoader from "@/components/DatabaseLoader";
 import PlayerEngine from "@/components/player/PlayerEngine";
 import AppLayout from "@/components/layout/AppLayout";
 import { AuthProvider } from "../src/context/AuthContext";
+import { ReactQueryProvider } from "@/lib/react-query";
+import { PWARegister } from "@/components/pwa/PWARegister";
+import { PWAInstallPrompt } from "@/components/pwa/PWAInstallPrompt";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -19,6 +22,12 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "MusicFlow - Premium Music Streaming",
   description: "Experience music in high fidelity with glassmorphic aesthetics.",
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "MusicFlow",
+  },
 };
 
 export default function RootLayout({
@@ -38,11 +47,15 @@ export default function RootLayout({
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
       </head>
       <body className="min-h-screen bg-[#07070a] text-white">
-        <AuthProvider>
-          <DatabaseLoader />
-          <AppLayout>{children}</AppLayout>
-          <PlayerEngine />
-        </AuthProvider>
+        <ReactQueryProvider>
+          <AuthProvider>
+            <PWARegister />
+            <DatabaseLoader />
+            <AppLayout>{children}</AppLayout>
+            <PlayerEngine />
+            <PWAInstallPrompt />
+          </AuthProvider>
+        </ReactQueryProvider>
       </body>
     </html>
   );

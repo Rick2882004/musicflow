@@ -4,8 +4,8 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { usePlayerStore } from "@/store/player-store";
 import { useShallow } from "zustand/react/shallow";
-import { motion, AnimatePresence } from "framer-motion";
-import { Search, Play, Compass, Heart, Clock, ArrowRight, Pause, Flame, Sparkles } from "lucide-react";
+import { motion } from "framer-motion";
+import { Search, Play, Compass, Heart, Pause, Flame, Sparkles } from "lucide-react";
 import { SafeImage } from "@/components/ui/SafeImage";
 import { useAuth } from "../../context/AuthContext";
 import Link from "next/link";
@@ -13,6 +13,7 @@ import Link from "next/link";
 export default function HomeHero() {
   const router = useRouter();
   const [query, setQuery] = useState("");
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [isFocused, setIsFocused] = useState(false);
   const { user } = useAuth();
 

@@ -2,7 +2,7 @@
 
 import { usePlayerStore } from "@/store/player-store";
 import { useShallow } from "zustand/react/shallow";
-import { useState, useEffect, useRef, memo } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useHasMounted } from "@/hooks/useHasMounted";
 import {
@@ -32,8 +32,6 @@ function formatTime(secs: number) {
   const s = Math.floor(secs % 60);
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
-
-// Local SafeImage helper removed - using global SafeImage instead
 
 // Icon button helper
 function IconBtn({
@@ -160,18 +158,92 @@ export default function BottomPlayer() {
     }
   };
 
-  const seekDelta = (delta: number) => {
+  const seekDelta = useCallback((delta: number) => {
     if (!player) return;
     player.seekTo(Math.min(Math.max(player.getCurrentTime() + delta, 0), duration), true);
-  };
+  }, [player, duration]);
 
-  const adjustVolume = (delta: number) => {
+  const adjustVolume = useCallback((delta: number) => {
     setVolume(Math.min(Math.max(volume + delta, 0), 100));
-  };
+  }, [volume, setVolume]);
 
   const toggleMute = () => {
     setIsMuted(!isMuted);
   };
+
+  // MediaSession API Integration
+  useEffect(() => {
+    if (typeof window === "undefined" || !("mediaSession" in navigator) || !videoId) return;
+
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title: title || "MusicFlow Track",
+      artist: artist || "MusicFlow Artist",
+      album: "MusicFlow",
+      artwork: [
+        { src: thumbnail || "/logo.png", sizes: "512x512", type: "image/png" }
+      ]
+    });
+
+    try {
+      navigator.mediaSession.setActionHandler("play", () => {
+        if (player) player.playVideo();
+        setIsPlaying(true);
+      });
+      navigator.mediaSession.setActionHandler("pause", () => {
+        if (player) player.pauseVideo();
+        setIsPlaying(false);
+      });
+      navigator.mediaSession.setActionHandler("previoustrack", () => prevTrack());
+      navigator.mediaSession.setActionHandler("nexttrack", () => nextTrack());
+      navigator.mediaSession.setActionHandler("seekto", (details) => {
+        if (player && details.seekTime !== undefined) {
+          player.seekTo(details.seekTime, true);
+          setCurrentTime(details.seekTime);
+        }
+      });
+    } catch (err) {
+      console.warn("MediaSession handler error:", err);
+    }
+  }, [videoId, title, artist, thumbnail, player, setIsPlaying, prevTrack, nextTrack, setCurrentTime]);
+
+  // Keyboard controls
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      const target = e.target as HTMLElement;
+      if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) {
+        return;
+      }
+
+      if (e.code === "Space") {
+        e.preventDefault();
+        if (!player) return;
+        if (isPlaying) {
+          player.pauseVideo();
+          setIsPlaying(false);
+        } else {
+          player.playVideo();
+          setIsPlaying(true);
+        }
+      } else if (e.key === "m" || e.key === "M") {
+        setIsMuted(!isMuted);
+      } else if (e.key === "ArrowLeft") {
+        e.preventDefault();
+        seekDelta(-5);
+      } else if (e.key === "ArrowRight") {
+        e.preventDefault();
+        seekDelta(5);
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        adjustVolume(5);
+      } else if (e.key === "ArrowDown") {
+        e.preventDefault();
+        adjustVolume(-5);
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [player, isPlaying, volume, isMuted, setIsPlaying, setIsMuted, seekDelta, adjustVolume]);
 
   // Sleep Timer
   useEffect(() => {

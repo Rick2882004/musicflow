@@ -1,20 +1,16 @@
-import {
-  getArtistData,
-} from "@/lib/artist-service";
+import { getArtistData } from "@/lib/artist-service";
+import { SafeImage } from "@/components/ui/SafeImage";
 
 export default async function Page() {
-  const artist =
-    await getArtistData(
-      "Arijit Singh"
-    );
+  const artist = await getArtistData("Arijit Singh");
 
   return (
     <main className="p-10 text-white bg-black min-h-screen">
-
-      <img
-        src={artist.image}
-        alt=""
+      <SafeImage
+        src={artist.image || undefined}
+        alt={artist.name}
         className="w-40 h-40 rounded-full"
+        fallbackType="artist"
       />
 
       <h1 className="text-5xl font-bold mt-5">
@@ -26,9 +22,7 @@ export default async function Page() {
       </p>
 
       <p className="mt-3">
-        Listeners:
-        {" "}
-        {artist.listeners}
+        Listeners: {artist.listeners}
       </p>
 
       <div className="mt-8">
@@ -36,20 +30,12 @@ export default async function Page() {
           Similar Artists
         </h2>
 
-        {artist.similar.map(
-          (
-            item: { name: string },
-            index: number
-          ) => (
-            <div
-              key={index}
-            >
-              {item.name}
-            </div>
-          )
-        )}
+        {artist.similar.map((item: { name: string }, index: number) => (
+          <div key={index}>
+            {item.name}
+          </div>
+        ))}
       </div>
-
     </main>
   );
 }

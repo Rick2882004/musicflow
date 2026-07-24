@@ -6,35 +6,18 @@ import { usePlayerStore } from "@/store/player-store";
 import { useShallow } from "zustand/react/shallow";
 import { SongCard } from "@/components/ui/SongCard";
 import ProtectedRoute from "../../src/components/auth/ProtectedRoute";
-import { motion, Variants } from "framer-motion";
-import { Play, ListMusic, Heart, History, Compass, Plus, Sparkles, Disc, Music, Clock } from "lucide-react";
+import { motion } from "framer-motion";
+import { Play, ListMusic, Heart, History, Compass, Plus, Disc, Music } from "lucide-react";
 import { Track } from "@/types/music";
 import { useHasMounted } from "@/hooks/useHasMounted";
 import { SafeImage } from "@/components/ui/SafeImage";
 
 const ALBUM_CARDS = [
-  { id: "MPREb_HtIOxExZ0cj", title: "Arijit Singh Hits", artist: "Arijit Singh", image: "https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=400&q=80" },
+  { id: "MPREb_HtIOxExZ0cj", title: "Arijit Singh Hits", artist: "Arijit Singh", image: "https://img.youtube.com/vi/T94PHkuyd8c/hqdefault.jpg" },
   { id: "MPREb_FCKWeH9GnWF", title: "Jigra Collection", artist: "Achint", image: "https://yt3.googleusercontent.com/F8s9lSInfQQu6PvEl23by6_KPoazHLcjk4226uEZqcabT7w_QQP4IX8nxutH5pLJOtwAi32VfMhRJPo=w226-h226-l90-rj" },
   { id: "MPREb_aak6B9FGA6U", title: "Bollywood Essentials", artist: "Various Artists", image: "https://yt3.googleusercontent.com/FPXzFBDqz2viDjL-yyPFSVLyzc8dv9uLHBVyJIfSc1hTQiGe6Lie2fbVRhMjpYtMD1NLcNo_l3T9Mg=w226-h226-l90-rj" },
-  { id: "MPREb_HtIOxExZ0ck", title: "Lofi Bollywood", artist: "Lofi Fruit", image: "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=400&q=80" },
+  { id: "MPREb_HtIOxExZ0ck", title: "Lofi Bollywood", artist: "Lofi Fruit", image: "https://img.youtube.com/vi/JgP0vE3D-g8/hqdefault.jpg" },
 ];
-
-const containerVariants: Variants = {
-  hidden: { opacity: 0 },
-  show: {
-    opacity: 1,
-    transition: { staggerChildren: 0.05 }
-  }
-};
-
-const itemVariants: Variants = {
-  hidden: { opacity: 0, y: 15 },
-  show: {
-    opacity: 1,
-    y: 0,
-    transition: { type: "spring", stiffness: 300, damping: 24 }
-  }
-};
 
 export default function LibraryPage() {
   const router = useRouter();
@@ -264,16 +247,21 @@ export default function LibraryPage() {
             </div>
             <div className="flex gap-5 overflow-x-auto scrollbar-none pb-4 -mx-4 md:-mx-10 px-4 md:px-10">
               {uniqueRecentSongs.slice(0, 8).map((song, index) => (
-                <SongCard
+                <div
                   key={`lib-recent-${song.videoId}-${index}`}
-                  song={{
-                    id:        song.videoId,
-                    title:     song.title,
-                    artist:    song.artist,
-                    thumbnail: song.thumbnail,
-                    duration:  song.duration || 0,
-                  }}
-                />
+                  onClick={() => playSong(song, index)}
+                  className="shrink-0 w-[160px] md:w-[180px] cursor-pointer"
+                >
+                  <SongCard
+                    song={{
+                      id:        song.videoId,
+                      title:     song.title,
+                      artist:    song.artist,
+                      thumbnail: song.thumbnail,
+                      duration:  song.duration || 0,
+                    }}
+                  />
+                </div>
               ))}
             </div>
           </section>

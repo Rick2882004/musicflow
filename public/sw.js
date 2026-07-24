@@ -1,21 +1,27 @@
-const CACHE_NAME = "musicflow-v1";
-const ASSETS = [
+const CACHE_NAME = "musicflow-cache-v1";
+const STATIC_ASSETS = [
   "/",
+  "/explore",
+  "/library",
+  "/search",
+  "/offline",
+  "/manifest.json",
   "/favicon.ico",
-  "/logo.png",
-  "/manifest.json"
 ];
 
-self.addEventListener("install", (e) => {
-  e.waitUntil(
+// Install Event
+self.addEventListener("install", (event) => {
+  event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(ASSETS);
+      return cache.addAll(STATIC_ASSETS);
     })
   );
+  self.skipWaiting();
 });
 
-self.addEventListener("activate", (e) => {
-  e.waitUntil(
+// Activate Event
+self.addEventListener("activate", (event) => {
+  event.waitUntil(
     caches.keys().then((keys) => {
       return Promise.all(
         keys.map((key) => {
@@ -26,36 +32,53 @@ self.addEventListener("activate", (e) => {
       );
     })
   );
+  self.clients.claim();
 });
 
-self.addEventListener("fetch", (e) => {
-  // Ignore dynamic analytics or firebase/supabase API calls
-  if (
-    e.request.url.includes("supabase.co") ||
-    e.request.url.includes("firebase") ||
-    e.request.url.includes("/api/")
-  ) {
+// Fetch Event
+self.addEventListener("fetch", (event) => {
+  const { request } = event;
+  const url = new URL(request.url);
+
+  // Ignore non-GET requests or browser extensions
+  if (request.method !== "GET" || !url.protocol.startsWith("http")) {
     return;
   }
 
-  e.respondWith(
-    caches.match(e.request).then((cachedResponse) => {
-      if (cachedResponse) {
-        return cachedResponse;
-      }
-      return fetch(e.request).then((response) => {
-        // Cache static files
-        if (response.status === 200 && e.request.method === "GET") {
-          const responseClone = response.clone();
-          caches.open(CACHE_NAME).then((cache) => {
-            cache.put(e.request, responseClone);
-          });
-        }
-        return response;
-      });
-    }).catch(() => {
-      // Fallback
-      return caches.match("/");
+  // API Requests: Network First, fallback to cache
+  if (url.pathname.startsWith("/api/")) {
+    event.respondWith(
+      fetch(request)
+        .then((response) => {
+          if (response.ok) {
+            const clone = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+          }
+          return response;
+        })
+        .catch(() => caches.match(request))
+    );
+    return;
+  }
+
+  // Static / Navigation Requests: Stale-While-Revalidate with Offline Fallback
+  event.respondWith(
+    caches.match(request).then((cachedResponse) => {
+      const fetchPromise = fetch(request)
+        .then((networkResponse) => {
+          if (networkResponse.ok) {
+            caches.open(CACHE_NAME).then((cache) => cache.put(request, networkResponse.clone()));
+          }
+          return networkResponse;
+        })
+        .catch(() => {
+          if (request.mode === "navigate") {
+            return caches.match("/offline");
+          }
+          return cachedResponse;
+        });
+
+      return cachedResponse || fetchPromise;
     })
   );
 });

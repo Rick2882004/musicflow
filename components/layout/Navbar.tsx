@@ -19,6 +19,7 @@ import { useAuth } from "../../src/context/AuthContext";
 import { motion, AnimatePresence } from "framer-motion";
 import { SafeImage } from "@/components/ui/SafeImage";
 import { AIDJModal } from "@/components/ui/AIDJModal";
+import { NotificationCenter } from "@/components/ui/NotificationCenter";
 
 export default function Navbar() {
   const router = useRouter();
@@ -26,6 +27,7 @@ export default function Navbar() {
   const { user, loading } = useAuth();
   const [open, setOpen] = useState(false);
   const [djOpen, setDjOpen] = useState(false);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -118,7 +120,11 @@ export default function Navbar() {
 
         {/* Notifications Bell */}
         {user && (
-          <button className="relative w-8 h-8 rounded-full bg-white/[0.02] border border-white/[0.04] flex items-center justify-center text-zinc-450 hover:text-white transition cursor-pointer">
+          <button
+            onClick={() => setNotificationsOpen(!notificationsOpen)}
+            aria-label="Open Notifications"
+            className="relative w-8 h-8 rounded-full bg-white/[0.02] border border-white/[0.04] flex items-center justify-center text-zinc-450 hover:text-white transition cursor-pointer"
+          >
             <Bell size={13} />
             <span className="absolute top-2.5 right-2.5 w-1 h-1 rounded-full bg-purple-500 animate-pulse" />
           </button>
@@ -221,6 +227,10 @@ export default function Navbar() {
         onClose={() => setDjOpen(false)}
       />
 
+      <NotificationCenter
+        isOpen={notificationsOpen}
+        onClose={() => setNotificationsOpen(false)}
+      />
     </header>
   );
 }

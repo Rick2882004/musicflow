@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, Suspense } from "react";
+import { useState, useEffect, useRef, Suspense, useCallback } from "react";
 import { usePlayerStore } from "@/store/player-store";
 import { useShallow } from "zustand/react/shallow";
 import { Search as SearchIcon, X, Clock, Play, HelpCircle, Mic } from "lucide-react";
@@ -140,7 +140,15 @@ function SearchContent() {
     }))
   );
 
-  const executeSearch = async (searchQuery: string) => {
+  const saveSearchQuery = useCallback((q: string) => {
+    setRecentSearches((prev) => {
+      const updated = [q, ...prev.filter((s) => s !== q)].slice(0, 6);
+      localStorage.setItem("recent-searches", JSON.stringify(updated));
+      return updated;
+    });
+  }, []);
+
+  const executeSearch = useCallback(async (searchQuery: string) => {
     if (!searchQuery.trim()) return;
     setLoading(true); setShowSuggestions(false);
     saveSearchQuery(searchQuery);
@@ -178,13 +186,8 @@ function SearchContent() {
       setAlbums(uniqAlbums.slice(0, 6));
     } catch (error) { console.error("Search failed:", error); }
     finally { setLoading(false); }
-  };
+  }, [saveSearchQuery]);
 
-  const saveSearchQuery = (q: string) => {
-    const updated = [q, ...recentSearches.filter(s => s !== q)].slice(0, 6);
-    setTimeout(() => setRecentSearches(updated), 0);
-    localStorage.setItem("recent-searches", JSON.stringify(updated));
-  };
   const removeSearchQuery = (e: React.MouseEvent, q: string) => {
     e.stopPropagation();
     const updated = recentSearches.filter(s => s !== q);
@@ -206,7 +209,7 @@ function SearchContent() {
         executeSearch(initialQuery);
       }, 0);
     }
-  }, [initialQuery]);
+  }, [initialQuery, executeSearch]);
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {

@@ -7,7 +7,7 @@ import { usePlayerStore } from "@/store/player-store";
 import { useShallow } from "zustand/react/shallow";
 import ProtectedRoute from "../../src/components/auth/ProtectedRoute";
 import { motion, AnimatePresence, type Variants } from "framer-motion";
-import { ListMusic, Plus, Search, Play, Music, Sparkles, Heart, MoreHorizontal, Compass, Clock, Check, X } from "lucide-react";
+import { ListMusic, Plus, Search, Play, Music, Sparkles, MoreHorizontal, X } from "lucide-react";
 import { Playlist } from "@/types/music";
 import { useHasMounted } from "@/hooks/useHasMounted";
 import { SafeImage } from "@/components/ui/SafeImage";
@@ -47,6 +47,7 @@ export default function PlaylistsPage() {
   const [search,     setSearch]     = useState("");
   const [isCreating, setIsCreating] = useState(false);
   const [activeFilter, setActiveFilter] = useState<"all" | "created" | "shared" | "recent">("all");
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [isFocused, setIsFocused] = useState(false);
 
   const { playlists, addPlaylist } = usePlayerStore(

@@ -46,6 +46,23 @@ export default function QueueDrawer() {
     setQueue(updatedQueue);
   };
 
+  const { addPlaylist, addSongToPlaylist } = usePlayerStore();
+
+  const handleSaveQueueAsPlaylist = async () => {
+    if (queue.length === 0) return;
+    const name = `Queue Mix (${new Date().toLocaleDateString()})`;
+    await addPlaylist(name);
+    // Get latest playlists
+    const { playlists } = usePlayerStore.getState();
+    const created = playlists[playlists.length - 1];
+    if (created) {
+      for (const song of queue) {
+        await addSongToPlaylist(created.id, song);
+      }
+      alert(`Saved ${queue.length} songs to "${name}" playlist! 🎉`);
+    }
+  };
+
   return (
     <div className="fixed top-0 right-0 h-screen w-80 bg-zinc-950/95 backdrop-blur-3xl border-l border-white/5 z-[999] p-5 flex flex-col shadow-2xl select-none">
       {/* Drawer Header */}
@@ -54,19 +71,27 @@ export default function QueueDrawer() {
           <h2 className="text-base font-bold text-white">Play Queue</h2>
           <span className="text-[10px] text-zinc-500 font-semibold">{queue.length} songs loaded</span>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
           {queue.length > 0 && (
-            <button
-              onClick={clearQueue}
-              className="px-2 py-1 bg-red-600/10 hover:bg-red-600/20 text-red-400 text-[10px] rounded-lg border border-red-500/10 hover:border-red-500/25 transition"
-            >
-              Clear
-            </button>
+            <>
+              <button
+                onClick={handleSaveQueueAsPlaylist}
+                className="px-2 py-1 bg-purple-550/15 hover:bg-purple-550/30 text-purple-300 text-[10px] font-bold rounded-lg border border-purple-500/20 hover:border-purple-500/40 transition cursor-pointer"
+              >
+                Save
+              </button>
+              <button
+                onClick={clearQueue}
+                className="px-2 py-1 bg-red-600/10 hover:bg-red-600/20 text-red-400 text-[10px] font-bold rounded-lg border border-red-500/10 hover:border-red-500/25 transition cursor-pointer"
+              >
+                Clear
+              </button>
+            </>
           )}
           <button
             onClick={toggleQueue}
             className="text-zinc-500 hover:text-white p-1 hover:bg-white/5 rounded-lg transition"
-            aria-label="Close"
+            aria-label="Close Queue Drawer"
           >
             <X size={16} />
           </button>

@@ -4,8 +4,8 @@ import { usePlayerStore } from "@/store/player-store";
 import { useShallow } from "zustand/react/shallow";
 import { SongCard } from "@/components/ui/SongCard";
 import ProtectedRoute from "../../src/components/auth/ProtectedRoute";
-import { motion, Variants } from "framer-motion";
-import { History, Play, Shuffle, Clock, Music, Disc, Layers } from "lucide-react";
+import { motion } from "framer-motion";
+import { History, Play, Clock, Music, Disc, Layers } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Track } from "@/types/music";
@@ -13,26 +13,16 @@ import { useHasMounted } from "@/hooks/useHasMounted";
 import { SafeImage } from "@/components/ui/SafeImage";
 
 const FAVORITE_ARTISTS = [
-  { name: "Arijit Singh", image: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300&q=80" },
-  { name: "Atif Aslam", image: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=300&q=80" },
-  { name: "KK", image: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=300&q=80" },
+  { name: "Arijit Singh", image: "https://img.youtube.com/vi/T94PHkuyd8c/hqdefault.jpg" },
+  { name: "Atif Aslam", image: "https://img.youtube.com/vi/V0KD0nDkbpM/hqdefault.jpg" },
+  { name: "KK", image: "https://img.youtube.com/vi/xRb8hxwN5zc/hqdefault.jpg" },
 ];
 
 const RECOMMENDED_ALBUMS = [
-  { id: "MPREb_HtIOxExZ0cj", title: "Arijit Singh Hits", artist: "Arijit Singh", image: "https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=400&q=80" },
+  { id: "MPREb_HtIOxExZ0cj", title: "Arijit Singh Hits", artist: "Arijit Singh", image: "https://img.youtube.com/vi/T94PHkuyd8c/hqdefault.jpg" },
   { id: "MPREb_FCKWeH9GnWF", title: "Jigra Collection", artist: "Achint", image: "https://yt3.googleusercontent.com/F8s9lSInfQQu6PvEl23by6_KPoazHLcjk4226uEZqcabT7w_QQP4IX8nxutH5pLJOtwAi32VfMhRJPo=w226-h226-l90-rj" },
   { id: "MPREb_aak6B9FGA6U", title: "Bollywood Essentials", artist: "Various Artists", image: "https://yt3.googleusercontent.com/FPXzFBDqz2viDjL-yyPFSVLyzc8dv9uLHBVyJIfSc1hTQiGe6Lie2fbVRhMjpYtMD1NLcNo_l3T9Mg=w226-h226-l90-rj" },
 ];
-
-const containerVariants: Variants = {
-  hidden: { opacity: 0 },
-  show: { opacity: 1, transition: { staggerChildren: 0.05 } }
-};
-
-const itemVariants: Variants = {
-  hidden: { opacity: 0, y: 15 },
-  show: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 300, damping: 24 } }
-};
 
 export default function RecentlyPlayedPage() {
   const router = useRouter();
@@ -233,7 +223,7 @@ export default function RecentlyPlayedPage() {
                 className="group relative p-4 rounded-3xl bg-white/[0.015] border border-white/[0.04] hover:border-purple-500/20 hover:bg-white/[0.035] transition-all duration-300 flex gap-4 cursor-pointer overflow-hidden"
               >
                 <div className="w-16 h-16 rounded-2xl overflow-hidden shrink-0 border border-white/5 shadow-sm bg-zinc-950">
-                  <img src={song.thumbnail} alt={song.title} className="w-full h-full object-cover" />
+                  <SafeImage src={song.thumbnail} videoId={song.videoId} alt={song.title} className="w-full h-full object-cover" />
                 </div>
                 <div className="flex-grow min-w-0 flex flex-col justify-center text-left">
                   <h3 className="font-display text-xs font-bold text-zinc-200 group-hover:text-white truncate">

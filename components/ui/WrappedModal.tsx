@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, ChevronRight, ChevronLeft, Share2, Sparkles, Clock, Heart, Award } from "lucide-react";
+import { X, ChevronRight, ChevronLeft, Share2, Sparkles, Heart, Award } from "lucide-react";
 import { Track } from "@/types/music";
 
 interface WrappedModalProps {
@@ -19,6 +19,7 @@ export function WrappedModal({ isOpen, onClose, likedSongs, recentSongs }: Wrapp
   if (!isOpen) return null;
 
   // Calculate metrics
+  const totalLikedCount = likedSongs.length;
   const totalPlayed = recentSongs.length;
   const totalHours = Math.round(totalPlayed * 3.5 / 60 * 10) / 10;
   
@@ -53,7 +54,7 @@ export function WrappedModal({ isOpen, onClose, likedSongs, recentSongs }: Wrapp
             You spent a lot of time with music.
           </h2>
           <p className="text-sm text-zinc-400 leading-relaxed max-w-sm mx-auto">
-            This year, you streamed <span className="text-white font-bold">{totalPlayed} tracks</span>, building up a total listening record of:
+            This year, you streamed <span className="text-white font-bold">{totalPlayed} tracks</span> and saved <span className="text-white font-bold">{totalLikedCount} favorites</span>, building up a total listening record of:
           </p>
           <div className="p-5 rounded-2xl bg-white/[0.02] border border-white/[0.04] inline-block">
             <p className="text-[10px] text-zinc-550 uppercase tracking-widest font-black">TOTAL TIME</p>

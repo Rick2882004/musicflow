@@ -2,25 +2,14 @@
 
 import { useState, useEffect } from "react";
 import ProtectedRoute from "../../src/components/auth/ProtectedRoute";
-import { useAuth } from "../../src/context/AuthContext";
 import { usePlayerStore } from "@/store/player-store";
-import { useShallow } from "zustand/react/shallow";
-import { Shield, Users, Music, Layers, RefreshCw, CheckCircle, Database } from "lucide-react";
-import { motion } from "framer-motion";
+import { Shield, Users, Music, Layers, RefreshCw, Database } from "lucide-react";
 import { Track } from "@/types/music";
 
 export default function AdminPage() {
-  const { user } = useAuth();
-  const { playlists, likedSongs } = usePlayerStore(useShallow((s) => ({
-    playlists: s.playlists,
-    likedSongs: s.likedSongs,
-  })));
-  interface ImportStats {
-    success: boolean;
-    imported: number;
-  }
+  const { playlists } = usePlayerStore();
   const [importing, setImporting] = useState(false);
-  const [importStats, setImportStats] = useState<ImportStats | null>(null);
+  const [importStats, setImportStats] = useState<{ success: boolean; imported: number } | null>(null);
   const [dbStats, setDbStats] = useState({ songsCount: 24, artistsCount: 6 });
 
   // Simulate or retrieve DB stats

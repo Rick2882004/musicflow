@@ -4,7 +4,7 @@ import { Play } from "lucide-react";
 type TrackCardProps = {
   title: string;
   artist: string;
-  audioUrl: string;
+  audioUrl?: string;
   coverImage?: string | null;
   videoId?: string;
 };
@@ -12,7 +12,6 @@ type TrackCardProps = {
 export default function TrackCard({
   title,
   artist,
-  audioUrl,
   coverImage,
   videoId,
 }: TrackCardProps) {
@@ -41,11 +40,12 @@ export default function TrackCard({
         />
 
         <button
+          aria-label="Play track"
           className="
             absolute
             bottom-3
             right-3
-            bg-green-500
+            bg-purple-550
             text-black
             p-3
             rounded-full
@@ -54,9 +54,10 @@ export default function TrackCard({
             group-hover:opacity-100
             group-hover:translate-y-0
             transition-all
+            shadow-lg
           "
         >
-          <Play size={20} fill="black" />
+          <Play size={18} fill="black" />
         </button>
       </div>
 

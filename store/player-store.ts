@@ -160,18 +160,27 @@ export const usePlayerStore = create<PlayerState>()(
 
       toggleLike: async (song) => {
         const { likedSongs } = get();
-        const exists = likedSongs.find((s) => s.videoId === song.videoId);
+        const exists = likedSongs.some((s) => s.videoId === song.videoId);
 
+        // Instant Optimistic UI Update
         if (exists) {
-          await removeLikedSong(song.videoId);
-          set({
-            likedSongs: likedSongs.filter((s) => s.videoId !== song.videoId),
-          });
+          const nextLiked = likedSongs.filter((s) => s.videoId !== song.videoId);
+          set({ likedSongs: nextLiked });
+          try {
+            await removeLikedSong(song.videoId);
+          } catch (err) {
+            console.error("Failed to remove liked song, rolling back:", err);
+            set({ likedSongs });
+          }
         } else {
-          await saveLikedSong(song);
-          set({
-            likedSongs: [...likedSongs, song],
-          });
+          const nextLiked = [...likedSongs, song];
+          set({ likedSongs: nextLiked });
+          try {
+            await saveLikedSong(song);
+          } catch (err) {
+            console.error("Failed to save liked song, rolling back:", err);
+            set({ likedSongs });
+          }
         }
       },
 

@@ -18,7 +18,10 @@ export default function MobileBottomNav() {
   const pathname = usePathname();
 
   return (
-    <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 h-16 bg-[#0a0a0e]/80 backdrop-blur-xl border-t border-white/[0.05] flex items-center justify-around px-2 shadow-[0_-8px_32px_rgba(0,0,0,0.5)]">
+    <nav
+      aria-label="Mobile Bottom Navigation"
+      className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-[#0a0a0e]/90 backdrop-blur-xl border-t border-white/[0.05] flex items-center justify-around px-2 pb-safe pt-2 shadow-[0_-8px_32px_rgba(0,0,0,0.5)]"
+    >
       {TABS.map((tab) => {
         const isActive = pathname === tab.href || (tab.href !== "/" && pathname.startsWith(tab.href));
         const Icon = tab.icon;
@@ -27,6 +30,8 @@ export default function MobileBottomNav() {
           <Link
             key={tab.name}
             href={tab.href}
+            aria-label={tab.name}
+            aria-current={isActive ? "page" : undefined}
             className="relative flex flex-col items-center justify-center w-14 h-12 rounded-xl transition duration-150 active:scale-90"
           >
             {/* Background Active Pill Indicator */}

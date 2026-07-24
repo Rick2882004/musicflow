@@ -1,7 +1,7 @@
 "use client";
 
 import YouTube from "react-youtube";
-import { useRef, useEffect } from "react";
+import { useRef } from "react";
 import { usePlayerStore } from "@/store/player-store";
 import { useShallow } from "zustand/react/shallow";
 
@@ -14,12 +14,10 @@ export default function YoutubePlayer({ videoId }: Props) {
 
   const {
     setPlayer,
-    setCurrentTime,
     setDuration,
     nextTrack,
   } = usePlayerStore(useShallow((s) => ({
     setPlayer: s.setPlayer,
-    setCurrentTime: s.setCurrentTime,
     setDuration: s.setDuration,
     nextTrack: s.nextTrack,
   })));

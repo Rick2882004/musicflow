@@ -2,7 +2,7 @@
 
 import { usePlayerStore } from "@/store/player-store";
 import { useShallow } from "zustand/react/shallow";
-import { Play, Trash2, ShieldAlert, Disc, ArrowRight, Heart, Shuffle, Repeat, ListPlus, X, HelpCircle, GripVertical, CheckCircle, Music } from "lucide-react";
+import { Trash2, ShieldAlert, Disc, Heart, Shuffle, Repeat, X, HelpCircle, GripVertical, CheckCircle } from "lucide-react";
 import Link from "next/link";
 import { Track } from "@/types/music";
 import { motion, AnimatePresence } from "framer-motion";
@@ -419,7 +419,7 @@ export default function QueuePage() {
                   className="group shrink-0 w-[120px] md:w-[135px] flex flex-col gap-2.5 cursor-pointer text-left focus:outline-none"
                 >
                   <div className="relative aspect-square rounded-xl overflow-hidden bg-zinc-950 border border-white/[0.04] shadow-sm">
-                    <img src={song.thumbnail} alt="" className="w-full h-full object-cover" />
+                    <SafeImage src={song.thumbnail} videoId={song.videoId} alt={song.title} className="w-full h-full object-cover" />
                   </div>
                   <div className="min-w-0">
                     <p className="text-[11px] font-bold text-zinc-300 truncate leading-snug group-hover:text-purple-300 transition-colors">{song.title}</p>

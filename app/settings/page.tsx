@@ -5,7 +5,6 @@ import ProtectedRoute from "../../src/components/auth/ProtectedRoute";
 import { useAuth } from "../../src/context/AuthContext";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Settings,
   Volume2,
   Bell,
   Globe,
@@ -15,13 +14,10 @@ import {
   Trash2,
   CheckCircle,
   ArrowLeft,
-  ChevronRight,
-  Shield,
-  HelpCircle,
   Smartphone,
-  EyeOff
 } from "lucide-react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 const ToggleSwitch = ({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) => (
   <div
@@ -365,19 +361,27 @@ export default function SettingsPage() {
           </section>
 
           {/* Save Triggers Row */}
-          <div className="flex justify-end gap-3 pt-4">
-            <button
-              onClick={() => router.back()}
-              className="px-5 py-2.5 rounded-full bg-white/[0.03] border border-white/[0.05] text-zinc-350 hover:text-white font-bold text-xs transition active:scale-95 cursor-pointer"
+          <div className="flex items-center justify-between pt-4">
+            <Link
+              href="/help"
+              className="text-xs font-bold text-purple-400 hover:text-purple-300 transition-colors"
             >
-              Cancel
-            </button>
-            <button
-              onClick={saveSettings}
-              className="px-6 py-2.5 rounded-full bg-white hover:bg-zinc-150 text-black font-black text-xs transition active:scale-95 cursor-pointer"
-            >
-              Save Changes
-            </button>
+              Need Help? Visit Help & Support Center →
+            </Link>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => router.back()}
+                className="px-5 py-2.5 rounded-full bg-white/[0.03] border border-white/[0.05] text-zinc-350 hover:text-white font-bold text-xs transition active:scale-95 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={saveSettings}
+                className="px-6 py-2.5 rounded-full bg-white hover:bg-zinc-150 text-black font-black text-xs transition active:scale-95 cursor-pointer"
+              >
+                Save Changes
+              </button>
+            </div>
           </div>
 
         </div>

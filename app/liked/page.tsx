@@ -3,30 +3,13 @@
 import { usePlayerStore } from "@/store/player-store";
 import { useShallow } from "zustand/react/shallow";
 import ProtectedRoute from "../../src/components/auth/ProtectedRoute";
-import { motion, Variants } from "framer-motion";
-import { Play, Shuffle, Heart, Clock, Music, Search, ArrowUpDown, MoreHorizontal, Calendar, Trash2, Volume2, X } from "lucide-react";
+import { motion } from "framer-motion";
+import { Play, Shuffle, Heart, Clock, Search, ArrowUpDown, MoreHorizontal, Calendar, Volume2, X } from "lucide-react";
 import Link from "next/link";
 import { Track } from "@/types/music";
 import { useState } from "react";
 import { useHasMounted } from "@/hooks/useHasMounted";
 import { SafeImage } from "@/components/ui/SafeImage";
-
-const containerVariants: Variants = {
-  hidden: { opacity: 0 },
-  show: {
-    opacity: 1,
-    transition: { staggerChildren: 0.04 }
-  }
-};
-
-const itemVariants: Variants = {
-  hidden: { opacity: 0, y: 12 },
-  show: {
-    opacity: 1,
-    y: 0,
-    transition: { type: "spring", stiffness: 300, damping: 24 }
-  }
-};
 
 export default function LikedSongsPage() {
   const mounted = useHasMounted();

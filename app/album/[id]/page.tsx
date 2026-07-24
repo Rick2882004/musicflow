@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { usePlayerStore } from "@/store/player-store";
 import { useShallow } from "zustand/react/shallow";
-import { motion } from "framer-motion";
 import { Play, Shuffle, Calendar, Music, Clock } from "lucide-react";
 import Link from "next/link";
 import { Track, Album } from "@/types/music";

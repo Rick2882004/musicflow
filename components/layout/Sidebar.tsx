@@ -55,7 +55,7 @@ export function Sidebar() {
   return (
     <>
       {/* Redesigned Floating Sidebar for Desktop */}
-      <aside className="hidden md:flex flex-col w-[260px] h-full rounded-[24px] bg-zinc-950/60 backdrop-blur-3xl border border-white/[0.06] p-5 shrink-0 z-40 shadow-[0_24px_50px_-12px_rgba(0,0,0,0.9)] relative overflow-hidden">
+      <aside aria-label="Main Navigation" className="hidden md:flex flex-col w-[260px] h-full rounded-[24px] bg-zinc-950/60 backdrop-blur-3xl border border-white/[0.06] p-5 shrink-0 z-40 shadow-[0_24px_50px_-12px_rgba(0,0,0,0.9)] relative overflow-hidden">
         {/* Glow Layer */}
         <div className="absolute top-[-10%] left-[-10%] w-[120%] h-[40%] bg-purple-900/10 blur-[80px] rounded-full pointer-events-none" />
 
@@ -70,13 +70,15 @@ export function Sidebar() {
         </Link>
 
         {/* Navigation Section */}
-        <nav className="space-y-0.5 flex-grow overflow-y-auto pr-1 scrollbar-none relative z-10">
+        <nav aria-label="Sidebar Navigation" className="space-y-0.5 flex-grow overflow-y-auto pr-1 scrollbar-none relative z-10">
           {NAV_ITEMS.map(({ href, icon: Icon, label }) => {
             const active = pathname === href;
             return (
               <Link
                 key={href}
                 href={href}
+                aria-label={label}
+                aria-current={active ? "page" : undefined}
                 className={cn(
                   "relative flex items-center gap-3.5 px-3.5 py-2.5 rounded-xl text-[13px] font-semibold transition-all duration-200 group",
                   active ? "text-white" : "text-zinc-400 hover:text-zinc-200"
