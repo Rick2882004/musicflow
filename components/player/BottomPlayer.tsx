@@ -195,16 +195,52 @@ export default function BottomPlayer() {
       });
       navigator.mediaSession.setActionHandler("previoustrack", () => prevTrack());
       navigator.mediaSession.setActionHandler("nexttrack", () => nextTrack());
-      navigator.mediaSession.setActionHandler("seekto", (details) => {
-        if (player && details.seekTime !== undefined) {
-          player.seekTo(details.seekTime, true);
-          setCurrentTime(details.seekTime);
-        }
+      navigator.mediaSession.setActionHandler("seekbackward", (details) => {
+        const skipTime = details.seekOffset || 10;
+        seekDelta(-skipTime);
+      });
+      navigator.mediaSession.setActionHandler("seekforward", (details) => {
+        const skipTime = details.seekOffset || 10;
+        seekDelta(skipTime);
       });
     } catch (err) {
       console.warn("MediaSession handler error:", err);
     }
-  }, [videoId, title, artist, thumbnail, player, setIsPlaying, prevTrack, nextTrack, setCurrentTime]);
+  }, [videoId, title, artist, thumbnail, player, setIsPlaying, prevTrack, nextTrack, setCurrentTime, seekDelta]);
+
+  // Visibility change & Network recovery for background playback
+  useEffect(() => {
+    function handleVisibilityChange() {
+      if (document.visibilityState === "visible" && player && isPlaying) {
+        try {
+          const state = player.getPlayerState();
+          // If paused due to browser background throttling, resume
+          if (state !== 1 && state !== 3) {
+            player.playVideo();
+          }
+        } catch {
+          // Ignore iframe access restrictions
+        }
+      }
+    }
+
+    function handleOnline() {
+      if (player && isPlaying) {
+        try {
+          player.playVideo();
+        } catch {
+          // Ignore network reconnect recovery errors
+        }
+      }
+    }
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("online", handleOnline);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("online", handleOnline);
+    };
+  }, [player, isPlaying]);
 
   // Keyboard controls
   useEffect(() => {
