@@ -2,10 +2,25 @@
 
 import { useParams, useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import { usePlayerStore } from "@/store/player-store";
 import { useShallow } from "zustand/react/shallow";
 import { motion } from "framer-motion";
-import { Play, Shuffle, Trash, Check, Edit2, ShieldAlert, Users, Clock, Share2, Heart } from "lucide-react";
+import {
+  Play,
+  Shuffle,
+  Trash,
+  Check,
+  Edit2,
+  ShieldAlert,
+  Users,
+  Clock,
+  Share2,
+  Heart,
+  ChevronUp,
+  ChevronDown,
+  ArrowUpDown,
+} from "lucide-react";
 import { Playlist, Track } from "@/types/music";
 import ProtectedRoute from "../../../src/components/auth/ProtectedRoute";
 import { useHasMounted } from "@/hooks/useHasMounted";
@@ -13,6 +28,7 @@ import { SafeImage } from "@/components/ui/SafeImage";
 import { ShareModal } from "@/components/social/ShareModal";
 
 function formatDur(s: number = 0) {
+  if (!s || isNaN(s)) return "--:--";
   const m = Math.floor(s / 60), sec = Math.floor(s % 60);
   return `${m}:${String(sec).padStart(2, "0")}`;
 }
@@ -30,6 +46,8 @@ export default function PlaylistPage() {
     removeSongFromPlaylist,
     deletePlaylist,
     updatePlaylist,
+    reorderPlaylistSongs,
+    toggleLike,
     videoId,
   } = usePlayerStore(useShallow((s) => ({
     playlists: s.playlists,
@@ -40,9 +58,10 @@ export default function PlaylistPage() {
     removeSongFromPlaylist: s.removeSongFromPlaylist,
     deletePlaylist: s.deletePlaylist,
     updatePlaylist: s.updatePlaylist,
+    reorderPlaylistSongs: s.reorderPlaylistSongs,
+    toggleLike: s.toggleLike,
     videoId: s.videoId,
   })));
-
 
   const rawId = Array.isArray(params?.id) ? params.id[0] : params?.id;
   const playlist = playlists.find(
@@ -55,6 +74,7 @@ export default function PlaylistPage() {
   const [playlistDesc, setPlaylistDesc] = useState("");
   const [isCollab, setIsCollab] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
+  const [sortBy, setSortBy] = useState<"custom" | "title" | "artist" | "recent">("custom");
 
   useEffect(() => {
     if (playlist) {
@@ -92,10 +112,23 @@ export default function PlaylistPage() {
 
   const songs = playlist.songs || [];
   const totalDuration = songs.reduce(
-    (total: number, song: Track) => total + (song?.duration || 210),
+    (total: number, song: Track) => total + (song?.duration || 0),
     0
   );
   const totalMinutes = Math.round(totalDuration / 60);
+
+  const displaySongs: { song: Track; originalIndex: number }[] = songs.map((song, originalIndex) => ({
+    song,
+    originalIndex,
+  }));
+
+  if (sortBy === "title") {
+    displaySongs.sort((a, b) => a.song.title.localeCompare(b.song.title));
+  } else if (sortBy === "artist") {
+    displaySongs.sort((a, b) => a.song.artist.localeCompare(b.song.artist));
+  } else if (sortBy === "recent") {
+    displaySongs.reverse();
+  }
 
   const saveDetails = async () => {
     await updatePlaylist(playlist.id, {
@@ -140,7 +173,7 @@ export default function PlaylistPage() {
         <div className="grid grid-cols-2 grid-rows-2 w-36 h-36 md:w-44 md:h-44 rounded-xl overflow-hidden shadow-lg shrink-0 border border-white/5 bg-zinc-950">
           {songs.slice(0, 4).map((song, i) => (
             <SafeImage
-              key={i}
+              key={song.videoId || `mosaic-${song.title.toLowerCase().trim()}-${i}`}
               src={song.thumbnail}
               videoId={song.videoId}
               alt=""
@@ -229,11 +262,13 @@ export default function PlaylistPage() {
                     <div className="flex flex-wrap items-center gap-2 text-[12px] text-zinc-500 font-semibold justify-center md:justify-start">
                       <span className="text-zinc-200">Created by Me</span>
                       <span className="text-zinc-700">·</span>
-                      <span>{songs.length} songs</span>
-                      <span className="text-zinc-700">·</span>
-                      <span>About {totalMinutes} min</span>
-                      <span className="text-zinc-700">·</span>
-                      <span>1.2K followers</span>
+                      <span>{songs.length} {songs.length === 1 ? "song" : "songs"}</span>
+                      {totalMinutes > 0 && (
+                        <>
+                          <span className="text-zinc-700">·</span>
+                          <span>About {totalMinutes} min</span>
+                        </>
+                      )}
                     </div>
                   </div>
                 )}
@@ -308,35 +343,86 @@ export default function PlaylistPage() {
           <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-8">
             
             {/* Col 1: Track List Table */}
-            <div className="space-y-6">
+            <div className="space-y-4">
+              {/* Sort Bar */}
+              {songs.length > 0 && (
+                <div className="flex items-center justify-between px-1 pb-1">
+                  <span className="text-xs text-zinc-400 font-semibold">
+                    {songs.length} {songs.length === 1 ? "Track" : "Tracks"}
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] text-zinc-500 flex items-center gap-1 font-semibold">
+                      <ArrowUpDown size={12} /> Sort:
+                    </span>
+                    <select
+                      value={sortBy}
+                      onChange={(e) => setSortBy(e.target.value as "custom" | "title" | "artist" | "recent")}
+                      className="bg-white/[0.04] border border-white/[0.08] text-zinc-300 rounded-lg px-2.5 py-1 text-xs font-semibold outline-none cursor-pointer focus:border-purple-500"
+                    >
+                      <option value="custom" className="bg-zinc-900 text-white">Custom Order</option>
+                      <option value="title" className="bg-zinc-900 text-white">Title</option>
+                      <option value="artist" className="bg-zinc-900 text-white">Artist</option>
+                      <option value="recent" className="bg-zinc-900 text-white">Recently Added</option>
+                    </select>
+                  </div>
+                </div>
+              )}
+
               {songs.length > 0 ? (
                 <div className="overflow-x-auto">
                   <table className="w-full border-collapse text-left text-zinc-300">
                     <thead>
                       <tr className="border-b border-white/[0.04] text-[10px] uppercase font-black tracking-wider text-zinc-600">
-                        <th className="py-3.5 px-4 w-12 text-center">#</th>
+                        <th className="py-3.5 px-4 w-16 text-center">#</th>
                         <th className="py-3.5 px-4">Title</th>
                         <th className="py-3.5 px-4 hidden md:table-cell">Artist</th>
                         <th className="py-3.5 px-4 hidden sm:table-cell">Album</th>
                         <th className="py-3.5 px-4 text-right w-20"><Clock size={11} className="ml-auto" /></th>
-                        <th className="py-3.5 px-4 w-16"></th>
+                        <th className="py-3.5 px-4 w-24 text-right"></th>
                       </tr>
                     </thead>
                     <tbody>
-                      {songs.map((song, index) => {
+                      {displaySongs.map(({ song, originalIndex }, index) => {
                         const isCurrent = song.videoId === videoId;
+                        const isLiked = likedSongs.some((s) => s.videoId === song.videoId);
                         return (
                           <tr
-                            key={`${song.videoId}-${index}`}
-                            onClick={() => playSong(song, index)}
+                            key={song.videoId || `playlist-song-${song.title.toLowerCase().trim()}-${originalIndex}`}
+                            onClick={() => playSong(song, originalIndex)}
                             className="group border-b border-white/[0.02] hover:bg-white/[0.015] transition duration-200 cursor-pointer"
                           >
-                            {/* Rank */}
-                            <td className="py-3.5 px-4 text-center">
-                              <span className={`text-[12px] font-mono text-zinc-650 group-hover:hidden ${isCurrent ? "text-purple-400 font-bold" : ""}`}>
-                                {index + 1}
-                              </span>
-                              <Play size={11} fill="white" className="text-white mx-auto hidden group-hover:block" />
+                            {/* Rank & Reorder */}
+                            <td className="py-3.5 px-3 text-center" onClick={(e) => e.stopPropagation()}>
+                              <div className="flex items-center justify-center gap-1">
+                                {sortBy === "custom" && (
+                                  <div className="flex flex-col opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <button
+                                      type="button"
+                                      disabled={originalIndex === 0}
+                                      onClick={() => reorderPlaylistSongs(playlist.id, originalIndex, originalIndex - 1)}
+                                      className="text-zinc-500 hover:text-white disabled:opacity-20 disabled:hover:text-zinc-500 p-0.5 cursor-pointer"
+                                      title="Move Up"
+                                    >
+                                      <ChevronUp size={11} />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      disabled={originalIndex === songs.length - 1}
+                                      onClick={() => reorderPlaylistSongs(playlist.id, originalIndex, originalIndex + 1)}
+                                      className="text-zinc-500 hover:text-white disabled:opacity-20 disabled:hover:text-zinc-500 p-0.5 cursor-pointer"
+                                      title="Move Down"
+                                    >
+                                      <ChevronDown size={11} />
+                                    </button>
+                                  </div>
+                                )}
+                                <span className={`text-[12px] font-mono text-zinc-650 ${sortBy === "custom" ? "group-hover:hidden" : ""} ${isCurrent ? "text-purple-400 font-bold" : ""}`}>
+                                  {index + 1}
+                                </span>
+                                {sortBy !== "custom" && (
+                                  <Play size={11} fill="white" className="text-white mx-auto hidden group-hover:block" />
+                                )}
+                              </div>
                             </td>
 
                             {/* Title (Thumbnail, Name, Artist) */}
@@ -354,36 +440,59 @@ export default function PlaylistPage() {
                                   <p className={`text-xs font-bold truncate ${isCurrent ? "text-purple-400 font-black" : "text-zinc-200"}`}>
                                     {song.title}
                                   </p>
-                                  <p className="text-[10px] text-zinc-555 truncate mt-0.5 md:hidden">{song.artist}</p>
+                                  <p className="text-[10px] text-zinc-555 truncate mt-0.5 md:hidden">
+                                    <Link
+                                      href={`/artist/${encodeURIComponent(song.artist)}`}
+                                      onClick={(e) => e.stopPropagation()}
+                                      className="hover:text-purple-400 hover:underline transition-colors"
+                                    >
+                                      {song.artist}
+                                    </Link>
+                                  </p>
                                 </div>
                               </div>
                             </td>
 
                             {/* Artist */}
                             <td className="py-3.5 px-4 text-xs font-semibold text-zinc-350 hidden md:table-cell">
-                              {song.artist}
+                              <Link
+                                href={`/artist/${encodeURIComponent(song.artist)}`}
+                                onClick={(e) => e.stopPropagation()}
+                                className="hover:text-purple-400 hover:underline transition-colors"
+                              >
+                                {song.artist}
+                              </Link>
                             </td>
 
                             {/* Album */}
                             <td className="py-3.5 px-4 text-xs text-zinc-500 hidden sm:table-cell">
-                              {playlist.name} Custom Vol
+                              {song.album || "Single"}
                             </td>
 
                             {/* Duration */}
                             <td className="py-3.5 px-4 text-right text-zinc-500 font-mono text-[11px] tabular-nums">
-                              {song.duration ? formatDur(song.duration) : "3:30"}
+                              {formatDur(song.duration)}
                             </td>
 
-                            {/* Remove button */}
+                            {/* Actions (Like & Remove buttons) */}
                             <td className="py-3.5 px-4 text-right" onClick={(e) => e.stopPropagation()}>
                               <div className="flex items-center justify-end gap-2.5">
-                                <button className="text-zinc-600 hover:text-zinc-300 opacity-0 group-hover:opacity-100 transition p-0.5">
-                                  <Heart size={13} />
+                                <button
+                                  onClick={() => toggleLike(song)}
+                                  className="text-zinc-600 hover:text-zinc-300 opacity-0 group-hover:opacity-100 transition p-0.5 cursor-pointer"
+                                  title={isLiked ? "Unlike" : "Like"}
+                                >
+                                  <Heart
+                                    size={13}
+                                    fill={isLiked ? "#ec4899" : "none"}
+                                    className={isLiked ? "text-pink-500 opacity-100" : ""}
+                                  />
                                 </button>
                                 <button
                                   onClick={() => removeSongFromPlaylist(playlist.id, song.videoId)}
-                                  className="text-zinc-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition p-0.5"
+                                  className="text-zinc-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition p-0.5 cursor-pointer"
                                   aria-label="Remove from playlist"
+                                  title="Remove from playlist"
                                 >
                                   <Trash size={13} />
                                 </button>

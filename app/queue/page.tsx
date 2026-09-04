@@ -2,16 +2,17 @@
 
 import { usePlayerStore } from "@/store/player-store";
 import { useShallow } from "zustand/react/shallow";
-import { Trash2, ShieldAlert, Disc, Heart, Shuffle, Repeat, X, HelpCircle, GripVertical, CheckCircle } from "lucide-react";
+import { Trash2, ShieldAlert, Disc, Heart, Shuffle, Repeat, X, HelpCircle, CheckCircle, ChevronUp, ChevronDown } from "lucide-react";
 import Link from "next/link";
 import { Track } from "@/types/music";
-import { useState, memo } from "react";
+import { useState, memo, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import ProtectedRoute from "../../src/components/auth/ProtectedRoute";
 import { useHasMounted } from "@/hooks/useHasMounted";
 import { SafeImage } from "@/components/ui/SafeImage";
 
 function formatDur(s: number = 0) {
+  if (!s || isNaN(s)) return "--:--";
   const m = Math.floor(s / 60), sec = Math.floor(s % 60);
   return `${m}:${String(sec).padStart(2, "0")}`;
 }
@@ -45,6 +46,7 @@ export default function QueuePage() {
     currentIndex,
     setTrack,
     clearQueue,
+    reorderQueue,
     isPlaying,
     isShuffle,
     isRepeat,
@@ -59,6 +61,7 @@ export default function QueuePage() {
     currentIndex: s.currentIndex,
     setTrack: s.setTrack,
     clearQueue: s.clearQueue,
+    reorderQueue: s.reorderQueue,
     isPlaying: s.isPlaying,
     isShuffle: s.isShuffle,
     isRepeat: s.isRepeat,
@@ -73,7 +76,23 @@ export default function QueuePage() {
   const [notif, setNotif] = useState("");
 
   const currentTrack = queue[currentIndex] || null;
-  const upcomingTracks = queue.slice(currentIndex + 1);
+  const upcomingTracks: Track[] = useMemo(() => queue.slice(currentIndex + 1), [queue, currentIndex]);
+
+  const upcomingWithKeys = useMemo(() => {
+    const counts = new Map<string, number>();
+    return upcomingTracks.map((song: Track, idx: number) => {
+      const queueIndex = currentIndex + 1 + idx;
+      const baseId = song.videoId || `track-${song.title.toLowerCase().trim()}`;
+      const count = counts.get(baseId) || 0;
+      counts.set(baseId, count + 1);
+      return {
+        song,
+        queueIndex,
+        idx,
+        stableKey: `queue-item-${baseId}-${count}`,
+      };
+    });
+  }, [upcomingTracks, currentIndex]);
 
   const showNotif = (msg: string) => {
     setNotif(msg);
@@ -240,7 +259,12 @@ export default function QueuePage() {
                     <div className="flex items-center justify-between min-w-0">
                       <div className="min-w-0 text-left">
                         <h3 className="text-sm font-bold text-zinc-200 truncate">{currentTrack.title}</h3>
-                        <p className="text-xs text-zinc-400 truncate mt-0.5">{currentTrack.artist}</p>
+                        <Link
+                          href={`/artist/${encodeURIComponent(currentTrack.artist)}`}
+                          className="text-xs text-zinc-400 hover:text-purple-400 hover:underline truncate transition-colors block mt-0.5"
+                        >
+                          {currentTrack.artist}
+                        </Link>
                       </div>
 
                       <button
@@ -294,21 +318,39 @@ export default function QueuePage() {
                   </h2>
                 </div>
 
-                {upcomingTracks.length > 0 ? (
+                {upcomingWithKeys.length > 0 ? (
                   <div className="space-y-1.5 max-h-[520px] overflow-y-auto pr-1 scrollbar-none">
-                    {upcomingTracks.map((song, idx) => {
-                      const queueIndex = currentIndex + 1 + idx;
+                    {upcomingWithKeys.map(({ song, queueIndex, idx, stableKey }) => {
                       return (
                         <motion.div
-                          key={`${song.videoId}-${queueIndex}`}
+                          key={stableKey}
                           initial={{ opacity: 0 }}
                           animate={{ opacity: 1 }}
                           onClick={() => playSong(song, queueIndex)}
                           className="flex items-center justify-between px-3 py-2.5 rounded-lg bg-[#121216] border border-white/[0.04] hover:bg-[#181820] hover:border-white/[0.08] transition cursor-pointer group"
                         >
-                          <div className="flex items-center gap-3 min-w-0">
-                            {/* Reorder drag symbol */}
-                            <GripVertical size={13} className="text-zinc-600 group-hover:text-zinc-400 shrink-0 cursor-grab" />
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            {/* Reorder Buttons */}
+                            <div className="flex flex-col shrink-0" onClick={(e) => e.stopPropagation()}>
+                              <button
+                                type="button"
+                                disabled={idx === 0}
+                                onClick={() => reorderQueue(queueIndex, queueIndex - 1)}
+                                className="text-zinc-600 hover:text-white disabled:opacity-20 disabled:hover:text-zinc-600 p-0.5 cursor-pointer"
+                                title="Move Up"
+                              >
+                                <ChevronUp size={11} />
+                              </button>
+                              <button
+                                type="button"
+                                disabled={idx === upcomingTracks.length - 1}
+                                onClick={() => reorderQueue(queueIndex, queueIndex + 1)}
+                                className="text-zinc-600 hover:text-white disabled:opacity-20 disabled:hover:text-zinc-600 p-0.5 cursor-pointer"
+                                title="Move Down"
+                              >
+                                <ChevronDown size={11} />
+                              </button>
+                            </div>
                             
                             <div className="w-9 h-9 rounded-md overflow-hidden shrink-0 border border-white/[0.06] bg-zinc-900">
                               <SafeImage src={song.thumbnail} videoId={song.videoId} alt="" className="w-full h-full object-cover" />
@@ -318,26 +360,35 @@ export default function QueuePage() {
                               <h4 className="text-xs font-semibold text-zinc-200 group-hover:text-white transition-colors truncate">
                                 {song.title}
                               </h4>
-                              <p className="text-[11px] text-zinc-400 truncate mt-0.5">{song.artist}</p>
+                              <p className="text-[11px] text-zinc-400 truncate mt-0.5">
+                                <Link
+                                  href={`/artist/${encodeURIComponent(song.artist)}`}
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="hover:text-purple-400 hover:underline transition-colors"
+                                >
+                                  {song.artist}
+                                </Link>
+                              </p>
                             </div>
                           </div>
 
                           <div className="flex items-center gap-2.5 shrink-0" onClick={(e) => e.stopPropagation()}>
                             <span className="text-[11px] font-mono text-zinc-400 tabular-nums">
-                              {song.duration ? formatDur(song.duration) : "3:20"}
+                              {formatDur(song.duration)}
                             </span>
                             
                             {/* Action buttons */}
                             <button
                               onClick={(e) => playNextTrack(e, song)}
-                              className="px-2 py-1 rounded bg-white/[0.05] hover:bg-white/[0.1] text-[10px] text-zinc-300 font-medium transition"
+                              className="px-2 py-1 rounded bg-white/[0.05] hover:bg-white/[0.1] text-[10px] text-zinc-300 font-medium transition cursor-pointer"
                             >
                               Play Next
                             </button>
                             
                             <button
                               onClick={(e) => removeTrack(e, queueIndex)}
-                              className="p-1 text-zinc-400 hover:text-red-400 transition"
+                              className="p-1 text-zinc-400 hover:text-red-400 transition cursor-pointer"
+                              title="Remove from queue"
                             >
                               <X size={13} />
                             </button>
@@ -386,9 +437,9 @@ export default function QueuePage() {
               </h2>
             </div>
             <div className="flex gap-3 overflow-x-auto scrollbar-none pb-2">
-              {recentSongs.slice(0, 8).map((song, i) => (
+              {recentSongs.slice(0, 8).map((song) => (
                 <div
-                  key={`queue-recent-${song.videoId}-${i}`}
+                  key={`queue-recent-${song.videoId || song.title.toLowerCase().trim()}`}
                   onClick={() => setTrack(song.videoId, song.title, song.artist, song.thumbnail, 0)}
                   className="group shrink-0 w-[110px] md:w-[124px] flex flex-col gap-2 cursor-pointer text-left focus:outline-none"
                 >
@@ -397,7 +448,15 @@ export default function QueuePage() {
                   </div>
                   <div className="min-w-0">
                     <p className="text-xs font-medium text-zinc-200 truncate group-hover:text-[var(--mf-accent)] transition-colors">{song.title}</p>
-                    <p className="text-[11px] text-zinc-400 truncate mt-0.5">{song.artist}</p>
+                    <p className="text-[11px] text-zinc-400 truncate mt-0.5">
+                      <Link
+                        href={`/artist/${encodeURIComponent(song.artist)}`}
+                        onClick={(e) => e.stopPropagation()}
+                        className="hover:text-purple-400 hover:underline transition-colors"
+                      >
+                        {song.artist}
+                      </Link>
+                    </p>
                   </div>
                 </div>
               ))}

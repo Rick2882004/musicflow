@@ -4,13 +4,15 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { usePlayerStore } from "@/store/player-store";
 import { useShallow } from "zustand/react/shallow";
-import { Play, Shuffle, Calendar, Music, Share2 } from "lucide-react";
+import { Play, Shuffle, Calendar, Music, Share2, Bookmark, BookmarkCheck, ListPlus } from "lucide-react";
 import Link from "next/link";
 import { Track, Album } from "@/types/music";
 import { SafeImage } from "@/components/ui/SafeImage";
 import { ShareModal } from "@/components/social/ShareModal";
+import { AddToPlaylistModal } from "@/components/ui/AddToPlaylistModal";
 
 function formatDur(s: number = 0) {
+  if (!s || isNaN(s)) return "--:--";
   const m = Math.floor(s / 60), sec = Math.floor(s % 60);
   return `${m}:${String(sec).padStart(2, "0")}`;
 }
@@ -32,10 +34,13 @@ export default function AlbumPage() {
     return !(cached && Date.now() - cached.timestamp < ALBUM_CACHE_TTL);
   });
   const [shareOpen, setShareOpen] = useState(false);
+  const [playlistSong, setPlaylistSong] = useState<Track | null>(null);
 
-  const { setTrack, setQueue } = usePlayerStore(useShallow((s) => ({
+  const { setTrack, setQueue, savedAlbums, toggleSaveAlbum } = usePlayerStore(useShallow((s) => ({
     setTrack: s.setTrack,
     setQueue: s.setQueue,
+    savedAlbums: s.savedAlbums,
+    toggleSaveAlbum: s.toggleSaveAlbum,
   })));
 
   useEffect(() => {
@@ -125,6 +130,7 @@ export default function AlbumPage() {
   const songCount = album.songs?.length || 0;
   const totalSeconds = album.songs?.reduce((total, song) => total + (song.duration || 0), 0) || 0;
   const formattedDuration = `${Math.floor(totalSeconds / 60)}m ${totalSeconds % 60}s`;
+  const isSaved = savedAlbums.some((a) => a.albumId === albumId);
 
   return (
     <main className="space-y-8 select-none text-left px-4 md:px-8 pt-4 pb-24">
@@ -152,31 +158,35 @@ export default function AlbumPage() {
           </h1>
 
           <div className="flex flex-wrap items-center justify-center md:justify-start gap-3 text-[11px] font-semibold" style={{ color: "var(--mf-text-muted)" }}>
-            {album.artist.artistId ? (
-              <Link
-                href={`/artist/${encodeURIComponent(album.artist.name)}`}
-                className="text-zinc-200 hover:text-purple-400 transition duration-150 font-bold"
-              >
-                {album.artist.name}
-              </Link>
-            ) : (
-              <span className="text-zinc-200">{album.artist.name}</span>
-            )}
-            <span className="text-zinc-700">·</span>
-            <span className="flex items-center gap-1">
-              <Calendar size={11} />
-              {album.year || "2024"}
-            </span>
+            <Link
+              href={`/artist/${encodeURIComponent(album.artist.name)}`}
+              className="text-zinc-200 hover:text-purple-400 transition duration-150 font-bold"
+            >
+              {album.artist.name}
+            </Link>
+            {album.year ? (
+              <>
+                <span className="text-zinc-700">·</span>
+                <span className="flex items-center gap-1">
+                  <Calendar size={11} />
+                  {album.year}
+                </span>
+              </>
+            ) : null}
             <span className="text-zinc-700">·</span>
             <span>{songCount} songs</span>
-            <span className="text-zinc-700">·</span>
-            <span>{formattedDuration}</span>
+            {totalSeconds > 0 && (
+              <>
+                <span className="text-zinc-700">·</span>
+                <span>{formattedDuration}</span>
+              </>
+            )}
           </div>
         </div>
       </div>
 
       {/* Actions Bar */}
-      <div className="flex items-center gap-2.5 select-none">
+      <div className="flex flex-wrap items-center gap-2.5 select-none">
         {songCount > 0 && (
           <>
             <button
@@ -196,26 +206,54 @@ export default function AlbumPage() {
               <Shuffle size={12} />
               Shuffle
             </button>
-
-            <button
-              onClick={() => setShareOpen(true)}
-              className="px-4 py-2 rounded-full text-zinc-300 hover:text-white font-bold text-[11px] flex items-center gap-1.5 transition active:scale-95 cursor-pointer"
-              style={{ background: "rgba(255,255,255,0.03)", border: "1px solid var(--mf-border)" }}
-            >
-              <Share2 size={12} />
-              Share
-            </button>
           </>
         )}
+
+        <button
+          onClick={() => {
+            toggleSaveAlbum({
+              albumId,
+              name: album.name,
+              artist: album.artist?.name || "Unknown Artist",
+              year: album.year,
+              thumbnail: coverImage,
+              songCount,
+            });
+          }}
+          className={`px-4 py-2 rounded-full font-bold text-[11px] flex items-center gap-1.5 transition active:scale-95 cursor-pointer ${
+            isSaved
+              ? "bg-purple-600/20 text-purple-300 border border-purple-500/40"
+              : "text-zinc-300 hover:text-white"
+          }`}
+          style={!isSaved ? { background: "rgba(255,255,255,0.03)", border: "1px solid var(--mf-border)" } : undefined}
+        >
+          {isSaved ? <BookmarkCheck size={13} className="text-purple-400" /> : <Bookmark size={13} />}
+          {isSaved ? "Saved" : "Save Album"}
+        </button>
+
+        <button
+          onClick={() => setShareOpen(true)}
+          className="px-4 py-2 rounded-full text-zinc-300 hover:text-white font-bold text-[11px] flex items-center gap-1.5 transition active:scale-95 cursor-pointer"
+          style={{ background: "rgba(255,255,255,0.03)", border: "1px solid var(--mf-border)" }}
+        >
+          <Share2 size={12} />
+          Share
+        </button>
       </div>
 
       <ShareModal
         isOpen={shareOpen}
         onClose={() => setShareOpen(false)}
         title={album.name}
-        subtitle={`${album.artist.name} · ${album.year || "2024"}`}
+        subtitle={`${album.artist.name}${album.year ? ` · ${album.year}` : ""}`}
         thumbnail={coverImage}
         type="album"
+      />
+
+      <AddToPlaylistModal
+        isOpen={!!playlistSong}
+        onClose={() => setPlaylistSong(null)}
+        song={playlistSong}
       />
 
       {/* Songs Tracklist Table */}
@@ -223,7 +261,7 @@ export default function AlbumPage() {
         <section className="space-y-1.5">
           {album.songs?.map((song, index) => (
             <div
-              key={song.videoId}
+              key={song.videoId || `album-track-${song.title.toLowerCase().trim()}-${index}`}
               onClick={() => playSong(song, index)}
               className="flex items-center justify-between px-3.5 py-2.5 rounded-[14px] cursor-pointer group transition-all duration-150 select-none"
               style={{
@@ -250,13 +288,33 @@ export default function AlbumPage() {
                   >
                     {song.title}
                   </h3>
-                  <p className="text-[10px] truncate mt-0.5" style={{ color: "var(--mf-text-muted)" }}>{song.artist}</p>
+                  <p className="text-[10px] truncate mt-0.5" style={{ color: "var(--mf-text-muted)" }}>
+                    <Link
+                      href={`/artist/${encodeURIComponent(song.artist)}`}
+                      onClick={(e) => e.stopPropagation()}
+                      className="hover:text-purple-400 hover:underline transition-colors"
+                    >
+                      {song.artist}
+                    </Link>
+                  </p>
                 </div>
               </div>
 
-              <div className="flex items-center gap-3 shrink-0">
-                <span className="text-[10px] font-mono tabular-nums" style={{ color: "var(--mf-text-muted)" }}>
-                  {song.duration ? formatDur(song.duration) : "3:30"}
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  title="Add to Playlist"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setPlaylistSong(song);
+                  }}
+                  className="w-7 h-7 rounded-full opacity-0 group-hover:opacity-100 flex items-center justify-center text-zinc-400 hover:text-white hover:bg-white/10 transition"
+                >
+                  <ListPlus size={13} />
+                </button>
+
+                <span className="text-[10px] font-mono tabular-nums min-w-[34px] text-right" style={{ color: "var(--mf-text-muted)" }}>
+                  {formatDur(song.duration)}
                 </span>
                 <div
                   className="w-7 h-7 rounded-full opacity-0 group-hover:opacity-100 flex items-center justify-center shadow-md transition-opacity"

@@ -27,6 +27,8 @@ import { cn } from "@/lib/utils";
 import QueueDrawer from "./QueueDrawer";
 import { SafeImage } from "@/components/ui/SafeImage";
 import { useSmartQueue } from "@/hooks/useSmartQueue";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 function formatTime(secs: number) {
   const m = Math.floor(secs / 60);
@@ -230,6 +232,7 @@ export default function BottomPlayer() {
   const isLiked = likedSongs.some((song) => song.videoId === videoId);
 
   const mounted = useHasMounted();
+  const router = useRouter();
   const [isMobileExpanded, setIsMobileExpanded] = useState(false);
   const [showSpeedMenu, setShowSpeedMenu] = useState(false);
   const [showTimerMenu, setShowTimerMenu] = useState(false);
@@ -512,7 +515,12 @@ export default function BottomPlayer() {
           </div>
           <div className="min-w-0 flex-1">
             <h3 className="text-xs font-bold text-zinc-100 truncate tracking-tight">{title}</h3>
-            <p className="text-[10px] text-zinc-500 truncate mt-0.5 font-medium">{artist}</p>
+            <Link
+              href={`/artist/${encodeURIComponent(artist)}`}
+              className="text-[10px] text-zinc-500 hover:text-purple-400 hover:underline truncate mt-0.5 font-medium block transition-colors"
+            >
+              {artist}
+            </Link>
           </div>
           <motion.button
             whileTap={{ scale: 0.8 }}
@@ -760,7 +768,15 @@ export default function BottomPlayer() {
           </div>
           <div className="min-w-0">
             <h4 className="text-[11px] font-bold text-white truncate leading-tight tracking-tight">{title}</h4>
-            <p className="text-[10px] text-zinc-400 truncate mt-0.5 font-medium">{artist}</p>
+            <p
+              onClick={(e) => {
+                e.stopPropagation();
+                router.push(`/artist/${encodeURIComponent(artist)}`);
+              }}
+              className="text-[10px] text-zinc-400 hover:text-purple-400 hover:underline truncate mt-0.5 font-medium cursor-pointer"
+            >
+              {artist}
+            </p>
           </div>
         </div>
 
@@ -846,7 +862,13 @@ export default function BottomPlayer() {
                     <h2 className="text-xl font-bold text-white truncate leading-tight tracking-tight">
                       {title}
                     </h2>
-                    <p className="text-xs text-zinc-450 font-medium truncate mt-1">{artist}</p>
+                    <Link
+                      href={`/artist/${encodeURIComponent(artist)}`}
+                      onClick={() => setIsMobileExpanded(false)}
+                      className="text-xs text-zinc-400 hover:text-purple-400 hover:underline font-medium truncate mt-1 block transition-colors"
+                    >
+                      {artist}
+                    </Link>
                   </div>
                   <motion.button
                     whileTap={{ scale: 0.8 }}

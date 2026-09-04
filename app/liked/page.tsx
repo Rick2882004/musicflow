@@ -4,7 +4,7 @@ import { usePlayerStore } from "@/store/player-store";
 import { useShallow } from "zustand/react/shallow";
 import ProtectedRoute from "../../src/components/auth/ProtectedRoute";
 import { motion } from "framer-motion";
-import { Play, Shuffle, Heart, Clock, Search, ArrowUpDown, MoreHorizontal, Calendar, Volume2, X } from "lucide-react";
+import { Play, Shuffle, Heart, Clock, Search, ArrowUpDown, MoreHorizontal, Volume2, X } from "lucide-react";
 import Link from "next/link";
 import { Track } from "@/types/music";
 import { useState } from "react";
@@ -222,9 +222,6 @@ export default function LikedSongsPage() {
                   <th className="py-3.5 px-4">Title</th>
                   <th className="py-3.5 px-4 hidden md:table-cell">Artist</th>
                   <th className="py-3.5 px-4 hidden sm:table-cell">Album</th>
-                  <th className="py-3.5 px-4 hidden lg:table-cell">
-                    <span className="flex items-center gap-1.5"><Calendar size={11} /> Date Added</span>
-                  </th>
                   <th className="py-3.5 px-4 text-right w-20"><Clock size={11} className="ml-auto" /></th>
                   <th className="py-3.5 px-4 w-16"></th>
                 </tr>
@@ -235,7 +232,7 @@ export default function LikedSongsPage() {
                   const isCurrentPlaying = isCurrent && isPlaying;
                   return (
                     <tr
-                      key={`${song.videoId}-${index}`}
+                      key={song.videoId || `liked-song-${song.title.toLowerCase().trim()}-${index}`}
                       className="group border-b border-white/[0.02] hover:bg-white/[0.015] transition duration-200 cursor-pointer"
                       onClick={() => playSong(song, index)}
                     >
@@ -262,7 +259,13 @@ export default function LikedSongsPage() {
                               {song.title}
                             </p>
                             <p className="text-[10px] text-zinc-555 truncate mt-0.5 md:hidden">
-                              {song.artist}
+                              <Link
+                                href={`/artist/${encodeURIComponent(song.artist)}`}
+                                onClick={(e) => e.stopPropagation()}
+                                className="hover:text-pink-400 hover:underline transition-colors"
+                              >
+                                {song.artist}
+                              </Link>
                             </p>
                           </div>
                         </div>
@@ -270,24 +273,25 @@ export default function LikedSongsPage() {
 
                       {/* Artist */}
                       <td className="py-3.5 px-4 text-xs font-semibold text-zinc-350 hidden md:table-cell">
-                        {song.artist}
+                        <Link
+                          href={`/artist/${encodeURIComponent(song.artist)}`}
+                          onClick={(e) => e.stopPropagation()}
+                          className="hover:text-pink-400 hover:underline transition-colors"
+                        >
+                          {song.artist}
+                        </Link>
                       </td>
 
-                      {/* Album (Mock) */}
+                      {/* Album */}
                       <td className="py-3.5 px-4 text-xs text-zinc-500 hidden sm:table-cell">
-                        {song.title.includes("Hits") || song.title.includes("Collection") ? song.title : `${song.artist} Essentials`}
-                      </td>
-
-                      {/* Added Date (Mock) */}
-                      <td className="py-3.5 px-4 text-[11px] text-zinc-600 hidden lg:table-cell">
-                        Jul 6, 2026
+                        {song.album || "Single"}
                       </td>
 
                       {/* Duration */}
                       <td className="py-3.5 px-4 text-right text-zinc-500 font-mono text-[11px] tabular-nums">
                         {song.duration
                           ? `${Math.floor(song.duration / 60)}:${String(song.duration % 60).padStart(2, "0")}`
-                          : "3:10"}
+                          : "--:--"}
                       </td>
 
                       {/* Heart (Unlike action) & Menu */}

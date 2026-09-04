@@ -3,12 +3,13 @@
 import { useState, useEffect, useRef, Suspense, useCallback } from "react";
 import { usePlayerStore } from "@/store/player-store";
 import { useShallow } from "zustand/react/shallow";
-import { Search as SearchIcon, X, Clock, Play, HelpCircle, Mic } from "lucide-react";
+import { Search as SearchIcon, X, Clock, Play, HelpCircle, Mic, ListPlus, ListMusic } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { SafeImage } from "@/components/ui/SafeImage";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Track } from "@/types/music";
 import Link from "next/link";
+import { AddToPlaylistModal } from "@/components/ui/AddToPlaylistModal";
 
 const CATEGORIES = [
   { title: "Pop",          bg: "rgba(139,92,246,0.15)",  border: "rgba(139,92,246,0.25)",  text: "#c4b5fd" },
@@ -22,11 +23,22 @@ const CATEGORIES = [
 const TRENDING_SEARCHES = ["Arijit Singh", "KK", "Lofi", "AP Dhillon", "Bollywood", "Workout", "Party", "Rain", "Romance"];
 
 function formatDur(s: number = 0) {
+  if (!s || isNaN(s)) return "--:--";
   const m = Math.floor(s / 60), sec = Math.floor(s % 60);
   return `${m}:${String(sec).padStart(2, "0")}`;
 }
 
-function SongRow({ song, index, onPlay }: { song: Track; index: number; onPlay: (s: Track, i: number) => void }) {
+function SongRow({
+  song,
+  index,
+  onPlay,
+  onAddToPlaylist,
+}: {
+  song: Track;
+  index: number;
+  onPlay: (s: Track, i: number) => void;
+  onAddToPlaylist?: (s: Track) => void;
+}) {
   const [hov, setHov] = useState(false);
   return (
     <motion.div
@@ -76,13 +88,32 @@ function SongRow({ song, index, onPlay }: { song: Track; index: number; onPlay: 
             {song.title}
           </p>
           <p className="text-[10px] truncate mt-0.5" style={{ color: "var(--mf-text-muted)" }}>
-            {song.artist}
+            <Link
+              href={`/artist/${encodeURIComponent(song.artist)}`}
+              onClick={(e) => e.stopPropagation()}
+              className="hover:text-purple-400 hover:underline transition-colors"
+            >
+              {song.artist}
+            </Link>
           </p>
         </div>
       </div>
 
-      <div className="flex items-center gap-3 shrink-0">
-        <span className="text-[10px] font-mono tabular-nums" style={{ color: "var(--mf-text-muted)" }}>
+      <div className="flex items-center gap-2.5 shrink-0">
+        {onAddToPlaylist && (
+          <button
+            type="button"
+            title="Add to Playlist"
+            onClick={(e) => {
+              e.stopPropagation();
+              onAddToPlaylist(song);
+            }}
+            className="w-7 h-7 rounded-full opacity-0 group-hover:opacity-100 flex items-center justify-center text-zinc-400 hover:text-white hover:bg-white/10 transition"
+          >
+            <ListPlus size={13} />
+          </button>
+        )}
+        <span className="text-[10px] font-mono tabular-nums min-w-[34px] text-right" style={{ color: "var(--mf-text-muted)" }}>
           {formatDur(song.duration)}
         </span>
       </div>
@@ -97,11 +128,14 @@ function SearchContent() {
 
   interface AlbumItem {
     albumId: string;
+    browseId?: string;
     name: string;
     artist: string;
     thumbnail: string;
   }
   interface ArtistItem {
+    artistId?: string;
+    browseId?: string;
     name: string;
     image: string;
   }
@@ -113,10 +147,11 @@ function SearchContent() {
   const [suggestions,    setSuggestions]    = useState<string[]>([]);
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const [loading,        setLoading]        = useState(false);
-  const [activeFilter,   setActiveFilter]   = useState<"all"|"tracks"|"artists"|"albums">("all");
+  const [activeFilter,   setActiveFilter]   = useState<"all"|"tracks"|"artists"|"albums"|"playlists">("all");
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [isFocused,      setIsFocused]      = useState(false);
   const [isListening,    setIsListening]    = useState(false);
+  const [playlistSong,   setPlaylistSong]   = useState<Track | null>(null);
 
   const startVoiceSearch = () => {
     setIsListening(true);
@@ -132,9 +167,10 @@ function SearchContent() {
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef     = useRef<HTMLInputElement>(null);
 
-  const { recentSongs, setTrack, setQueue } = usePlayerStore(
+  const { recentSongs, playlists, setTrack, setQueue } = usePlayerStore(
     useShallow((s) => ({
       recentSongs: s.recentSongs,
+      playlists:   s.playlists,
       setTrack:    s.setTrack,
       setQueue:    s.setQueue,
     }))
@@ -167,37 +203,58 @@ function SearchContent() {
     }
 
     try {
-      const [resData, artistRes, albumRes] = await Promise.all([
-        fetch(`/api/search?q=${encodeURIComponent(q)}`)
-          .then(async (r) => {
-            if (!r.ok) return { results: [] };
-            try { return await r.json(); } catch { return { results: [] }; }
-          })
-          .catch(() => ({ results: [] })),
-        fetch(`/api/artist?name=${encodeURIComponent(q)}`)
-          .then(async (r) => {
-            if (!r.ok) return null;
-            try { return await r.json(); } catch { return null; }
-          })
-          .catch(() => null),
-        fetch(`/api/search?q=${encodeURIComponent(q + " album")}`)
-          .then(async (r) => {
-            if (!r.ok) return { results: [] };
-            try { return await r.json(); } catch { return { results: [] }; }
-          })
-          .catch(() => ({ results: [] })),
-      ]);
-      const resTracks = resData?.results || [];
-      const resArtists = artistRes ? [artistRes] : [];
-      const seen = new Set<string>();
-      const uniqAlbums: AlbumItem[] = [];
-      (albumRes?.results || []).forEach((s: Track) => {
-        if (s.title && !seen.has(s.title)) {
-          seen.add(s.title);
-          uniqAlbums.push({ albumId: s.videoId, name: s.title, artist: s.artist, thumbnail: s.thumbnail });
+      const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
+      if (!res.ok) throw new Error("Failed to load search results");
+      const data = await res.json();
+      const rawTracks: Track[] = data.results || data.songs || [];
+      const seenVideoIds = new Set<string>();
+      const resTracks: Track[] = [];
+      for (const t of rawTracks) {
+        if (!t || !t.videoId || seenVideoIds.has(t.videoId)) continue;
+        seenVideoIds.add(t.videoId);
+        resTracks.push(t);
+      }
+
+      const rawArtists: ArtistItem[] = (data.artists || []).map((a: { artistId?: string; browseId?: string; name: string; image?: string; thumbnail?: string; thumbnails?: { url: string }[] }) => ({
+        artistId: a.artistId || a.browseId || "",
+        browseId: a.browseId || a.artistId || "",
+        name: a.name || "Unknown Artist",
+        image: a.image || a.thumbnail || a.thumbnails?.[0]?.url || "",
+      }));
+      const seenArtistIds = new Set<string>();
+      const seenArtistFallbacks = new Set<string>();
+      const resArtists: ArtistItem[] = [];
+      for (const a of rawArtists) {
+        const id = a.browseId || a.artistId;
+        if (id) {
+          if (seenArtistIds.has(id)) continue;
+          seenArtistIds.add(id);
+          resArtists.push(a);
+        } else {
+          const fallbackKey = `${a.name.trim().toLowerCase()}::${a.image}`;
+          if (seenArtistFallbacks.has(fallbackKey)) continue;
+          seenArtistFallbacks.add(fallbackKey);
+          resArtists.push(a);
         }
-      });
-      const resAlbums = uniqAlbums.slice(0, 6);
+      }
+
+      const rawAlbums: AlbumItem[] = (data.albums || []).map((alb: { albumId?: string; browseId?: string; name?: string; title?: string; artist?: string; thumbnail?: string; thumbnails?: { url: string }[] }) => ({
+        albumId: alb.albumId || alb.browseId || "",
+        browseId: alb.browseId || alb.albumId || "",
+        name: alb.name || alb.title || "Album",
+        artist: alb.artist || "Unknown Artist",
+        thumbnail: alb.thumbnail || alb.thumbnails?.[0]?.url || "",
+      })).filter((alb: AlbumItem) => !!alb.albumId);
+      const seenAlbumIds = new Set<string>();
+      const resAlbums: AlbumItem[] = [];
+      for (const alb of rawAlbums) {
+        const id = alb.albumId || alb.browseId;
+        if (id) {
+          if (seenAlbumIds.has(id)) continue;
+          seenAlbumIds.add(id);
+          resAlbums.push(alb);
+        }
+      }
 
       setResults(resTracks);
       setArtists(resArtists);
@@ -263,7 +320,11 @@ function SearchContent() {
     return () => clearTimeout(t);
   }, [query]);
 
-  const hasResults = results.length > 0 || artists.length > 0 || albums.length > 0;
+  const matchingPlaylists = query.trim()
+    ? playlists.filter((p) => p.name.toLowerCase().includes(query.toLowerCase().trim()))
+    : [];
+
+  const hasResults = results.length > 0 || artists.length > 0 || albums.length > 0 || matchingPlaylists.length > 0;
 
   return (
     <div className="min-h-screen pb-36 relative" style={{ background: "#07070A" }}>
@@ -362,7 +423,7 @@ function SearchContent() {
                   className="absolute left-0 right-0 mt-1.5 rounded-xl overflow-hidden z-50 p-1 bg-[#16161e] border border-white/10 shadow-xl"
                 >
                   {suggestions.map((item, idx) => (
-                    <button key={idx} onClick={() => handleSelectSuggestion(item)}
+                    <button key={`suggestion-${item}-${idx}`} onClick={() => handleSelectSuggestion(item)}
                       className="w-full text-left px-3 py-2 rounded-lg text-xs hover:bg-white/[0.06] text-zinc-300 hover:text-white font-medium flex items-center gap-2.5 transition-colors cursor-pointer">
                       <SearchIcon size={12} className="text-zinc-500 shrink-0" />
                       {item}
@@ -501,7 +562,7 @@ function SearchContent() {
                     { name: "Diljit Dosanjh", image: "https://e-cdns-images.dzcdn.net/images/artist/e13f4124036fef95b7787687834572f4/500x500.jpg" },
                   ].map((art) => (
                     <div
-                      key={art.name}
+                      key={`featured-artist-${art.name.toLowerCase().replace(/\s+/g, '-')}`}
                       onClick={() => router.push(`/artist/${encodeURIComponent(art.name)}`)}
                       className="group shrink-0 flex flex-col items-center gap-2 cursor-pointer"
                     >
@@ -555,7 +616,7 @@ function SearchContent() {
 
             {/* Filter pills */}
             <div className="flex gap-2 flex-wrap">
-              {(["all", "tracks", "artists", "albums"] as const).map(filter => (
+              {(["all", "tracks", "artists", "albums", ...(matchingPlaylists.length > 0 ? ["playlists" as const] : [])] as const).map(filter => (
                 <button key={filter} onClick={() => setActiveFilter(filter)}
                   className="px-4.5 py-2 rounded-full text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer border select-none"
                   style={{
@@ -564,7 +625,7 @@ function SearchContent() {
                     border: `1px solid ${activeFilter === filter ? "rgba(255,255,255,0.1)" : "rgba(255,255,255,0.05)"}`,
                   }}
                 >
-                  {filter}
+                  {filter === "all" ? "All" : filter === "tracks" ? "Songs" : filter === "artists" ? "Artists" : filter === "albums" ? "Albums" : "Playlists"}
                 </button>
               ))}
             </div>
@@ -580,7 +641,13 @@ function SearchContent() {
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
                   {results.slice(0, activeFilter === "all" ? 6 : 30).map((song, i) => (
-                    <SongRow key={song.videoId} song={song} index={i} onPlay={playSong} />
+                    <SongRow
+                      key={song.videoId || `search-song-${song.title.toLowerCase().trim()}-${i}`}
+                      song={song}
+                      index={i}
+                      onPlay={playSong}
+                      onAddToPlaylist={(s) => setPlaylistSong(s)}
+                    />
                   ))}
                 </div>
               </div>
@@ -594,12 +661,12 @@ function SearchContent() {
                   <h2 className="font-display text-[22px] font-black text-white tracking-tight leading-none">Artists</h2>
                 </div>
                 <div className="flex gap-6 overflow-x-auto scrollbar-none pb-4 -mx-4 md:-mx-10 px-4 md:px-10">
-                  {artists.map((artist) => (
+                  {artists.map((artist, idx) => (
                     <motion.button
-                      key={artist.name}
+                      key={artist.browseId || artist.artistId || `artist-${artist.name.toLowerCase().trim()}-${idx}`}
                       whileHover={{ y: -6 }}
                       onClick={() => router.push(`/artist/${encodeURIComponent(artist.name)}`)}
-                      className="flex flex-col items-center gap-3 shrink-0 group focus:outline-none"
+                      className="flex flex-col items-center gap-3 shrink-0 group focus:outline-none cursor-pointer"
                     >
                       <div className="w-20 h-20 rounded-full overflow-hidden bg-zinc-950 border border-white/[0.05] group-hover:border-purple-500/30 transition-all duration-300 shadow-md">
                         <SafeImage src={artist.image} alt={artist.name}
@@ -623,33 +690,96 @@ function SearchContent() {
                   <h2 className="font-display text-[22px] font-black text-white tracking-tight leading-none">Albums</h2>
                 </div>
                 <div className="flex gap-5 overflow-x-auto scrollbar-none pb-4 -mx-4 md:-mx-10 px-4 md:px-10">
-                  {albums.map((album) => (
-                    <motion.button
-                      key={album.albumId}
+                  {albums.map((album, idx) => (
+                    <motion.div
+                      key={album.albumId || album.browseId || `album-${album.name.toLowerCase().trim()}-${idx}`}
                       whileHover={{ y: -6 }}
-                      onClick={() => router.push(`/album/${album.albumId}`)}
-                      className="group flex flex-col gap-3 text-left focus:outline-none shrink-0 w-[140px] md:w-[155px]"
+                      className="group flex flex-col gap-2.5 text-left shrink-0 w-[140px] md:w-[155px]"
                     >
-                      <div className="relative aspect-square rounded-[20px] overflow-hidden bg-zinc-900 border border-white/[0.05] group-hover:border-purple-500/35 transition-all duration-300 shadow-md">
-                        <SafeImage src={album.thumbnail} videoId={album.albumId} title={album.name} artist={album.artist} alt={album.name}
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" fallbackType="album" />
+                      <div
+                        onClick={() => router.push(`/album/${album.albumId}`)}
+                        className="relative aspect-square rounded-[20px] overflow-hidden bg-zinc-900 border border-white/[0.05] group-hover:border-purple-500/35 transition-all duration-300 shadow-md cursor-pointer"
+                      >
+                        <SafeImage
+                          src={album.thumbnail}
+                          videoId={album.albumId}
+                          title={album.name}
+                          artist={album.artist}
+                          alt={album.name}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                          fallbackType="album"
+                        />
                         <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                          <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center">
+                          <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center text-black shadow-lg">
                             <Play size={12} fill="black" className="text-black ml-0.5" />
                           </div>
                         </div>
                       </div>
                       <div>
-                        <p className="text-[12px] font-bold text-zinc-300 group-hover:text-white transition-colors truncate leading-tight tracking-tight">{album.name}</p>
-                        <p className="text-[10px] text-zinc-555 truncate mt-0.5">{album.artist}</p>
+                        <p
+                          onClick={() => router.push(`/album/${album.albumId}`)}
+                          className="text-[12px] font-bold text-zinc-300 group-hover:text-white transition-colors truncate leading-tight tracking-tight cursor-pointer"
+                        >
+                          {album.name}
+                        </p>
+                        <p className="text-[10px] text-zinc-500 truncate mt-0.5">
+                          <Link
+                            href={`/artist/${encodeURIComponent(album.artist)}`}
+                            className="hover:text-purple-400 hover:underline transition-colors"
+                          >
+                            {album.artist}
+                          </Link>
+                        </p>
                       </div>
-                    </motion.button>
+                    </motion.div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Playlists */}
+            {(activeFilter === "all" || activeFilter === "playlists") && matchingPlaylists.length > 0 && (
+              <div className="space-y-5">
+                <div>
+                  <p className="text-[9px] font-black uppercase tracking-[0.18em] text-zinc-600 mb-1.5">Your Library</p>
+                  <h2 className="font-display text-[22px] font-black text-white tracking-tight leading-none">Playlists</h2>
+                </div>
+                <div className="flex gap-5 overflow-x-auto scrollbar-none pb-4 -mx-4 md:-mx-10 px-4 md:px-10">
+                  {matchingPlaylists.map((pl) => (
+                    <motion.div key={pl.id} whileHover={{ y: -6 }} className="shrink-0 w-[140px] md:w-[155px]">
+                      <Link
+                        href={`/playlists/${pl.id}`}
+                        className="group flex flex-col gap-2.5 text-left"
+                      >
+                        <div className="relative aspect-square rounded-[20px] overflow-hidden bg-zinc-900 border border-white/[0.05] group-hover:border-purple-500/35 transition-all duration-300 shadow-md flex items-center justify-center">
+                          {pl.coverImage ? (
+                            <SafeImage src={pl.coverImage} alt={pl.name} className="w-full h-full object-cover" />
+                          ) : (
+                            <ListMusic size={32} className="text-zinc-600" />
+                          )}
+                        </div>
+                        <div>
+                          <p className="text-[12px] font-bold text-zinc-300 group-hover:text-white transition-colors truncate leading-tight tracking-tight">
+                            {pl.name}
+                          </p>
+                          <p className="text-[10px] text-zinc-555 truncate mt-0.5">
+                            {pl.songs?.length || 0} songs · Playlist
+                          </p>
+                        </div>
+                      </Link>
+                    </motion.div>
                   ))}
                 </div>
               </div>
             )}
           </motion.div>
         )}
+
+        <AddToPlaylistModal
+          isOpen={!!playlistSong}
+          onClose={() => setPlaylistSong(null)}
+          song={playlistSong}
+        />
       </div>
     </div>
   );

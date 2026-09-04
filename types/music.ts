@@ -4,6 +4,8 @@ export interface Track {
   artist: string;
   thumbnail: string;
   duration?: number;
+  album?: string;
+  albumId?: string;
 }
 
 export interface Playlist {
@@ -44,6 +46,26 @@ export interface Album {
   thumbnail?: string;
   thumbnails?: { url: string; width?: number; height?: number }[];
   songs?: Track[];
+}
+
+export interface FollowedArtist {
+  artistId?: string;
+  browseId?: string;
+  name: string;
+  image?: string | null;
+  genre?: string;
+  followedAt?: number;
+}
+
+export interface SavedAlbum {
+  albumId: string;
+  browseId?: string;
+  name: string;
+  artist: string;
+  thumbnail?: string;
+  year?: number;
+  songCount?: number;
+  savedAt?: number;
 }
 
 export interface UserStats {

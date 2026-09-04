@@ -5,13 +5,15 @@ import { useParams, useRouter } from "next/navigation";
 import { usePlayerStore } from "@/store/player-store";
 import { useShallow } from "zustand/react/shallow";
 import { motion } from "framer-motion";
-import { Play, Shuffle, Heart, Share2, Award, Calendar, Users } from "lucide-react";
+import { Play, Shuffle, Heart, Share2, Award, Calendar, Users, ListPlus, ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { Track, Artist } from "@/types/music";
 import { SafeImage } from "@/components/ui/SafeImage";
 import { ShareModal } from "@/components/social/ShareModal";
+import { AddToPlaylistModal } from "@/components/ui/AddToPlaylistModal";
 
 function formatDur(s: number = 0) {
+  if (!s || s <= 0) return "";
   const m = Math.floor(s / 60), sec = Math.floor(s % 60);
   return `${m}:${String(sec).padStart(2, "0")}`;
 }
@@ -29,22 +31,25 @@ export default function ArtistPage() {
     const cached = artistProfileCache.get(artistName.toLowerCase());
     return cached && Date.now() - cached.timestamp < ARTIST_CACHE_TTL ? cached.data : null;
   });
-  const [isFollowing, setIsFollowing] = useState<boolean>(() => {
-    if (typeof window !== "undefined") {
-      return localStorage.getItem(`artist-${artistName}`) === "true";
-    }
-    return false;
-  });
   const [loading, setLoading] = useState<boolean>(() => {
     const cached = artistProfileCache.get(artistName.toLowerCase());
     return !(cached && Date.now() - cached.timestamp < ARTIST_CACHE_TTL);
   });
   const [shareOpen, setShareOpen] = useState(false);
+  const [selectedPlaylistSong, setSelectedPlaylistSong] = useState<Track | null>(null);
 
-  const { setQueue, setTrack } = usePlayerStore(useShallow((s) => ({
-    setQueue: s.setQueue,
-    setTrack: s.setTrack,
-  })));
+  const { setQueue, setTrack, followedArtists, toggleFollowArtist } = usePlayerStore(
+    useShallow((s) => ({
+      setQueue: s.setQueue,
+      setTrack: s.setTrack,
+      followedArtists: s.followedArtists,
+      toggleFollowArtist: s.toggleFollowArtist,
+    }))
+  );
+
+  const isFollowing = followedArtists.some(
+    (a) => a.name.toLowerCase() === artistName.toLowerCase()
+  );
 
   useEffect(() => {
     let isMounted = true;
@@ -81,9 +86,13 @@ export default function ArtistPage() {
   }, [artistName]);
 
   const toggleFollow = () => {
-    const nextState = !isFollowing;
-    setIsFollowing(nextState);
-    localStorage.setItem(`artist-${artistName}`, String(nextState));
+    if (!artist) return;
+    const img = artist.image || artist.thumbnails?.[artist.thumbnails.length - 1]?.url || null;
+    toggleFollowArtist({
+      name: artist.name,
+      image: img,
+      genre: "Artist",
+    });
   };
 
   const shareArtist = () => {
@@ -131,11 +140,27 @@ export default function ArtistPage() {
   }
 
   if (!artist) {
-    return <main className="p-8 text-zinc-400 text-left text-sm font-semibold">Artist details not found</main>;
+    return (
+      <main className="min-h-[60vh] flex flex-col items-center justify-center p-8 text-center select-none">
+        <div className="w-16 h-16 rounded-full bg-white/[0.03] border border-white/[0.06] flex items-center justify-center text-zinc-500 mb-4">
+          <Users size={28} />
+        </div>
+        <h2 className="text-lg font-bold text-white mb-1">Artist Not Found</h2>
+        <p className="text-xs text-zinc-500 max-w-sm mb-6">
+          Could not find details for &quot;{artistName}&quot;. The artist may not be listed or is currently unavailable.
+        </p>
+        <button
+          onClick={() => router.back()}
+          className="px-5 py-2 rounded-full bg-white text-black font-bold text-xs flex items-center gap-1.5 transition active:scale-95 cursor-pointer"
+        >
+          <ArrowLeft size={13} /> Go Back
+        </button>
+      </main>
+    );
   }
 
   const artistImage = artist.image || artist.thumbnails?.[artist.thumbnails.length - 1]?.url || "/logo.png";
-  const bioSummary = artist.description || artist.bio || `${artist.name} is a verified artist on MusicFlow. Stream their latest tracks and explore their dynamic music library below.`;
+  const bioSummary = (artist.description || artist.bio || "").trim();
 
   return (
     <main className="space-y-8 select-none text-left px-4 md:px-8 pt-4 pb-24">
@@ -168,16 +193,19 @@ export default function ArtistPage() {
           </h1>
 
           <div className="flex flex-wrap items-center justify-center md:justify-start gap-3 text-[11px] font-semibold" style={{ color: "var(--mf-text-muted)" }}>
-            <span className="flex items-center gap-1.5">
-              <Users size={12} />
-              {artist.monthlyListeners || "22M"} Monthly Listeners
-            </span>
-            <span className="text-zinc-700">·</span>
+            {artist.monthlyListeners && (
+              <>
+                <span className="flex items-center gap-1.5">
+                  <Users size={12} />
+                  {artist.monthlyListeners} Monthly Listeners
+                </span>
+                <span className="text-zinc-700">·</span>
+              </>
+            )}
             <span>{artist.songs?.length || 0} Tracks available</span>
           </div>
         </div>
       </div>
-
 
       {/* Actions Row */}
       <div className="flex items-center flex-wrap justify-between gap-4 select-none">
@@ -238,9 +266,9 @@ export default function ArtistPage() {
             </div>
           </div>
           <div className="space-y-1.5">
-            {artist.songs.slice(0, 8).map((song, index) => (
+            {artist.songs.slice(0, 10).map((song, index) => (
               <div
-                key={song.videoId}
+                key={song.videoId || `artist-song-${song.title.toLowerCase().trim()}-${index}`}
                 onClick={() => playSong(song, index)}
                 className="flex items-center justify-between px-3.5 py-2.5 rounded-[14px] cursor-pointer group transition-all duration-150 select-none"
                 style={{
@@ -281,12 +309,21 @@ export default function ArtistPage() {
                     <p className="text-[10px] truncate mt-0.5" style={{ color: "var(--mf-text-muted)" }}>{song.artist}</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-3 shrink-0">
+                <div className="flex items-center gap-3 shrink-0" onClick={(e) => e.stopPropagation()}>
+                  <button
+                    onClick={() => setSelectedPlaylistSong(song)}
+                    className="p-1 text-zinc-500 hover:text-purple-300 opacity-0 group-hover:opacity-100 transition rounded-lg"
+                    aria-label="Add to playlist"
+                    title="Add to playlist"
+                  >
+                    <ListPlus size={14} />
+                  </button>
                   <span className="text-[10px] font-mono tabular-nums" style={{ color: "var(--mf-text-muted)" }}>
-                    {song.duration ? formatDur(song.duration) : "3:40"}
+                    {formatDur(song.duration)}
                   </span>
                   <div
-                    className="w-7 h-7 rounded-full opacity-0 group-hover:opacity-100 flex items-center justify-center shadow-md transition-opacity"
+                    onClick={() => playSong(song, index)}
+                    className="w-7 h-7 rounded-full opacity-0 group-hover:opacity-100 flex items-center justify-center shadow-md transition-opacity cursor-pointer"
                     style={{ background: "var(--mf-accent)", color: "#fff" }}
                   >
                     <Play size={10} fill="currentColor" className="ml-0.5" />
@@ -313,8 +350,8 @@ export default function ArtistPage() {
             </div>
           </div>
           <div className="mf-rail -mx-4 md:-mx-8 px-4 md:px-8">
-            {artist.albums.slice(0, 6).map((album) => (
-              <Link key={album.albumId} href={`/album/${album.albumId}`}>
+            {artist.albums.slice(0, 8).map((album, index) => (
+              <Link key={album.albumId || `artist-album-${album.name.toLowerCase().trim()}-${index}`} href={`/album/${album.albumId}`}>
                 <motion.div
                   whileHover={{ y: -5 }}
                   className="group shrink-0 w-[150px] md:w-[170px] flex flex-col gap-2.5 cursor-pointer text-left focus:outline-none"
@@ -355,27 +392,86 @@ export default function ArtistPage() {
         </section>
       )}
 
-      {/* Biography */}
-      <section className="mf-section">
-        <div className="mf-section-header">
-          <div>
-            <p
-              className="text-[9px] font-black uppercase mb-1"
-              style={{ letterSpacing: "0.18em", color: "var(--mf-text-dim)" }}
-            >
-              About
-            </p>
-            <h2 className="mf-section-title">Biography</h2>
+      {/* Singles & EPs section */}
+      {artist.singles && artist.singles.length > 0 && (
+        <section className="mf-section">
+          <div className="mf-section-header">
+            <div>
+              <p
+                className="text-[9px] font-black uppercase mb-1"
+                style={{ letterSpacing: "0.18em", color: "var(--mf-text-dim)" }}
+              >
+                Singles
+              </p>
+              <h2 className="mf-section-title">Singles & EPs</h2>
+            </div>
           </div>
-        </div>
-        <div
-          className="p-5 md:p-6 rounded-2xl bg-[#121216] border border-white/[0.06]"
-        >
-          <p className="text-[12px] leading-relaxed" style={{ color: "var(--mf-text-secondary)" }}>
-            {bioSummary}
-          </p>
-        </div>
-      </section>
+          <div className="mf-rail -mx-4 md:-mx-8 px-4 md:px-8">
+            {artist.singles.slice(0, 8).map((single, index) => (
+              <Link key={single.albumId || `artist-single-${single.name.toLowerCase().trim()}-${index}`} href={`/album/${single.albumId}`}>
+                <motion.div
+                  whileHover={{ y: -5 }}
+                  className="group shrink-0 w-[150px] md:w-[170px] flex flex-col gap-2.5 cursor-pointer text-left focus:outline-none"
+                >
+                  <div
+                    className="relative rounded-[16px] overflow-hidden aspect-square transition-all duration-300"
+                    style={{
+                      background: "var(--mf-bg-card)",
+                      border: "1px solid var(--mf-border)",
+                      boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
+                    }}
+                  >
+                    <SafeImage
+                      src={single.thumbnail}
+                      alt={single.name}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                      fallbackType="album"
+                    />
+                  </div>
+                  <div className="px-0.5">
+                    <p
+                      className="text-[12px] font-bold truncate leading-tight transition-colors"
+                      style={{ color: "var(--mf-text-primary)" }}
+                    >
+                      {single.name}
+                    </p>
+                    {single.year && (
+                      <p className="text-[10px] font-medium truncate mt-0.5 flex items-center gap-1" style={{ color: "var(--mf-text-muted)" }}>
+                        <Calendar size={11} />
+                        {single.year}
+                      </p>
+                    )}
+                  </div>
+                </motion.div>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Biography (Only rendered when real description or bio is available) */}
+      {bioSummary && (
+        <section className="mf-section">
+          <div className="mf-section-header">
+            <div>
+              <p
+                className="text-[9px] font-black uppercase mb-1"
+                style={{ letterSpacing: "0.18em", color: "var(--mf-text-dim)" }}
+              >
+                About
+              </p>
+              <h2 className="mf-section-title">Biography</h2>
+            </div>
+          </div>
+          <div
+            className="p-5 md:p-6 rounded-2xl bg-[#121216] border border-white/[0.06]"
+          >
+            <p className="text-[12px] leading-relaxed" style={{ color: "var(--mf-text-secondary)" }}>
+              {bioSummary}
+            </p>
+          </div>
+        </section>
+      )}
 
       {/* Similar Artists */}
       {artist.similarArtists && artist.similarArtists.length > 0 && (
@@ -392,11 +488,11 @@ export default function ArtistPage() {
             </div>
           </div>
           <div className="mf-rail -mx-4 md:-mx-8 px-4 md:px-8">
-            {artist.similarArtists.slice(0, 6).map((sim) => {
+            {artist.similarArtists.slice(0, 8).map((sim, index) => {
               const simImage = sim.thumbnails?.[sim.thumbnails.length - 1]?.url || "/logo.png";
               return (
                 <motion.div
-                  key={sim.artistId}
+                  key={sim.artistId || `artist-sim-${sim.name.toLowerCase().trim()}-${index}`}
                   whileHover={{ y: -5 }}
                   onClick={() => router.push(`/artist/${encodeURIComponent(sim.name)}`)}
                   className="cursor-pointer group flex flex-col items-center gap-2.5 shrink-0 focus:outline-none w-[100px]"
@@ -435,11 +531,17 @@ export default function ArtistPage() {
           isOpen={shareOpen}
           onClose={() => setShareOpen(false)}
           title={artist.name}
-          subtitle={`${artist.monthlyListeners || "22M"} Monthly Listeners · MusicFlow`}
+          subtitle={artist.monthlyListeners ? `${artist.monthlyListeners} Monthly Listeners · MusicFlow` : `${artist.name} on MusicFlow`}
           thumbnail={artist.thumbnails?.[artist.thumbnails.length - 1]?.url || "/logo.png"}
           type="artist"
         />
       )}
+
+      <AddToPlaylistModal
+        isOpen={!!selectedPlaylistSong}
+        onClose={() => setSelectedPlaylistSong(null)}
+        song={selectedPlaylistSong}
+      />
     </main>
   );
 }

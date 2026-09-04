@@ -4,7 +4,7 @@ import { saveRecentSong } from "@/lib/supabase-recent";
 import { savePlaylist, deletePlaylistDB, updatePlaylistDetailsDB } from "@/lib/supabase-playlists";
 import { saveSongToPlaylist, removeSongFromPlaylistDB } from "@/lib/supabase-playlist-songs";
 import { saveLikedSong, removeLikedSong } from "@/lib/supabase-liked";
-import { Track, Playlist, ListeningHistoryEntry } from "@/types/music";
+import { Track, Playlist, ListeningHistoryEntry, FollowedArtist, SavedAlbum } from "@/types/music";
 import { getCachedArtwork, resolveTrackMetadata } from "@/lib/metadata-resolver";
 
 interface PlayerState {
@@ -24,6 +24,8 @@ interface PlayerState {
   recentSongs: Track[];
   history: ListeningHistoryEntry[];
   playlists: Playlist[];
+  followedArtists: FollowedArtist[];
+  savedAlbums: SavedAlbum[];
   isQueueOpen: boolean;
   playbackSpeed: number;
   sleepTimer: number | null; // minutes remaining, or null
@@ -49,9 +51,13 @@ interface PlayerState {
   removeHistoryItem: (id: string) => void;
   clearHistory: () => void;
   setPlaylists: (playlists: Playlist[]) => void;
+  setFollowedArtists: (artists: FollowedArtist[]) => void;
+  setSavedAlbums: (albums: SavedAlbum[]) => void;
 
   toggleLike: (song: Track) => Promise<void>;
   addRecentSong: (song: Track) => Promise<void>;
+  toggleFollowArtist: (artist: { name: string; image?: string | null; genre?: string }) => void;
+  toggleSaveAlbum: (album: { albumId: string; name: string; artist: string; thumbnail?: string; year?: number; songCount?: number }) => void;
   
   addPlaylist: (name: string) => Promise<void>;
   deletePlaylist: (playlistId: number) => Promise<void>;
@@ -66,6 +72,7 @@ interface PlayerState {
   ) => Promise<void>;
   addSongToPlaylist: (playlistId: number, song: Track) => Promise<void>;
   removeSongFromPlaylist: (playlistId: number, videoId: string) => Promise<void>;
+  reorderPlaylistSongs: (playlistId: number, startIndex: number, endIndex: number) => Promise<void>;
 
   setTrack: (
     videoId: string,
@@ -105,6 +112,8 @@ export const usePlayerStore = create<PlayerState>()(
       recentSongs: [],
       history: [],
       playlists: [],
+      followedArtists: [],
+      savedAlbums: [],
       isQueueOpen: false,
       playbackSpeed: 1.0,
       sleepTimer: null,
@@ -161,6 +170,46 @@ export const usePlayerStore = create<PlayerState>()(
       },
       clearHistory: () => set({ history: [] }),
       setPlaylists: (playlists) => set({ playlists }),
+      setFollowedArtists: (artists) => set({ followedArtists: artists }),
+      setSavedAlbums: (albums) => set({ savedAlbums: albums }),
+
+      toggleFollowArtist: (artist) => {
+        const { followedArtists } = get();
+        const exists = followedArtists.some(
+          (a) => a.name.toLowerCase() === artist.name.toLowerCase()
+        );
+        if (exists) {
+          set({
+            followedArtists: followedArtists.filter(
+              (a) => a.name.toLowerCase() !== artist.name.toLowerCase()
+            ),
+          });
+        } else {
+          set({
+            followedArtists: [
+              { ...artist, followedAt: Date.now() },
+              ...followedArtists,
+            ],
+          });
+        }
+      },
+
+      toggleSaveAlbum: (album) => {
+        const { savedAlbums } = get();
+        const exists = savedAlbums.some((a) => a.albumId === album.albumId);
+        if (exists) {
+          set({
+            savedAlbums: savedAlbums.filter((a) => a.albumId !== album.albumId),
+          });
+        } else {
+          set({
+            savedAlbums: [
+              { ...album, savedAt: Date.now() },
+              ...savedAlbums,
+            ],
+          });
+        }
+      },
 
       setTrack: (videoId, title, artist, thumbnail, index = 0) => {
         const cachedArt = getCachedArtwork(title, artist, videoId) || thumbnail;
@@ -354,6 +403,22 @@ export const usePlayerStore = create<PlayerState>()(
         });
       },
 
+      reorderPlaylistSongs: async (playlistId, startIndex, endIndex) => {
+        const { playlists } = get();
+        const playlist = playlists.find((p) => p.id === playlistId);
+        if (!playlist || !playlist.songs) return;
+
+        const result = Array.from(playlist.songs);
+        const [removed] = result.splice(startIndex, 1);
+        result.splice(endIndex, 0, removed);
+
+        set({
+          playlists: playlists.map((p) =>
+            p.id === playlistId ? { ...p, songs: result } : p
+          ),
+        });
+      },
+
       deletePlaylist: async (playlistId) => {
         const { playlists } = get();
         try {
@@ -433,6 +498,8 @@ export const usePlayerStore = create<PlayerState>()(
         recentSongs: state.recentSongs,
         history: state.history,
         playlists: state.playlists,
+        followedArtists: state.followedArtists,
+        savedAlbums: state.savedAlbums,
         isShuffle: state.isShuffle,
         isRepeat: state.isRepeat,
         playbackSpeed: state.playbackSpeed,

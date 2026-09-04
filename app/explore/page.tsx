@@ -432,7 +432,7 @@ export default function ExplorePage() {
                           {artist.name}
                         </p>
                         <p className="text-[9px] text-zinc-500">
-                          {artist.monthlyListeners} monthly listeners
+                          {artist.monthlyListeners ? `${artist.monthlyListeners} monthly listeners` : "Trending Artist"}
                         </p>
                       </div>
                     </div>
@@ -469,7 +469,7 @@ export default function ExplorePage() {
                           {album.name}
                         </p>
                         <p className="text-[9px] text-zinc-500 truncate">
-                          {album.artist} · {album.year}
+                          {album.artist}{album.year ? ` · ${album.year}` : ""}
                         </p>
                       </div>
                     </div>

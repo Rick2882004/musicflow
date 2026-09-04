@@ -362,13 +362,21 @@ export function useResolvedArtwork({
   useEffect(() => {
     // Skip if already iTunes artwork
     if (initialSrc && initialSrc.includes("mzstatic.com")) {
-      setArtworkUrl(initialSrc);
-      setIsITunes(true);
+      if (artworkUrl !== initialSrc) {
+        queueMicrotask(() => {
+          setArtworkUrl(initialSrc);
+          setIsITunes(true);
+        });
+      }
       return;
     }
 
     if (!title) {
-      setArtworkUrl(initialSrc || "");
+      if (artworkUrl !== (initialSrc || "")) {
+        queueMicrotask(() => {
+          setArtworkUrl(initialSrc || "");
+        });
+      }
       return;
     }
 
@@ -380,16 +388,20 @@ export function useResolvedArtwork({
     if (fallbackType === "album") {
       const cached = albumCache.get(key);
       if (cached) {
-        setArtworkUrl(cached);
-        setIsITunes(true);
+        queueMicrotask(() => {
+          setArtworkUrl(cached);
+          setIsITunes(true);
+        });
         return;
       }
     } else {
       const cached = memoryCache.get(key);
       if (cached && cached.artworkUrl) {
-        setArtworkUrl(cached.artworkUrl);
-        setIsITunes(true);
-        setMetadata(cached);
+        queueMicrotask(() => {
+          setArtworkUrl(cached.artworkUrl!);
+          setIsITunes(true);
+          setMetadata(cached);
+        });
         return;
       }
     }

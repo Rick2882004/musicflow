@@ -221,7 +221,6 @@ export default function PlaylistsPage() {
             >
               {filteredPlaylists.map((playlist: Playlist) => {
                 const songs = playlist?.songs || [];
-                const updatedMock = songs.length > 0 ? "Updated 2 days ago" : "Created recently";
                 return (
                   <motion.div key={playlist.id} variants={itemVariants} whileHover={{ y: -6 }}>
                     <Link href={`/playlists/${playlist.id}`}>
@@ -254,7 +253,7 @@ export default function PlaylistsPage() {
                               {playlist.name}
                             </h3>
                             <p className="text-[10px] text-zinc-555 mt-0.5 font-medium">
-                              {songs.length} Tracks · {updatedMock}
+                              {songs.length} {songs.length === 1 ? "track" : "tracks"}
                             </p>
                           </div>
                           <button className="text-zinc-650 hover:text-white opacity-0 group-hover:opacity-100 transition-opacity p-0.5 shrink-0">
