@@ -271,7 +271,9 @@ export default function BottomPlayer() {
       artist: artist || "MusicFlow Artist",
       album: "MusicFlow",
       artwork: [
-        { src: thumbnail || "/logo.png", sizes: "512x512", type: "image/png" }
+        { src: thumbnail || "/logo.png", sizes: "512x512", type: "image/png" },
+        { src: thumbnail || "/icon-512.png", sizes: "512x512", type: "image/png" },
+        { src: thumbnail || "/icon-192.png", sizes: "192x192", type: "image/png" },
       ]
     });
 
@@ -279,10 +281,12 @@ export default function BottomPlayer() {
       navigator.mediaSession.setActionHandler("play", () => {
         if (player) player.playVideo();
         setIsPlaying(true);
+        navigator.mediaSession.playbackState = "playing";
       });
       navigator.mediaSession.setActionHandler("pause", () => {
         if (player) player.pauseVideo();
         setIsPlaying(false);
+        navigator.mediaSession.playbackState = "paused";
       });
       navigator.mediaSession.setActionHandler("previoustrack", () => prevTrack());
       navigator.mediaSession.setActionHandler("nexttrack", () => nextTrack());
@@ -294,6 +298,16 @@ export default function BottomPlayer() {
         const skipTime = details.seekOffset || 10;
         seekDelta(skipTime);
       });
+      // seekto: called when user drags the OS lock-screen seek bar
+      try {
+        navigator.mediaSession.setActionHandler("seekto", (details) => {
+          if (player && details.seekTime != null) {
+            player.seekTo(details.seekTime, true);
+          }
+        });
+      } catch {
+        // seekto not supported on all browsers
+      }
     } catch (err) {
       console.warn("MediaSession handler error:", err);
     }
@@ -302,23 +316,28 @@ export default function BottomPlayer() {
   // Visibility change & Network recovery for background playback
   useEffect(() => {
     function handleVisibilityChange() {
-      if (document.visibilityState === "visible" && player && isPlaying) {
+      if (document.visibilityState === "visible" && isPlaying) {
+        // Re-read player from store in case it was set after this effect ran
+        const currentPlayer = usePlayerStore.getState().player;
+        if (!currentPlayer) return;
         try {
-          const state = player.getPlayerState();
-          // If paused due to browser background throttling, resume
-          if (state !== 1 && state !== 3) {
-            player.playVideo();
+          const state = currentPlayer.getPlayerState();
+          // Resume if paused (2) or ended (0), not if already playing (1) or buffering (3)
+          if (state === 2 || state === 0 || state === -1) {
+            currentPlayer.playVideo();
           }
         } catch {
-          // Ignore iframe access restrictions
+          // Ignore iframe access restrictions on page background
         }
       }
     }
 
     function handleOnline() {
-      if (player && isPlaying) {
+      const currentPlayer = usePlayerStore.getState().player;
+      const currentlyPlaying = usePlayerStore.getState().isPlaying;
+      if (currentPlayer && currentlyPlaying) {
         try {
-          player.playVideo();
+          currentPlayer.playVideo();
         } catch {
           // Ignore network reconnect recovery errors
         }
@@ -331,7 +350,8 @@ export default function BottomPlayer() {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       window.removeEventListener("online", handleOnline);
     };
-  }, [player, isPlaying]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isPlaying]);
 
   // Consolidated Global Keyboard Shortcuts
   useEffect(() => {
@@ -443,7 +463,21 @@ export default function BottomPlayer() {
         const time = player.getCurrentTime();
         const dur = player.getDuration();
         if (typeof time === "number") setCurrentTime(time);
-        if (typeof dur === "number" && dur > 0) setDuration(dur);
+        if (typeof dur === "number" && dur > 0) {
+          setDuration(dur);
+          // Keep MediaSession position state in sync for lock-screen seek bar
+          if (typeof navigator !== "undefined" && "mediaSession" in navigator) {
+            try {
+              navigator.mediaSession.setPositionState({
+                duration: dur,
+                playbackRate: player.getPlaybackRate?.() || 1,
+                position: Math.min(time, dur),
+              });
+            } catch {
+              // setPositionState not supported on all browsers
+            }
+          }
+        }
       } catch {
         // Ignored if player is transitioning
       }
