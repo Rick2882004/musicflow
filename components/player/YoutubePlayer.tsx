@@ -4,6 +4,7 @@ import YouTube from "react-youtube";
 import { useRef } from "react";
 import { usePlayerStore } from "@/store/player-store";
 import { useShallow } from "zustand/react/shallow";
+import { safeSetPositionState } from "@/hooks/useMediaSession";
 
 // YouTube player state codes
 const YT_UNSTARTED = -1;
@@ -47,24 +48,18 @@ export default function YoutubePlayer({ videoId }: Props) {
     // Sync actual YouTube playback state → Zustand store
     if (state === YT_PLAYING) {
       setIsPlaying(true);
-      // Update MediaSession playback state for lock screen
       if (typeof navigator !== "undefined" && "mediaSession" in navigator) {
         navigator.mediaSession.playbackState = "playing";
-        // Update position state for lock-screen seek bar
+        // Set initial position state so the lock-screen seek bar appears immediately
         try {
           const dur = event.target.getDuration();
           const pos = event.target.getCurrentTime();
+          const rate = event.target.getPlaybackRate() || 1;
           if (dur > 0) {
             setDuration(dur);
-            navigator.mediaSession.setPositionState({
-              duration: dur,
-              playbackRate: event.target.getPlaybackRate() || 1,
-              position: Math.min(pos, dur),
-            });
+            safeSetPositionState(dur, pos, rate);
           }
-        } catch {
-          // Ignore if MediaSession setPositionState is not supported
-        }
+        } catch { /* ignore */ }
       }
     } else if (state === YT_PAUSED) {
       setIsPlaying(false);

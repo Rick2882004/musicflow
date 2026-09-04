@@ -2,7 +2,7 @@
 
 import { usePlayerStore } from "@/store/player-store";
 import { useShallow } from "zustand/react/shallow";
-import { useState, useEffect, useCallback, memo } from "react";
+import { useState, useEffect, memo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useHasMounted } from "@/hooks/useHasMounted";
 import {
@@ -27,8 +27,10 @@ import { cn } from "@/lib/utils";
 import QueueDrawer from "./QueueDrawer";
 import { SafeImage } from "@/components/ui/SafeImage";
 import { useSmartQueue } from "@/hooks/useSmartQueue";
+import { useMediaSession, safeSetPositionState } from "@/hooks/useMediaSession";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+
 
 function formatTime(secs: number) {
   const m = Math.floor(secs / 60);
@@ -166,6 +168,7 @@ function IconBtn({
 
 export default function BottomPlayer() {
   useSmartQueue();
+  useMediaSession(); // Canonical Android/iOS MediaSession integration
   const {
     videoId,
     title,
@@ -253,65 +256,13 @@ export default function BottomPlayer() {
     }
   };
 
-  const seekDelta = useCallback((delta: number) => {
-    if (!player) return;
-    player.seekTo(Math.min(Math.max(player.getCurrentTime() + delta, 0), duration), true);
-  }, [player, duration]);
-
   const toggleMute = () => {
     setIsMuted(!isMuted);
   };
 
-  // MediaSession API Integration
-  useEffect(() => {
-    if (typeof window === "undefined" || !("mediaSession" in navigator) || !videoId) return;
+  // [MediaSession handlers are now managed by useMediaSession hook above]
+  // Metadata is updated automatically when videoId/title/artist/thumbnail change.
 
-    navigator.mediaSession.metadata = new MediaMetadata({
-      title: title || "MusicFlow Track",
-      artist: artist || "MusicFlow Artist",
-      album: "MusicFlow",
-      artwork: [
-        { src: thumbnail || "/logo.png", sizes: "512x512", type: "image/png" },
-        { src: thumbnail || "/icon-512.png", sizes: "512x512", type: "image/png" },
-        { src: thumbnail || "/icon-192.png", sizes: "192x192", type: "image/png" },
-      ]
-    });
-
-    try {
-      navigator.mediaSession.setActionHandler("play", () => {
-        if (player) player.playVideo();
-        setIsPlaying(true);
-        navigator.mediaSession.playbackState = "playing";
-      });
-      navigator.mediaSession.setActionHandler("pause", () => {
-        if (player) player.pauseVideo();
-        setIsPlaying(false);
-        navigator.mediaSession.playbackState = "paused";
-      });
-      navigator.mediaSession.setActionHandler("previoustrack", () => prevTrack());
-      navigator.mediaSession.setActionHandler("nexttrack", () => nextTrack());
-      navigator.mediaSession.setActionHandler("seekbackward", (details) => {
-        const skipTime = details.seekOffset || 10;
-        seekDelta(-skipTime);
-      });
-      navigator.mediaSession.setActionHandler("seekforward", (details) => {
-        const skipTime = details.seekOffset || 10;
-        seekDelta(skipTime);
-      });
-      // seekto: called when user drags the OS lock-screen seek bar
-      try {
-        navigator.mediaSession.setActionHandler("seekto", (details) => {
-          if (player && details.seekTime != null) {
-            player.seekTo(details.seekTime, true);
-          }
-        });
-      } catch {
-        // seekto not supported on all browsers
-      }
-    } catch (err) {
-      console.warn("MediaSession handler error:", err);
-    }
-  }, [videoId, title, artist, thumbnail, player, setIsPlaying, prevTrack, nextTrack, setCurrentTime, seekDelta]);
 
   // Visibility change & Network recovery for background playback
   useEffect(() => {
@@ -350,8 +301,8 @@ export default function BottomPlayer() {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       window.removeEventListener("online", handleOnline);
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isPlaying]);
+
 
   // Consolidated Global Keyboard Shortcuts
   useEffect(() => {
@@ -466,17 +417,7 @@ export default function BottomPlayer() {
         if (typeof dur === "number" && dur > 0) {
           setDuration(dur);
           // Keep MediaSession position state in sync for lock-screen seek bar
-          if (typeof navigator !== "undefined" && "mediaSession" in navigator) {
-            try {
-              navigator.mediaSession.setPositionState({
-                duration: dur,
-                playbackRate: player.getPlaybackRate?.() || 1,
-                position: Math.min(time, dur),
-              });
-            } catch {
-              // setPositionState not supported on all browsers
-            }
-          }
+          safeSetPositionState(dur, time, player.getPlaybackRate?.() || 1);
         }
       } catch {
         // Ignored if player is transitioning
