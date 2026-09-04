@@ -20,7 +20,11 @@ export interface Playlist {
 
 export interface Artist {
   id?: string;
+  artistId?: string;
+  browseId?: string;
   name: string;
+  genre?: string;
+  source?: "itunes" | "ytmusic";
   image?: string | null;
   thumbnails?: { url: string; width?: number; height?: number }[];
   banner?: string | null;
@@ -31,6 +35,7 @@ export interface Artist {
   songs?: Track[];
   albums?: Album[];
   singles?: Album[];
+  compilations?: Album[];
   similarArtists?: { artistId: string; name: string; thumbnails?: { url: string }[] }[];
 }
 
@@ -43,8 +48,11 @@ export interface Album {
     artistId?: string | null;
   };
   year?: number;
+  trackCount?: number;
   thumbnail?: string;
   thumbnails?: { url: string; width?: number; height?: number }[];
+  genre?: string;
+  copyright?: string;
   songs?: Track[];
 }
 

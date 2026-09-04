@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { usePlayerStore } from "@/store/player-store";
 import { useShallow } from "zustand/react/shallow";
 import { motion } from "framer-motion";
@@ -23,20 +23,27 @@ const ARTIST_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
 export default function ArtistPage() {
   const params = useParams();
+  const searchParams = useSearchParams();
   const router = useRouter();
 
   const artistName = decodeURIComponent(params.name as string);
+  const artistId = searchParams?.get("id") || searchParams?.get("artistId") || undefined;
+  const cacheKey = artistId ? `artist:${artistId}` : `artist-name:${artistName.toLowerCase().trim()}`;
 
   const [artist, setArtist] = useState<Artist | null>(() => {
-    const cached = artistProfileCache.get(artistName.toLowerCase());
+    const cached = artistProfileCache.get(cacheKey);
     return cached && Date.now() - cached.timestamp < ARTIST_CACHE_TTL ? cached.data : null;
   });
   const [loading, setLoading] = useState<boolean>(() => {
-    const cached = artistProfileCache.get(artistName.toLowerCase());
+    const cached = artistProfileCache.get(cacheKey);
     return !(cached && Date.now() - cached.timestamp < ARTIST_CACHE_TTL);
   });
   const [shareOpen, setShareOpen] = useState(false);
   const [selectedPlaylistSong, setSelectedPlaylistSong] = useState<Track | null>(null);
+  const [showAllTracks, setShowAllTracks] = useState(false);
+  const [showAllAlbums, setShowAllAlbums] = useState(false);
+  const [showAllSingles, setShowAllSingles] = useState(false);
+  const [showAllCompilations, setShowAllCompilations] = useState(false);
 
   const { setQueue, setTrack, followedArtists, toggleFollowArtist } = usePlayerStore(
     useShallow((s) => ({
@@ -48,14 +55,17 @@ export default function ArtistPage() {
   );
 
   const isFollowing = followedArtists.some(
-    (a) => a.name.toLowerCase() === artistName.toLowerCase()
+    (a) =>
+      (artist?.artistId && a.artistId && a.artistId === artist.artistId) ||
+      (artist?.browseId && a.browseId && a.browseId === artist.browseId) ||
+      a.name.toLowerCase() === artistName.toLowerCase()
   );
 
   useEffect(() => {
     let isMounted = true;
 
     async function loadArtistData() {
-      const cached = artistProfileCache.get(artistName.toLowerCase());
+      const cached = artistProfileCache.get(cacheKey);
       if (cached && Date.now() - cached.timestamp < ARTIST_CACHE_TTL) {
         setArtist(cached.data);
         setLoading(false);
@@ -64,12 +74,18 @@ export default function ArtistPage() {
 
       setLoading(true);
       try {
-        const res = await fetch(`/api/artist?name=${encodeURIComponent(artistName)}`);
+        const queryUrl = artistId
+          ? `/api/artist?name=${encodeURIComponent(artistName)}&id=${encodeURIComponent(artistId)}`
+          : `/api/artist?name=${encodeURIComponent(artistName)}`;
+        const res = await fetch(queryUrl);
         if (!res.ok) throw new Error("Failed to load artist details");
         const data: Artist = await res.json();
         if (isMounted) {
           setArtist(data);
-          artistProfileCache.set(artistName.toLowerCase(), { data, timestamp: Date.now() });
+          artistProfileCache.set(cacheKey, { data, timestamp: Date.now() });
+          if (data.artistId) {
+            artistProfileCache.set(`artist:${data.artistId}`, { data, timestamp: Date.now() });
+          }
         }
       } catch (err) {
         console.error("Artist profile fetch error:", err);
@@ -83,15 +99,17 @@ export default function ArtistPage() {
     return () => {
       isMounted = false;
     };
-  }, [artistName]);
+  }, [artistName, artistId, cacheKey]);
 
   const toggleFollow = () => {
     if (!artist) return;
     const img = artist.image || artist.thumbnails?.[artist.thumbnails.length - 1]?.url || null;
     toggleFollowArtist({
+      artistId: artist.artistId,
+      browseId: artist.browseId,
       name: artist.name,
       image: img,
-      genre: "Artist",
+      genre: artist.genre || "Artist",
     });
   };
 
@@ -264,9 +282,17 @@ export default function ArtistPage() {
               </p>
               <h2 className="mf-section-title">Top Tracks</h2>
             </div>
+            {artist.songs.length > 5 && (
+              <button
+                onClick={() => setShowAllTracks(!showAllTracks)}
+                className="text-[11px] font-bold text-purple-400 hover:text-purple-300 transition cursor-pointer"
+              >
+                {showAllTracks ? "Show less" : `See all (${artist.songs.length})`}
+              </button>
+            )}
           </div>
           <div className="space-y-1.5">
-            {artist.songs.slice(0, 10).map((song, index) => (
+            {(showAllTracks ? artist.songs : artist.songs.slice(0, 5)).map((song, index) => (
               <div
                 key={song.videoId || `artist-song-${song.title.toLowerCase().trim()}-${index}`}
                 onClick={() => playSong(song, index)}
@@ -346,49 +372,100 @@ export default function ArtistPage() {
               >
                 Releases
               </p>
-              <h2 className="mf-section-title">Featured Albums</h2>
+              <h2 className="mf-section-title">Albums</h2>
             </div>
+            {artist.albums.length > 8 && (
+              <button
+                onClick={() => setShowAllAlbums(!showAllAlbums)}
+                className="text-[11px] font-bold text-purple-400 hover:text-purple-300 transition cursor-pointer"
+              >
+                {showAllAlbums ? "Show less" : `See all (${artist.albums.length})`}
+              </button>
+            )}
           </div>
-          <div className="mf-rail -mx-4 md:-mx-8 px-4 md:px-8">
-            {artist.albums.slice(0, 8).map((album, index) => (
-              <Link key={album.albumId || `artist-album-${album.name.toLowerCase().trim()}-${index}`} href={`/album/${album.albumId}`}>
-                <motion.div
-                  whileHover={{ y: -5 }}
-                  className="group shrink-0 w-[150px] md:w-[170px] flex flex-col gap-2.5 cursor-pointer text-left focus:outline-none"
-                >
-                  <div
-                    className="relative rounded-[16px] overflow-hidden aspect-square transition-all duration-300"
-                    style={{
-                      background: "var(--mf-bg-card)",
-                      border: "1px solid var(--mf-border)",
-                      boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
-                    }}
+          {showAllAlbums ? (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+              {artist.albums.map((album, index) => (
+                <Link key={album.albumId || `artist-album-${album.name.toLowerCase().trim()}-${index}`} href={`/album/${album.albumId}`}>
+                  <motion.div
+                    whileHover={{ y: -5 }}
+                    className="group flex flex-col gap-2.5 cursor-pointer text-left focus:outline-none"
                   >
-                    <SafeImage
-                      src={album.thumbnail}
-                      alt={album.name}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                      fallbackType="album"
-                    />
-                  </div>
-                  <div className="px-0.5">
-                    <p
-                      className="text-[12px] font-bold truncate leading-tight transition-colors"
-                      style={{ color: "var(--mf-text-primary)" }}
+                    <div
+                      className="relative rounded-[16px] overflow-hidden aspect-square transition-all duration-300"
+                      style={{
+                        background: "var(--mf-bg-card)",
+                        border: "1px solid var(--mf-border)",
+                        boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
+                      }}
                     >
-                      {album.name}
-                    </p>
-                    {album.year && (
-                      <p className="text-[10px] font-medium truncate mt-0.5 flex items-center gap-1" style={{ color: "var(--mf-text-muted)" }}>
-                        <Calendar size={11} />
-                        {album.year}
+                      <SafeImage
+                        src={album.thumbnail}
+                        alt={album.name}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                        fallbackType="album"
+                      />
+                    </div>
+                    <div className="px-0.5">
+                      <p
+                        className="text-[12px] font-bold truncate leading-tight transition-colors"
+                        style={{ color: "var(--mf-text-primary)" }}
+                      >
+                        {album.name}
                       </p>
-                    )}
-                  </div>
-                </motion.div>
-              </Link>
-            ))}
-          </div>
+                      {album.year && (
+                        <p className="text-[10px] font-medium truncate mt-0.5 flex items-center gap-1" style={{ color: "var(--mf-text-muted)" }}>
+                          <Calendar size={11} />
+                          {album.year}
+                        </p>
+                      )}
+                    </div>
+                  </motion.div>
+                </Link>
+              ))}
+            </div>
+          ) : (
+            <div className="mf-rail -mx-4 md:-mx-8 px-4 md:px-8">
+              {artist.albums.slice(0, 8).map((album, index) => (
+                <Link key={album.albumId || `artist-album-${album.name.toLowerCase().trim()}-${index}`} href={`/album/${album.albumId}`}>
+                  <motion.div
+                    whileHover={{ y: -5 }}
+                    className="group shrink-0 w-[150px] md:w-[170px] flex flex-col gap-2.5 cursor-pointer text-left focus:outline-none"
+                  >
+                    <div
+                      className="relative rounded-[16px] overflow-hidden aspect-square transition-all duration-300"
+                      style={{
+                        background: "var(--mf-bg-card)",
+                        border: "1px solid var(--mf-border)",
+                        boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
+                      }}
+                    >
+                      <SafeImage
+                        src={album.thumbnail}
+                        alt={album.name}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                        fallbackType="album"
+                      />
+                    </div>
+                    <div className="px-0.5">
+                      <p
+                        className="text-[12px] font-bold truncate leading-tight transition-colors"
+                        style={{ color: "var(--mf-text-primary)" }}
+                      >
+                        {album.name}
+                      </p>
+                      {album.year && (
+                        <p className="text-[10px] font-medium truncate mt-0.5 flex items-center gap-1" style={{ color: "var(--mf-text-muted)" }}>
+                          <Calendar size={11} />
+                          {album.year}
+                        </p>
+                      )}
+                    </div>
+                  </motion.div>
+                </Link>
+              ))}
+            </div>
+          )}
         </section>
       )}
 
@@ -405,47 +482,206 @@ export default function ArtistPage() {
               </p>
               <h2 className="mf-section-title">Singles & EPs</h2>
             </div>
+            {artist.singles.length > 8 && (
+              <button
+                onClick={() => setShowAllSingles(!showAllSingles)}
+                className="text-[11px] font-bold text-purple-400 hover:text-purple-300 transition cursor-pointer"
+              >
+                {showAllSingles ? "Show less" : `See all (${artist.singles.length})`}
+              </button>
+            )}
           </div>
-          <div className="mf-rail -mx-4 md:-mx-8 px-4 md:px-8">
-            {artist.singles.slice(0, 8).map((single, index) => (
-              <Link key={single.albumId || `artist-single-${single.name.toLowerCase().trim()}-${index}`} href={`/album/${single.albumId}`}>
-                <motion.div
-                  whileHover={{ y: -5 }}
-                  className="group shrink-0 w-[150px] md:w-[170px] flex flex-col gap-2.5 cursor-pointer text-left focus:outline-none"
-                >
-                  <div
-                    className="relative rounded-[16px] overflow-hidden aspect-square transition-all duration-300"
-                    style={{
-                      background: "var(--mf-bg-card)",
-                      border: "1px solid var(--mf-border)",
-                      boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
-                    }}
+          {showAllSingles ? (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+              {artist.singles.map((single, index) => (
+                <Link key={single.albumId || `artist-single-${single.name.toLowerCase().trim()}-${index}`} href={`/album/${single.albumId}`}>
+                  <motion.div
+                    whileHover={{ y: -5 }}
+                    className="group flex flex-col gap-2.5 cursor-pointer text-left focus:outline-none"
                   >
-                    <SafeImage
-                      src={single.thumbnail}
-                      alt={single.name}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                      fallbackType="album"
-                    />
-                  </div>
-                  <div className="px-0.5">
-                    <p
-                      className="text-[12px] font-bold truncate leading-tight transition-colors"
-                      style={{ color: "var(--mf-text-primary)" }}
+                    <div
+                      className="relative rounded-[16px] overflow-hidden aspect-square transition-all duration-300"
+                      style={{
+                        background: "var(--mf-bg-card)",
+                        border: "1px solid var(--mf-border)",
+                        boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
+                      }}
                     >
-                      {single.name}
-                    </p>
-                    {single.year && (
-                      <p className="text-[10px] font-medium truncate mt-0.5 flex items-center gap-1" style={{ color: "var(--mf-text-muted)" }}>
-                        <Calendar size={11} />
-                        {single.year}
+                      <SafeImage
+                        src={single.thumbnail}
+                        alt={single.name}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                        fallbackType="album"
+                      />
+                    </div>
+                    <div className="px-0.5">
+                      <p
+                        className="text-[12px] font-bold truncate leading-tight transition-colors"
+                        style={{ color: "var(--mf-text-primary)" }}
+                      >
+                        {single.name}
                       </p>
-                    )}
-                  </div>
-                </motion.div>
-              </Link>
-            ))}
+                      {single.year && (
+                        <p className="text-[10px] font-medium truncate mt-0.5 flex items-center gap-1" style={{ color: "var(--mf-text-muted)" }}>
+                          <Calendar size={11} />
+                          {single.year}
+                        </p>
+                      )}
+                    </div>
+                  </motion.div>
+                </Link>
+              ))}
+            </div>
+          ) : (
+            <div className="mf-rail -mx-4 md:-mx-8 px-4 md:px-8">
+              {artist.singles.slice(0, 8).map((single, index) => (
+                <Link key={single.albumId || `artist-single-${single.name.toLowerCase().trim()}-${index}`} href={`/album/${single.albumId}`}>
+                  <motion.div
+                    whileHover={{ y: -5 }}
+                    className="group shrink-0 w-[150px] md:w-[170px] flex flex-col gap-2.5 cursor-pointer text-left focus:outline-none"
+                  >
+                    <div
+                      className="relative rounded-[16px] overflow-hidden aspect-square transition-all duration-300"
+                      style={{
+                        background: "var(--mf-bg-card)",
+                        border: "1px solid var(--mf-border)",
+                        boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
+                      }}
+                    >
+                      <SafeImage
+                        src={single.thumbnail}
+                        alt={single.name}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                        fallbackType="album"
+                      />
+                    </div>
+                    <div className="px-0.5">
+                      <p
+                        className="text-[12px] font-bold truncate leading-tight transition-colors"
+                        style={{ color: "var(--mf-text-primary)" }}
+                      >
+                        {single.name}
+                      </p>
+                      {single.year && (
+                        <p className="text-[10px] font-medium truncate mt-0.5 flex items-center gap-1" style={{ color: "var(--mf-text-muted)" }}>
+                          <Calendar size={11} />
+                          {single.year}
+                        </p>
+                      )}
+                    </div>
+                  </motion.div>
+                </Link>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
+
+      {/* Compilations section */}
+      {artist.compilations && artist.compilations.length > 0 && (
+        <section className="mf-section">
+          <div className="mf-section-header">
+            <div>
+              <p
+                className="text-[9px] font-black uppercase mb-1"
+                style={{ letterSpacing: "0.18em", color: "var(--mf-text-dim)" }}
+              >
+                Collections
+              </p>
+              <h2 className="mf-section-title">Compilations</h2>
+            </div>
+            {artist.compilations.length > 8 && (
+              <button
+                onClick={() => setShowAllCompilations(!showAllCompilations)}
+                className="text-[11px] font-bold text-purple-400 hover:text-purple-300 transition cursor-pointer"
+              >
+                {showAllCompilations ? "Show less" : `See all (${artist.compilations.length})`}
+              </button>
+            )}
           </div>
+          {showAllCompilations ? (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+              {artist.compilations.map((comp, index) => (
+                <Link key={comp.albumId || `artist-comp-${comp.name.toLowerCase().trim()}-${index}`} href={`/album/${comp.albumId}`}>
+                  <motion.div
+                    whileHover={{ y: -5 }}
+                    className="group flex flex-col gap-2.5 cursor-pointer text-left focus:outline-none"
+                  >
+                    <div
+                      className="relative rounded-[16px] overflow-hidden aspect-square transition-all duration-300"
+                      style={{
+                        background: "var(--mf-bg-card)",
+                        border: "1px solid var(--mf-border)",
+                        boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
+                      }}
+                    >
+                      <SafeImage
+                        src={comp.thumbnail}
+                        alt={comp.name}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                        fallbackType="album"
+                      />
+                    </div>
+                    <div className="px-0.5">
+                      <p
+                        className="text-[12px] font-bold truncate leading-tight transition-colors"
+                        style={{ color: "var(--mf-text-primary)" }}
+                      >
+                        {comp.name}
+                      </p>
+                      {comp.year && (
+                        <p className="text-[10px] font-medium truncate mt-0.5 flex items-center gap-1" style={{ color: "var(--mf-text-muted)" }}>
+                          <Calendar size={11} />
+                          {comp.year}
+                        </p>
+                      )}
+                    </div>
+                  </motion.div>
+                </Link>
+              ))}
+            </div>
+          ) : (
+            <div className="mf-rail -mx-4 md:-mx-8 px-4 md:px-8">
+              {artist.compilations.slice(0, 8).map((comp, index) => (
+                <Link key={comp.albumId || `artist-comp-${comp.name.toLowerCase().trim()}-${index}`} href={`/album/${comp.albumId}`}>
+                  <motion.div
+                    whileHover={{ y: -5 }}
+                    className="group shrink-0 w-[150px] md:w-[170px] flex flex-col gap-2.5 cursor-pointer text-left focus:outline-none"
+                  >
+                    <div
+                      className="relative rounded-[16px] overflow-hidden aspect-square transition-all duration-300"
+                      style={{
+                        background: "var(--mf-bg-card)",
+                        border: "1px solid var(--mf-border)",
+                        boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
+                      }}
+                    >
+                      <SafeImage
+                        src={comp.thumbnail}
+                        alt={comp.name}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                        fallbackType="album"
+                      />
+                    </div>
+                    <div className="px-0.5">
+                      <p
+                        className="text-[12px] font-bold truncate leading-tight transition-colors"
+                        style={{ color: "var(--mf-text-primary)" }}
+                      >
+                        {comp.name}
+                      </p>
+                      {comp.year && (
+                        <p className="text-[10px] font-medium truncate mt-0.5 flex items-center gap-1" style={{ color: "var(--mf-text-muted)" }}>
+                          <Calendar size={11} />
+                          {comp.year}
+                        </p>
+                      )}
+                    </div>
+                  </motion.div>
+                </Link>
+              ))}
+            </div>
+          )}
         </section>
       )}
 
@@ -494,7 +730,7 @@ export default function ArtistPage() {
                 <motion.div
                   key={sim.artistId || `artist-sim-${sim.name.toLowerCase().trim()}-${index}`}
                   whileHover={{ y: -5 }}
-                  onClick={() => router.push(`/artist/${encodeURIComponent(sim.name)}`)}
+                  onClick={() => router.push(sim.artistId ? `/artist/${encodeURIComponent(sim.name)}?id=${encodeURIComponent(sim.artistId)}` : `/artist/${encodeURIComponent(sim.name)}`)}
                   className="cursor-pointer group flex flex-col items-center gap-2.5 shrink-0 focus:outline-none w-[100px]"
                 >
                   <div

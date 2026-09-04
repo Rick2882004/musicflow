@@ -159,7 +159,7 @@ export default function AlbumPage() {
 
           <div className="flex flex-wrap items-center justify-center md:justify-start gap-3 text-[11px] font-semibold" style={{ color: "var(--mf-text-muted)" }}>
             <Link
-              href={`/artist/${encodeURIComponent(album.artist.name)}`}
+              href={album.artist?.artistId ? `/artist/${encodeURIComponent(album.artist.name)}?id=${encodeURIComponent(album.artist.artistId)}` : `/artist/${encodeURIComponent(album.artist.name)}`}
               className="text-zinc-200 hover:text-purple-400 transition duration-150 font-bold"
             >
               {album.artist.name}

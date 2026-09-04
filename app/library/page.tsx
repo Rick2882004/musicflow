@@ -280,7 +280,7 @@ export default function LibraryPage() {
                 {followedArtists.length > 0 ? (
                   <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-4">
                     {followedArtists.slice(0, 6).map((artist, idx) => (
-                      <Link key={artist.artistId || artist.browseId || `artist-${artist.name.toLowerCase().trim()}-${idx}`} href={`/artist/${encodeURIComponent(artist.name)}`}>
+                      <Link key={artist.artistId || artist.browseId || `artist-${artist.name.toLowerCase().trim()}-${idx}`} href={artist.artistId ? `/artist/${encodeURIComponent(artist.name)}?id=${encodeURIComponent(artist.artistId)}` : `/artist/${encodeURIComponent(artist.name)}`}>
                         <motion.div
                           whileHover={{ y: -4 }}
                           className="p-3.5 rounded-2xl bg-white/[0.015] border border-white/[0.04] hover:bg-white/[0.03] hover:border-purple-500/20 transition text-center space-y-2.5"
@@ -440,7 +440,7 @@ export default function LibraryPage() {
                       key={artist.artistId || artist.browseId || `artist-${artist.name.toLowerCase().trim()}-${idx}`}
                       className="p-4 rounded-2xl bg-white/[0.015] border border-white/[0.04] hover:bg-white/[0.03] transition text-center space-y-3 relative group"
                     >
-                      <Link href={`/artist/${encodeURIComponent(artist.name)}`} className="block space-y-2.5">
+                      <Link href={artist.artistId ? `/artist/${encodeURIComponent(artist.name)}?id=${encodeURIComponent(artist.artistId)}` : `/artist/${encodeURIComponent(artist.name)}`} className="block space-y-2.5">
                         <div className="aspect-square rounded-full bg-zinc-900 overflow-hidden border border-white/5 mx-auto max-w-[130px]">
                           <SafeImage
                             src={artist.image || undefined}

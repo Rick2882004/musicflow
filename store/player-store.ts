@@ -56,7 +56,7 @@ interface PlayerState {
 
   toggleLike: (song: Track) => Promise<void>;
   addRecentSong: (song: Track) => Promise<void>;
-  toggleFollowArtist: (artist: { name: string; image?: string | null; genre?: string }) => void;
+  toggleFollowArtist: (artist: { artistId?: string; browseId?: string; name: string; image?: string | null; genre?: string }) => void;
   toggleSaveAlbum: (album: { albumId: string; name: string; artist: string; thumbnail?: string; year?: number; songCount?: number }) => void;
   
   addPlaylist: (name: string) => Promise<void>;
@@ -175,14 +175,16 @@ export const usePlayerStore = create<PlayerState>()(
 
       toggleFollowArtist: (artist) => {
         const { followedArtists } = get();
-        const exists = followedArtists.some(
-          (a) => a.name.toLowerCase() === artist.name.toLowerCase()
-        );
+        const matchesArtist = (a: FollowedArtist) => {
+          if (artist.artistId && a.artistId && a.artistId === artist.artistId) return true;
+          if (artist.browseId && a.browseId && a.browseId === artist.browseId) return true;
+          return a.name.toLowerCase() === artist.name.toLowerCase();
+        };
+
+        const exists = followedArtists.some(matchesArtist);
         if (exists) {
           set({
-            followedArtists: followedArtists.filter(
-              (a) => a.name.toLowerCase() !== artist.name.toLowerCase()
-            ),
+            followedArtists: followedArtists.filter((a) => !matchesArtist(a)),
           });
         } else {
           set({
@@ -287,7 +289,7 @@ export const usePlayerStore = create<PlayerState>()(
         }
       },
 
-      addRecentSong: async (song) => {
+      addRecentSong: async (song: Track) => {
         const { recentSongs } = get();
         const filtered = recentSongs.filter((s) => s.videoId !== song.videoId);
         const updated = [song, ...filtered].slice(0, 20);

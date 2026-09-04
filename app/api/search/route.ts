@@ -1,19 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
-import { searchSongs, searchArtists, searchAlbums } from "@/lib/ytmusic";
+import { searchSongs, searchAlbums } from "@/lib/ytmusic";
+import { searchCanonicalArtists } from "@/lib/canonical-music";
 
-function deduplicateArtists<T extends { artistId?: string; browseId?: string; name: string; thumbnail?: string }>(artists: T[]): T[] {
+function deduplicateArtists<T extends { artistId?: string; browseId?: string; name: string; thumbnail?: string; image?: string }>(artists: T[]): T[] {
   const seenIds = new Set<string>();
   const seenFallbacks = new Set<string>();
   const result: T[] = [];
 
   for (const a of artists) {
-    const id = a.browseId || a.artistId;
+    const id = a.artistId || a.browseId;
     if (id) {
       if (seenIds.has(id)) continue;
       seenIds.add(id);
       result.push(a);
     } else {
-      const fallbackKey = `${a.name.trim().toLowerCase()}::${a.thumbnail || ""}`;
+      const fallbackKey = `${a.name.trim().toLowerCase()}::${a.image || a.thumbnail || ""}`;
       if (seenFallbacks.has(fallbackKey)) continue;
       seenFallbacks.add(fallbackKey);
       result.push(a);
@@ -72,7 +73,7 @@ export async function GET(request: NextRequest) {
 
   try {
     if (type === "artists") {
-      const rawArtists = await searchArtists(query);
+      const rawArtists = await searchCanonicalArtists(query);
       const artists = deduplicateArtists(rawArtists);
       return NextResponse.json({ results: artists, artists });
     }
@@ -92,7 +93,7 @@ export async function GET(request: NextRequest) {
     // Default: comprehensive search (songs, artists, albums)
     const [songsRes, artistsRes, albumsRes] = await Promise.allSettled([
       searchSongs(query),
-      searchArtists(query),
+      searchCanonicalArtists(query),
       searchAlbums(query),
     ]);
 

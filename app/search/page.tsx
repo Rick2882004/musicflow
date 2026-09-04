@@ -137,6 +137,7 @@ function SearchContent() {
     artistId?: string;
     browseId?: string;
     name: string;
+    genre?: string;
     image: string;
   }
 
@@ -215,10 +216,11 @@ function SearchContent() {
         resTracks.push(t);
       }
 
-      const rawArtists: ArtistItem[] = (data.artists || []).map((a: { artistId?: string; browseId?: string; name: string; image?: string; thumbnail?: string; thumbnails?: { url: string }[] }) => ({
+      const rawArtists: ArtistItem[] = (data.artists || []).map((a: { artistId?: string; browseId?: string; name: string; genre?: string; image?: string; thumbnail?: string; thumbnails?: { url: string }[] }) => ({
         artistId: a.artistId || a.browseId || "",
         browseId: a.browseId || a.artistId || "",
         name: a.name || "Unknown Artist",
+        genre: a.genre,
         image: a.image || a.thumbnail || a.thumbnails?.[0]?.url || "",
       }));
       const seenArtistIds = new Set<string>();
@@ -665,7 +667,7 @@ function SearchContent() {
                     <motion.button
                       key={artist.browseId || artist.artistId || `artist-${artist.name.toLowerCase().trim()}-${idx}`}
                       whileHover={{ y: -6 }}
-                      onClick={() => router.push(`/artist/${encodeURIComponent(artist.name)}`)}
+                      onClick={() => router.push(artist.artistId ? `/artist/${encodeURIComponent(artist.name)}?id=${encodeURIComponent(artist.artistId)}` : `/artist/${encodeURIComponent(artist.name)}`)}
                       className="flex flex-col items-center gap-3 shrink-0 group focus:outline-none cursor-pointer"
                     >
                       <div className="w-20 h-20 rounded-full overflow-hidden bg-zinc-950 border border-white/[0.05] group-hover:border-purple-500/30 transition-all duration-300 shadow-md">
@@ -674,7 +676,7 @@ function SearchContent() {
                       </div>
                       <div className="text-center">
                         <p className="text-[12px] font-bold text-zinc-300 group-hover:text-white transition-colors">{artist.name}</p>
-                        <p className="text-[9px] text-zinc-650 uppercase tracking-wider font-bold mt-0.5">Artist</p>
+                        <p className="text-[9px] text-zinc-400 uppercase tracking-wider font-bold mt-0.5 truncate max-w-[90px]">{artist.genre || "Artist"}</p>
                       </div>
                     </motion.button>
                   ))}

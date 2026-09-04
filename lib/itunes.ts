@@ -80,7 +80,7 @@ export function normalizeString(str: string): string {
     .replace(/[\u0300-\u036f]/g, "") // remove diacritics / accents
     .toLowerCase()
     .replace(/['"’`]/g, "")
-    .replace(/[^\w\s]/g, " ") // replace punctuation with spaces
+    .replace(/[^\p{L}\p{N}\s]/gu, " ") // Unicode-aware letters and numbers
     .replace(/\s+/g, " ")
     .trim();
 }
@@ -116,7 +116,7 @@ export function cleanArtistName(raw: string): string {
   return a.trim();
 }
 
-function toHighResArtwork(url100?: string, size: 600 | 1000 = 600): string {
+export function toHighResArtwork(url100?: string, size: 600 | 1000 = 600): string {
   if (!url100) return "";
   // iTunes artwork URLs end in /100x100bb.jpg (or similar dimension tags)
   return url100.replace(/\/\d+x\d+bb\.jpg$/i, `/${size}x${size}bb.jpg`);

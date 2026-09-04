@@ -19,6 +19,7 @@ export async function searchSongs(query: string) {
     title: song.name || song.title || "Unknown",
     artist: song.artist?.name || song.artist || "Unknown Artist",
     duration: song.duration || song.duration_seconds || 0,
+    album: song.album?.name || (typeof song.album === "string" ? song.album : "") || "",
     thumbnail:
       song.thumbnails?.[song.thumbnails.length - 1]?.url ||
       "",

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAlbumDetails } from "@/lib/ytmusic";
+import { getCanonicalAlbumDetails } from "@/lib/canonical-music";
 
 export async function GET(request: NextRequest) {
   const id = request.nextUrl.searchParams.get("id");
@@ -9,7 +9,10 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const details = await getAlbumDetails(id);
+    const details = await getCanonicalAlbumDetails(id);
+    if (!details) {
+      return NextResponse.json({ error: "Album not found" }, { status: 404 });
+    }
     return NextResponse.json(details);
   } catch (error) {
     console.error("Album API error:", error);
