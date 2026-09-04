@@ -66,10 +66,8 @@ export const SongCard = memo(function SongCard({
   };
 
   return (
-    <motion.div
-      whileHover={{ y: -5 }}
-      transition={{ type: "spring", stiffness: 360, damping: 26 }}
-      className="group relative cursor-pointer flex flex-col gap-3 text-left focus:outline-none"
+    <div
+      className="group relative cursor-pointer flex flex-col gap-2.5 text-left focus:outline-none"
       onClick={playSong}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
@@ -80,61 +78,77 @@ export const SongCard = memo(function SongCard({
     >
       {/* Artwork */}
       <div
-        className="relative aspect-square overflow-hidden bg-[#0a0a0c]"
+        className="relative overflow-hidden bg-[var(--mf-bg-card)] transition-all duration-200"
         style={{
-          borderRadius: "16px",
-          boxShadow: isCurrentSong
-            ? "0 12px 40px rgba(139,92,246,0.22), 0 4px 16px rgba(0,0,0,0.5)"
-            : hovered
-            ? "0 16px 44px rgba(0,0,0,0.65), 0 4px 16px rgba(0,0,0,0.4)"
-            : "0 8px 28px rgba(0,0,0,0.55)",
-          transition: "box-shadow 0.3s ease",
+          borderRadius: "var(--mf-r-lg)",
+          aspectRatio: "1",
           border: isCurrentSong
-            ? "1px solid rgba(139,92,246,0.35)"
+            ? "1px solid rgba(124,58,237,0.35)"
             : "1px solid rgba(255,255,255,0.05)",
+          boxShadow: isCurrentSong
+            ? "0 8px 28px rgba(124,58,237,0.18)"
+            : hovered
+            ? "0 10px 28px rgba(0,0,0,0.6)"
+            : "0 4px 16px rgba(0,0,0,0.45)",
         }}
       >
         {showRank && (
-          <span className="absolute left-2.5 top-2.5 z-20 rounded-full bg-[#06060a]/85 border border-white/[0.06] px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-zinc-300 backdrop-blur-sm">
+          <span
+            className="absolute left-2 top-2 z-20 rounded-full px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider backdrop-blur-sm"
+            style={{
+              background: "rgba(6,6,10,0.85)",
+              border: "1px solid rgba(255,255,255,0.06)",
+              color: "var(--mf-text-secondary)",
+            }}
+          >
             #{song.rank}
           </span>
         )}
 
-        <motion.div
-          className="h-full w-full"
-          animate={{ scale: hovered ? 1.06 : 1 }}
-          transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+        {/* Artwork image — subtle scale on hover */}
+        <div
+          className="w-full h-full transition-transform duration-500 ease-out"
+          style={{ transform: hovered ? "scale(1.05)" : "scale(1)" }}
         >
           <SafeImage
             src={song.thumbnail}
             videoId={song.id}
+            title={song.title}
+            artist={song.artist}
             alt={song.title}
             className="h-full w-full object-cover"
+            fallbackType="song"
           />
-        </motion.div>
+        </div>
 
         {/* Hover overlay */}
-        <motion.div
-          animate={{ opacity: hovered ? 1 : 0 }}
-          transition={{ duration: 0.18 }}
-          className="absolute inset-0 bg-black/45"
+        <div
+          className="absolute inset-0 transition-opacity duration-150"
+          style={{
+            background: "rgba(0,0,0,0.38)",
+            opacity: hovered || isActivePlaying ? 1 : 0,
+            pointerEvents: "none",
+          }}
         />
 
         {/* Play/Pause Button */}
         <AnimatePresence>
           {(hovered || isActivePlaying) && (
             <motion.div
-              initial={{ opacity: 0, scale: 0.75 }}
+              initial={{ opacity: 0, scale: 0.80 }}
               animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.75 }}
-              transition={{ type: "spring", stiffness: 480, damping: 26 }}
+              exit={{ opacity: 0, scale: 0.80 }}
+              transition={{ type: "spring", stiffness: 500, damping: 30 }}
               className="absolute inset-0 flex items-center justify-center"
             >
-              <div className="w-11 h-11 rounded-full bg-white flex items-center justify-center shadow-lg">
+              <div
+                className="w-10 h-10 rounded-full flex items-center justify-center shadow-lg"
+                style={{ background: "#ffffff" }}
+              >
                 {isActivePlaying ? (
-                  <Pause size={15} fill="black" className="text-black" />
+                  <Pause size={14} fill="black" className="text-black" />
                 ) : (
-                  <Play size={15} fill="black" className="text-black ml-0.5" />
+                  <Play size={14} fill="black" className="text-black ml-0.5" />
                 )}
               </div>
             </motion.div>
@@ -145,10 +159,10 @@ export const SongCard = memo(function SongCard({
         <motion.button
           animate={{
             opacity: hovered || isLiked ? 1 : 0,
-            scale: hovered || isLiked ? 1 : 0.7,
+            scale: hovered || isLiked ? 1 : 0.75,
           }}
-          whileTap={{ scale: 0.78 }}
-          transition={{ type: "spring", stiffness: 400, damping: 22 }}
+          whileTap={{ scale: 0.80 }}
+          transition={{ type: "spring", stiffness: 420, damping: 24 }}
           onClick={(e) => {
             e.stopPropagation();
             void toggleLike({
@@ -159,13 +173,17 @@ export const SongCard = memo(function SongCard({
               duration: song.duration ?? 0,
             });
           }}
-          className="absolute bottom-2.5 right-2.5 z-20 w-8 h-8 rounded-full bg-[#06060a]/90 backdrop-blur-sm flex items-center justify-center border border-white/[0.08] hover:border-pink-500/35 text-zinc-400 hover:text-pink-400 transition-colors duration-150"
+          className="absolute bottom-2 right-2 z-20 w-7 h-7 rounded-full flex items-center justify-center backdrop-blur-sm"
+          style={{
+            background: "rgba(6,6,10,0.88)",
+            border: "1px solid rgba(255,255,255,0.08)",
+            color: isLiked ? "#ec4899" : "var(--mf-text-muted)",
+          }}
           aria-label={isLiked ? "Unlike" : "Like"}
         >
           <Heart
-            size={12}
+            size={11}
             fill={isLiked ? "#ec4899" : "none"}
-            className={isLiked ? "text-pink-400" : ""}
           />
         </motion.button>
       </div>
@@ -173,33 +191,51 @@ export const SongCard = memo(function SongCard({
       {/* Text Details */}
       <div className="space-y-0.5 px-0.5">
         <h3
-          className="text-[13px] font-semibold tracking-tight truncate leading-tight transition-colors duration-200"
+          className="text-[13px] font-semibold tracking-tight truncate leading-tight transition-colors duration-150"
           style={{
-            color: isCurrentSong ? "#c084fc" : hovered ? "#ffffff" : "#e4e4e7",
+            color: isCurrentSong
+              ? "var(--mf-accent-light)"
+              : hovered
+              ? "#ffffff"
+              : "var(--mf-text-primary)",
           }}
         >
           {song.title}
         </h3>
-        <div className="flex items-center justify-between">
-          <p className="text-[11px] text-zinc-550 truncate max-w-[75%] leading-tight">
+        <div className="flex items-center justify-between gap-2">
+          <p
+            className="text-[11px] truncate leading-tight"
+            style={{ color: "var(--mf-text-muted)" }}
+          >
             {song.artist}
           </p>
 
-          {/* Equalizer Visualizer or Duration */}
           {isActivePlaying ? (
-            <div className="flex items-end gap-[1.5px] h-3 px-1 text-purple-400 select-none shrink-0">
-              <span className="w-[1.5px] h-[35%] bg-purple-500 rounded-full animate-[pulse_0.8s_infinite]" />
-              <span className="w-[1.5px] h-[80%] bg-purple-400 rounded-full animate-[pulse_1s_infinite_0.2s]" />
-              <span className="w-[1.5px] h-[50%] bg-purple-500 rounded-full animate-[pulse_0.9s_infinite_0.1s]" />
+            <div className="flex items-end gap-[1.5px] h-3 shrink-0">
+              <span
+                className="mf-eq-bar h-[35%]"
+                style={{ "--mf-eq-dur": "0.8s" } as React.CSSProperties}
+              />
+              <span
+                className="mf-eq-bar h-[80%]"
+                style={{ "--mf-eq-dur": "1.0s" } as React.CSSProperties}
+              />
+              <span
+                className="mf-eq-bar h-[50%]"
+                style={{ "--mf-eq-dur": "0.9s" } as React.CSSProperties}
+              />
             </div>
           ) : (
-            <span className="text-[10px] text-zinc-600 font-mono tabular-nums">
+            <span
+              className="text-[10px] font-mono tabular-nums shrink-0"
+              style={{ color: "var(--mf-text-dim)" }}
+            >
               {formatDuration(song.duration ?? 0)}
             </span>
           )}
         </div>
       </div>
-    </motion.div>
+    </div>
   );
 });
-SongCard.displayName = "SongCard";
+SongCard.displayName = "SongCard";

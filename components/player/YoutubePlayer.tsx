@@ -45,16 +45,24 @@ export default function YoutubePlayer({ videoId }: Props) {
     }
   };
 
+  const origin = typeof window !== "undefined" ? window.location.origin : undefined;
+
   return (
     <YouTube
       videoId={videoId}
       onReady={onReady}
       onStateChange={onStateChange}
+      onError={(e) => {
+        console.warn("YouTube player notice:", e.data);
+      }}
       opts={{
         width: "100%",
         height: "500",
         playerVars: {
           autoplay: usePlayerStore.getState().isPlaying ? 1 : 0,
+          origin,
+          enablejsapi: 1,
+          widget_referrer: origin,
         },
       }}
     />

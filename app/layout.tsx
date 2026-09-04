@@ -21,7 +21,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "MusicFlow - Premium Music Streaming",
-  description: "Experience music in high fidelity with glassmorphic aesthetics.",
+  description: "Your personal music universe — deep space cinematic listening experience.",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
@@ -42,7 +42,7 @@ export default function RootLayout({
     >
       <head>
         <link rel="manifest" href="/manifest.json" />
-        <meta name="theme-color" content="#6C63FF" />
+        <meta name="theme-color" content="#050508" />
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
       </head>

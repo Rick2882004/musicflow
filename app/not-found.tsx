@@ -4,7 +4,7 @@ import { Disc, Home, Search } from "lucide-react";
 export default function NotFound() {
   return (
     <main className="min-h-screen bg-black text-white flex flex-col items-center justify-center p-6 text-center">
-      <div className="max-w-md w-full p-8 rounded-3xl bg-white/[0.02] border border-white/[0.06] backdrop-blur-xl shadow-2xl space-y-6">
+      <div className="max-w-md w-full p-8 rounded-2xl bg-[#121216] border border-white/[0.06] space-y-6">
         <div className="w-16 h-16 rounded-2xl bg-purple-500/10 border border-purple-500/20 text-purple-400 flex items-center justify-center mx-auto animate-spin" style={{ animationDuration: "12s" }}>
           <Disc size={32} />
         </div>
@@ -22,7 +22,7 @@ export default function NotFound() {
         <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
           <Link
             href="/"
-            className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-purple-550 text-white text-xs font-bold hover:bg-purple-500 transition-all flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-purple-550/25"
+            className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-purple-600 text-white text-xs font-bold hover:bg-purple-500 transition-all flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-purple-600/25"
           >
             <Home size={14} /> Back to Home
           </Link>

@@ -4,7 +4,8 @@ import { saveRecentSong } from "@/lib/supabase-recent";
 import { savePlaylist, deletePlaylistDB, updatePlaylistDetailsDB } from "@/lib/supabase-playlists";
 import { saveSongToPlaylist, removeSongFromPlaylistDB } from "@/lib/supabase-playlist-songs";
 import { saveLikedSong, removeLikedSong } from "@/lib/supabase-liked";
-import { Track, Playlist } from "@/types/music";
+import { Track, Playlist, ListeningHistoryEntry } from "@/types/music";
+import { getCachedArtwork, resolveTrackMetadata } from "@/lib/metadata-resolver";
 
 interface PlayerState {
   videoId: string;
@@ -21,12 +22,15 @@ interface PlayerState {
   currentIndex: number;
   likedSongs: Track[];
   recentSongs: Track[];
+  history: ListeningHistoryEntry[];
   playlists: Playlist[];
   isQueueOpen: boolean;
   playbackSpeed: number;
   sleepTimer: number | null; // minutes remaining, or null
   volume: number;
   isMuted: boolean;
+  smartQueueEnabled: boolean;
+  autoPlaySimilar: boolean;
 
   setCurrentTime: (time: number) => void;
   setDuration: (duration: number) => void;
@@ -35,9 +39,15 @@ interface PlayerState {
   toggleShuffle: () => void;
   toggleRepeat: () => void;
   toggleQueue: () => void;
+  toggleSmartQueue: () => void;
+  toggleAutoPlaySimilar: () => void;
   
   setLikedSongs: (songs: Track[]) => void;
   setRecentSongs: (songs: Track[]) => void;
+  setHistory: (history: ListeningHistoryEntry[]) => void;
+  addHistoryEntry: (track: Track, duration?: number, completion?: number) => void;
+  removeHistoryItem: (id: string) => void;
+  clearHistory: () => void;
   setPlaylists: (playlists: Playlist[]) => void;
 
   toggleLike: (song: Track) => Promise<void>;
@@ -93,12 +103,16 @@ export const usePlayerStore = create<PlayerState>()(
       currentIndex: 0,
       likedSongs: [],
       recentSongs: [],
+      history: [],
       playlists: [],
       isQueueOpen: false,
       playbackSpeed: 1.0,
       sleepTimer: null,
       volume: 80,
       isMuted: false,
+      smartQueueEnabled: true,
+      autoPlaySimilar: true,
+
 
       setCurrentTime: (time) => set({ currentTime: time }),
       setDuration: (duration) => set({ duration }),
@@ -122,20 +136,60 @@ export const usePlayerStore = create<PlayerState>()(
       toggleShuffle: () => set((state) => ({ isShuffle: !state.isShuffle })),
       toggleRepeat: () => set((state) => ({ isRepeat: !state.isRepeat })),
       toggleQueue: () => set((state) => ({ isQueueOpen: !state.isQueueOpen })),
+      toggleSmartQueue: () => set((state) => ({ smartQueueEnabled: !state.smartQueueEnabled })),
+      toggleAutoPlaySimilar: () => set((state) => ({ autoPlaySimilar: !state.autoPlaySimilar })),
 
       setLikedSongs: (songs) => set({ likedSongs: songs }),
       setRecentSongs: (songs) => set({ recentSongs: songs }),
+      setHistory: (history) => set({ history }),
+      addHistoryEntry: (track, duration = 0, completion = 0) => {
+        const { history } = get();
+        const entry: ListeningHistoryEntry = {
+          id: `${track.videoId}-${Date.now()}`,
+          track,
+          timestamp: Date.now(),
+          playbackDuration: duration,
+          completionPercentage: completion,
+        };
+        // Keep last 150 history entries
+        const updated = [entry, ...history.filter((h) => h.track.videoId !== track.videoId || Date.now() - h.timestamp > 60000)].slice(0, 150);
+        set({ history: updated });
+      },
+      removeHistoryItem: (id) => {
+        const { history } = get();
+        set({ history: history.filter((h) => h.id !== id) });
+      },
+      clearHistory: () => set({ history: [] }),
       setPlaylists: (playlists) => set({ playlists }),
 
-      setTrack: (videoId, title, artist, thumbnail, index = 0) =>
+      setTrack: (videoId, title, artist, thumbnail, index = 0) => {
+        const cachedArt = getCachedArtwork(title, artist, videoId) || thumbnail;
+        const track: Track = { videoId, title, artist, thumbnail: cachedArt };
+        get().addRecentSong(track);
+        get().addHistoryEntry(track, 0, 0);
         set({
           videoId,
           title,
           artist,
-          thumbnail,
+          thumbnail: cachedArt,
           currentIndex: index,
           isPlaying: true,
-        }),
+        });
+
+        // Asynchronously resolve official iTunes high-res artwork & metadata
+        if (title) {
+          void resolveTrackMetadata({ videoId, title, artist, thumbnail }).then((res) => {
+            if (res && res.artworkUrl && get().videoId === videoId) {
+              set({ thumbnail: res.artworkUrl });
+              const currentRecents = get().recentSongs;
+              const updatedRecents = currentRecents.map((s) =>
+                s.videoId === videoId ? { ...s, thumbnail: res.artworkUrl } : s
+              );
+              set({ recentSongs: updatedRecents });
+            }
+          });
+        }
+      },
 
       setQueue: (tracks) => set({ queue: tracks }),
 
@@ -195,15 +249,27 @@ export const usePlayerStore = create<PlayerState>()(
 
       addPlaylist: async (name) => {
         const { playlists } = get();
-        const saved = await savePlaylist(name);
-        if (!saved) return;
+        const trimmed = name.trim();
+        if (!trimmed) return;
+
+        let savedId = Date.now();
+        let savedName = trimmed;
+        try {
+          const saved = await savePlaylist(trimmed);
+          if (saved) {
+            savedId = saved.id || savedId;
+            savedName = saved.name || savedName;
+          }
+        } catch {
+          // Fallback to local ID
+        }
 
         set({
           playlists: [
             ...playlists,
             {
-              id: saved.id,
-              name: saved.name,
+              id: savedId,
+              name: savedName,
               songs: [],
               description: "",
               coverImage: null,
@@ -227,7 +293,11 @@ export const usePlayerStore = create<PlayerState>()(
         if (details.isCollaborative !== undefined) dbDetails.is_collaborative = details.isCollaborative;
         if (details.coverImage !== undefined) dbDetails.cover_image = details.coverImage;
 
-        await updatePlaylistDetailsDB(playlistId, dbDetails);
+        try {
+          await updatePlaylistDetailsDB(playlistId, dbDetails);
+        } catch {
+          // Fallback to local store
+        }
 
         set({
           playlists: playlists.map((p) =>
@@ -246,14 +316,18 @@ export const usePlayerStore = create<PlayerState>()(
 
       addSongToPlaylist: async (playlistId, song) => {
         const { playlists } = get();
-        await saveSongToPlaylist(playlistId, song);
+        try {
+          await saveSongToPlaylist(playlistId, song);
+        } catch {
+          // Fallback to local store
+        }
 
         set({
           playlists: playlists.map((playlist) =>
             playlist.id === playlistId
               ? {
                   ...playlist,
-                  songs: [...playlist.songs, song],
+                  songs: [...(playlist.songs || []).filter((s) => s.videoId !== song.videoId), song],
                 }
               : playlist
           ),
@@ -262,14 +336,18 @@ export const usePlayerStore = create<PlayerState>()(
 
       removeSongFromPlaylist: async (playlistId, videoId) => {
         const { playlists } = get();
-        await removeSongFromPlaylistDB(playlistId, videoId);
+        try {
+          await removeSongFromPlaylistDB(playlistId, videoId);
+        } catch {
+          // Fallback to local store
+        }
 
         set({
           playlists: playlists.map((playlist) =>
             playlist.id === playlistId
               ? {
                   ...playlist,
-                  songs: playlist.songs.filter((song) => song.videoId !== videoId),
+                  songs: (playlist.songs || []).filter((song) => song.videoId !== videoId),
                 }
               : playlist
           ),
@@ -278,7 +356,11 @@ export const usePlayerStore = create<PlayerState>()(
 
       deletePlaylist: async (playlistId) => {
         const { playlists } = get();
-        await deletePlaylistDB(playlistId);
+        try {
+          await deletePlaylistDB(playlistId);
+        } catch {
+          // Fallback to local store
+        }
 
         set({
           playlists: playlists.filter((playlist) => playlist.id !== playlistId),
@@ -292,27 +374,14 @@ export const usePlayerStore = create<PlayerState>()(
         if (isShuffle) {
           const randomIndex = Math.floor(Math.random() * queue.length);
           const next = queue[randomIndex];
-          set({
-            videoId: next.videoId,
-            title: next.title,
-            artist: next.artist,
-            thumbnail: next.thumbnail,
-            currentIndex: randomIndex,
-            isPlaying: true,
-          });
+          get().setTrack(next.videoId, next.title, next.artist, next.thumbnail, randomIndex);
           return;
         }
 
         if (currentIndex < queue.length - 1) {
-          const next = queue[currentIndex + 1];
-          set({
-            videoId: next.videoId,
-            title: next.title,
-            artist: next.artist,
-            thumbnail: next.thumbnail,
-            currentIndex: currentIndex + 1,
-            isPlaying: true,
-          });
+          const nextIndex = currentIndex + 1;
+          const next = queue[nextIndex];
+          get().setTrack(next.videoId, next.title, next.artist, next.thumbnail, nextIndex);
         }
       },
 
@@ -321,15 +390,9 @@ export const usePlayerStore = create<PlayerState>()(
         if (queue.length === 0) return;
 
         if (currentIndex > 0) {
-          const prev = queue[currentIndex - 1];
-          set({
-            videoId: prev.videoId,
-            title: prev.title,
-            artist: prev.artist,
-            thumbnail: prev.thumbnail,
-            currentIndex: currentIndex - 1,
-            isPlaying: true,
-          });
+          const prevIndex = currentIndex - 1;
+          const prev = queue[prevIndex];
+          get().setTrack(prev.videoId, prev.title, prev.artist, prev.thumbnail, prevIndex);
         }
       },
 
@@ -368,6 +431,7 @@ export const usePlayerStore = create<PlayerState>()(
       partialize: (state) => ({
         likedSongs: state.likedSongs,
         recentSongs: state.recentSongs,
+        history: state.history,
         playlists: state.playlists,
         isShuffle: state.isShuffle,
         isRepeat: state.isRepeat,
@@ -376,12 +440,13 @@ export const usePlayerStore = create<PlayerState>()(
         title: state.title,
         artist: state.artist,
         thumbnail: state.thumbnail,
-        currentTime: state.currentTime,
         duration: state.duration,
         queue: state.queue,
         currentIndex: state.currentIndex,
         volume: state.volume,
         isMuted: state.isMuted,
+        smartQueueEnabled: state.smartQueueEnabled,
+        autoPlaySimilar: state.autoPlaySimilar,
       }),
     }
   )

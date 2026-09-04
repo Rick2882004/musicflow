@@ -18,24 +18,21 @@ export default function DatabaseLoader() {
 
   useEffect(() => {
     async function loadData() {
-      // If user is not logged in, clear local store states
-      if (!user) {
-        setLikedSongs([]);
-        setRecentSongs([]);
-        setPlaylists([]);
-        return;
-      }
+      // Do not wipe local store if user is not logged in
+      if (!user) return;
 
       try {
-        const likes = await loadLikedSongs();
-        const recents = await loadRecentSongs();
-        const playlists = await loadPlaylists();
+        const [likes, recents, playlists] = await Promise.all([
+          loadLikedSongs(),
+          loadRecentSongs(),
+          loadPlaylists(),
+        ]);
 
-        setLikedSongs(likes);
-        setRecentSongs(recents);
-        setPlaylists(playlists);
-      } catch (err) {
-        console.error("Error loading user cloud sync database:", err);
+        if (likes.length > 0) setLikedSongs(likes);
+        if (recents.length > 0) setRecentSongs(recents);
+        if (playlists.length > 0) setPlaylists(playlists);
+      } catch {
+        // Keep local store data intact on cloud error/offline
       }
     }
 

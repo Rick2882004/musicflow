@@ -76,7 +76,7 @@ export function NotificationCenter({ isOpen, onClose }: NotificationCenterProps)
           initial={{ opacity: 0, scale: 0.95, y: -10 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: -10 }}
-          className="w-full max-w-md bg-zinc-950/95 border border-white/10 rounded-3xl p-6 shadow-2xl backdrop-blur-2xl space-y-5 text-left mt-16"
+          className="w-full max-w-md bg-[#121216] border border-white/10 rounded-2xl p-5 shadow-2xl space-y-4 text-left mt-16"
         >
           {/* Header */}
           <div className="flex items-center justify-between border-b border-white/5 pb-4">

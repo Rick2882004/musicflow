@@ -2,7 +2,7 @@
 
 import { usePlayerStore } from "@/store/player-store";
 import { useShallow } from "zustand/react/shallow";
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useCallback, memo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useHasMounted } from "@/hooks/useHasMounted";
 import {
@@ -26,12 +26,108 @@ import {
 import { cn } from "@/lib/utils";
 import QueueDrawer from "./QueueDrawer";
 import { SafeImage } from "@/components/ui/SafeImage";
+import { useSmartQueue } from "@/hooks/useSmartQueue";
 
 function formatTime(secs: number) {
   const m = Math.floor(secs / 60);
   const s = Math.floor(secs % 60);
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
+
+// Isolated Desktop Progress Bar — only rerenders on time tick
+const DesktopProgressBar = memo(function DesktopProgressBar() {
+  const { currentTime, duration, player, isPlaying } = usePlayerStore(
+    useShallow((s) => ({
+      currentTime: s.currentTime,
+      duration: s.duration,
+      player: s.player,
+      isPlaying: s.isPlaying,
+    }))
+  );
+  const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
+  const progressStyle = `linear-gradient(to right, rgb(168 85 247) 0%, rgb(168 85 247) ${progress}%, rgb(39 39 42) ${progress}%, rgb(39 39 42) 100%)`;
+
+  return (
+    <div className="flex items-center gap-3 w-full max-w-[420px] text-[10px] text-zinc-500 font-bold">
+      <span className="w-8 text-right font-mono tabular-nums">{formatTime(currentTime)}</span>
+      <input
+        type="range"
+        min={0}
+        max={100}
+        value={progress}
+        onChange={(e) => {
+          if (!player) return;
+          player.seekTo((Number(e.target.value) / 100) * duration, true);
+        }}
+        className="flex-1 h-1 rounded-full cursor-pointer outline-none transition-all"
+        style={{ background: progressStyle, appearance: "none" }}
+        aria-label="Seek"
+      />
+      {isPlaying ? (
+        <div className="flex items-end gap-[1.5px] h-3 px-1 text-purple-400 select-none shrink-0">
+          <span className="w-[1.5px] h-[35%] bg-purple-500 rounded-full animate-[pulse_0.8s_infinite]" />
+          <span className="w-[1.5px] h-[80%] bg-purple-400 rounded-full animate-[pulse_1s_infinite_0.2s]" />
+          <span className="w-[1.5px] h-[50%] bg-purple-500 rounded-full animate-[pulse_0.9s_infinite_0.1s]" />
+        </div>
+      ) : (
+        <span className="w-8 font-mono tabular-nums">{formatTime(duration)}</span>
+      )}
+    </div>
+  );
+});
+
+// Isolated Mobile Mini Progress Underline
+const MobileMiniProgressUnderline = memo(function MobileMiniProgressUnderline() {
+  const { currentTime, duration } = usePlayerStore(
+    useShallow((s) => ({
+      currentTime: s.currentTime,
+      duration: s.duration,
+    }))
+  );
+  const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
+
+  return (
+    <div className="absolute bottom-0 left-3 right-3 h-[2px] bg-white/[0.06] rounded-full overflow-hidden">
+      <div
+        className="h-full bg-purple-500 rounded-full transition-all duration-500 ease-linear"
+        style={{ width: `${progress}%` }}
+      />
+    </div>
+  );
+});
+const MobileProgressBar = memo(function MobileProgressBar() {
+  const { currentTime, duration, player } = usePlayerStore(
+    useShallow((s) => ({
+      currentTime: s.currentTime,
+      duration: s.duration,
+      player: s.player,
+    }))
+  );
+  const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
+  const progressStyle = `linear-gradient(to right, rgb(168 85 247) 0%, rgb(168 85 247) ${progress}%, rgb(39 39 42) ${progress}%, rgb(39 39 42) 100%)`;
+
+  return (
+    <div className="space-y-2">
+      <input
+        type="range"
+        min={0}
+        max={100}
+        value={progress}
+        onChange={(e) => {
+          if (!player) return;
+          player.seekTo((Number(e.target.value) / 100) * duration, true);
+        }}
+        className="w-full h-1 rounded-full cursor-pointer outline-none"
+        style={{ background: progressStyle, appearance: "none" }}
+        aria-label="Seek"
+      />
+      <div className="flex justify-between text-[10px] font-mono text-zinc-500 tabular-nums">
+        <span>{formatTime(currentTime)}</span>
+        <span>{formatTime(duration)}</span>
+      </div>
+    </div>
+  );
+});
 
 // Icon button helper
 function IconBtn({
@@ -67,6 +163,7 @@ function IconBtn({
 }
 
 export default function BottomPlayer() {
+  useSmartQueue();
   const {
     videoId,
     title,
@@ -76,7 +173,6 @@ export default function BottomPlayer() {
     toggleQueue,
     isPlaying,
     setIsPlaying,
-    currentTime,
     setCurrentTime,
     duration,
     setDuration,
@@ -107,7 +203,6 @@ export default function BottomPlayer() {
       toggleQueue: s.toggleQueue,
       isPlaying: s.isPlaying,
       setIsPlaying: s.setIsPlaying,
-      currentTime: s.currentTime,
       setCurrentTime: s.setCurrentTime,
       duration: s.duration,
       setDuration: s.setDuration,
@@ -143,9 +238,6 @@ export default function BottomPlayer() {
   const [lyrics, setLyrics] = useState<string[] | null>(null);
   const [lyricsLoading, setLyricsLoading] = useState(false);
 
-  const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
-  const progressRef = useRef<HTMLInputElement>(null);
-
   // Controls
   const togglePlay = () => {
     if (!player) return;
@@ -162,10 +254,6 @@ export default function BottomPlayer() {
     if (!player) return;
     player.seekTo(Math.min(Math.max(player.getCurrentTime() + delta, 0), duration), true);
   }, [player, duration]);
-
-  const adjustVolume = useCallback((delta: number) => {
-    setVolume(Math.min(Math.max(volume + delta, 0), 100));
-  }, [volume, setVolume]);
 
   const toggleMute = () => {
     setIsMuted(!isMuted);
@@ -242,95 +330,7 @@ export default function BottomPlayer() {
     };
   }, [player, isPlaying]);
 
-  // Keyboard controls
-  useEffect(() => {
-    function handleKeyDown(e: KeyboardEvent) {
-      const target = e.target as HTMLElement;
-      if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) {
-        return;
-      }
-
-      if (e.code === "Space") {
-        e.preventDefault();
-        if (!player) return;
-        if (isPlaying) {
-          player.pauseVideo();
-          setIsPlaying(false);
-        } else {
-          player.playVideo();
-          setIsPlaying(true);
-        }
-      } else if (e.key === "m" || e.key === "M") {
-        setIsMuted(!isMuted);
-      } else if (e.key === "ArrowLeft") {
-        e.preventDefault();
-        seekDelta(-5);
-      } else if (e.key === "ArrowRight") {
-        e.preventDefault();
-        seekDelta(5);
-      } else if (e.key === "ArrowUp") {
-        e.preventDefault();
-        adjustVolume(5);
-      } else if (e.key === "ArrowDown") {
-        e.preventDefault();
-        adjustVolume(-5);
-      }
-    }
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [player, isPlaying, volume, isMuted, setIsPlaying, setIsMuted, seekDelta, adjustVolume]);
-
-  // Sleep Timer
-  useEffect(() => {
-    if (sleepTimer === null) return;
-    if (sleepTimer <= 0) {
-      if (player && isPlaying) {
-        player.pauseVideo();
-        setIsPlaying(false);
-      }
-      setSleepTimer(null);
-      return;
-    }
-    const timer = setTimeout(() => {
-      setSleepTimer(sleepTimer - 1);
-    }, 60000);
-    return () => clearTimeout(timer);
-  }, [sleepTimer, player, isPlaying, setSleepTimer, setIsPlaying]);
-
-  // Polling for current track progress
-  useEffect(() => {
-    const interval = setInterval(() => {
-      if (player && typeof player.getCurrentTime === "function") {
-        setCurrentTime(player.getCurrentTime());
-        setDuration(player.getDuration());
-      }
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [player, setCurrentTime, setDuration]);
-
-  // Fetch lyrics dynamically when lyrics panel opens or videoId changes
-  useEffect(() => {
-    if (!videoId || !isLyricsOpen) return;
-    async function fetchLyrics() {
-      setLyricsLoading(true);
-      setLyrics(null);
-      try {
-        const res = await fetch(`/api/lyrics?videoId=${encodeURIComponent(videoId)}`);
-        if (res.ok) {
-          const data = await res.json();
-          setLyrics(data.lyrics || null);
-        }
-      } catch (err) {
-        console.error("Error fetching lyrics in BottomPlayer:", err);
-      } finally {
-        setLyricsLoading(false);
-      }
-    }
-    fetchLyrics();
-  }, [videoId, isLyricsOpen]);
-
-  // Keyboard Shortcuts
+  // Consolidated Global Keyboard Shortcuts
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       const activeEl = document.activeElement as HTMLElement | null;
@@ -340,8 +340,7 @@ export default function BottomPlayer() {
           activeEl.tagName === "TEXTAREA" ||
           activeEl.tagName === "SELECT" ||
           activeEl.isContentEditable ||
-          activeEl.tagName === "BUTTON" ||
-          activeEl.getAttribute("role") === "button"
+          activeEl.getAttribute("role") === "textbox"
         )
       ) {
         return;
@@ -353,7 +352,7 @@ export default function BottomPlayer() {
         title: store.title,
         artist: store.artist,
         thumbnail: store.thumbnail,
-        duration: store.duration
+        duration: store.duration,
       };
 
       switch (e.code) {
@@ -368,6 +367,9 @@ export default function BottomPlayer() {
               store.setIsPlaying(true);
             }
           }
+          break;
+        case "KeyM":
+          store.setIsMuted(!store.isMuted);
           break;
         case "ArrowLeft":
           e.preventDefault();
@@ -405,9 +407,71 @@ export default function BottomPlayer() {
           break;
       }
     }
+
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
+
+  // Sleep Timer Countdown (minute interval)
+  useEffect(() => {
+    if (sleepTimer === null) return;
+    if (sleepTimer <= 0) {
+      if (player && isPlaying) {
+        player.pauseVideo();
+        setIsPlaying(false);
+      }
+      setSleepTimer(null);
+      return;
+    }
+    const interval = setInterval(() => {
+      const current = usePlayerStore.getState().sleepTimer;
+      if (current !== null) {
+        setSleepTimer(current > 1 ? current - 1 : null);
+      }
+    }, 60000);
+    return () => clearInterval(interval);
+  }, [sleepTimer, player, isPlaying, setSleepTimer, setIsPlaying]);
+
+  // Polling for current track progress — ONLY when actively playing
+  useEffect(() => {
+    if (!isPlaying || !player || typeof player.getCurrentTime !== "function") return;
+    const interval = setInterval(() => {
+      try {
+        const time = player.getCurrentTime();
+        const dur = player.getDuration();
+        if (typeof time === "number") setCurrentTime(time);
+        if (typeof dur === "number" && dur > 0) setDuration(dur);
+      } catch {
+        // Ignored if player is transitioning
+      }
+    }, 500);
+    return () => clearInterval(interval);
+  }, [player, isPlaying, setCurrentTime, setDuration]);
+
+  // Fetch lyrics dynamically when lyrics panel opens or videoId changes
+  useEffect(() => {
+    if (!videoId || !isLyricsOpen) return;
+    let isCurrent = true;
+    async function fetchLyrics() {
+      setLyricsLoading(true);
+      setLyrics(null);
+      try {
+        const res = await fetch(`/api/lyrics?videoId=${encodeURIComponent(videoId)}`);
+        if (res.ok && isCurrent) {
+          const data = await res.json();
+          setLyrics(data.lyrics || null);
+        }
+      } catch {
+        // Fallback gracefully
+      } finally {
+        if (isCurrent) setLyricsLoading(false);
+      }
+    }
+    fetchLyrics();
+    return () => {
+      isCurrent = false;
+    };
+  }, [videoId, isLyricsOpen]);
 
   const speedOptions = [0.5, 1.0, 1.25, 1.5, 2.0];
   const timerOptions = [
@@ -421,7 +485,6 @@ export default function BottomPlayer() {
   if (!mounted || !title) return null;
 
   const art = thumbnail || "https://placehold.co/100x100/111/fff?text=♪";
-  const progressStyle = `linear-gradient(to right, #8B5CF6 ${progress}%, rgba(255,255,255,0.06) ${progress}%)`;
   const volumeStyle = `linear-gradient(to right, rgba(255,255,255,0.7) ${isMuted ? 0 : volume}%, rgba(255,255,255,0.06) ${isMuted ? 0 : volume}%)`;
 
   const dropdownStyle: React.CSSProperties = {
@@ -434,34 +497,19 @@ export default function BottomPlayer() {
 
   return (
     <>
-      {/* ── DESKTOP/TABLET PLAYER: Floating Glass Capsule Dock ── */}
-      <motion.div
-        initial={{ y: 32, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        transition={{ type: "spring", stiffness: 260, damping: 28, delay: 0.15 }}
-        className="hidden md:grid fixed left-1/2 bottom-8 -translate-x-1/2 w-[calc(100%-4rem)] max-w-5xl h-20 grid-cols-[1.2fr_1.6fr_1.2fr] items-center px-6 rounded-[28px] select-none z-50 bg-zinc-950/80 backdrop-blur-3xl border border-white/[0.06] shadow-[0_32px_60px_-15px_rgba(0,0,0,0.9)]"
+      {/* ── DESKTOP/TABLET PLAYER: Compact Persistent Bottom Player ── */}
+      <div
+        className="hidden md:grid fixed bottom-0 left-0 right-0 h-[72px] grid-cols-[1.2fr_1.8fr_1.2fr] items-center px-6 select-none z-50 bg-[#09090e] border-t border-white/[0.06]"
       >
         {/* Left Side: Track Info */}
         <div className="flex items-center gap-3.5 min-w-0">
-          <motion.div
-            animate={isPlaying ? { y: [0, -2, 0] } : { y: 0 }}
-            transition={
-              isPlaying
-                ? { duration: 5, repeat: Infinity, ease: "easeInOut" }
-                : { duration: 0.3 }
-            }
-            className="relative shrink-0"
-          >
+          <div className="relative shrink-0">
             <div
-              className="w-13 h-13 rounded-2xl overflow-hidden bg-zinc-900 shadow-lg"
-              style={{
-                border: "1px solid rgba(255,255,255,0.08)",
-                boxShadow: isPlaying ? "0 8px 24px rgba(139,92,246,0.15)" : undefined,
-              }}
+              className="w-12 h-12 rounded-lg overflow-hidden bg-zinc-900 shadow-md border border-white/[0.08]"
             >
-              <SafeImage src={art} videoId={videoId} alt={title} className="w-full h-full object-cover" />
+              <SafeImage src={art} videoId={videoId} title={title} artist={artist} alt={title} className="w-full h-full object-cover" />
             </div>
-          </motion.div>
+          </div>
           <div className="min-w-0 flex-1">
             <h3 className="text-xs font-bold text-zinc-100 truncate tracking-tight">{title}</h3>
             <p className="text-[10px] text-zinc-500 truncate mt-0.5 font-medium">{artist}</p>
@@ -475,8 +523,9 @@ export default function BottomPlayer() {
             <Heart
               size={15}
               fill={isLiked ? "#ec4899" : "none"}
-              className={isLiked ? "text-pink-400 drop-shadow-[0_0_8px_rgba(236,72,153,0.3)]" : ""}
+              className={isLiked ? "text-pink-400" : ""}
             />
+
           </motion.button>
         </div>
 
@@ -524,32 +573,7 @@ export default function BottomPlayer() {
           </div>
 
           {/* Timeline slider */}
-          <div className="flex items-center gap-3 w-full max-w-[420px] text-[10px] text-zinc-500 font-bold">
-            <span className="w-8 text-right font-mono tabular-nums">{formatTime(currentTime)}</span>
-            <input
-              ref={progressRef}
-              type="range"
-              min={0}
-              max={100}
-              value={progress}
-              onChange={(e) => {
-                if (!player) return;
-                player.seekTo((Number(e.target.value) / 100) * duration, true);
-              }}
-              className="flex-1 h-1 rounded-full cursor-pointer outline-none transition-all"
-              style={{ background: progressStyle, appearance: "none" }}
-              aria-label="Seek"
-            />
-            {isPlaying ? (
-              <div className="flex items-end gap-[1.5px] h-3 px-1 text-purple-400 select-none shrink-0">
-                <span className="w-[1.5px] h-[35%] bg-purple-500 rounded-full animate-[pulse_0.8s_infinite]" />
-                <span className="w-[1.5px] h-[80%] bg-purple-400 rounded-full animate-[pulse_1s_infinite_0.2s]" />
-                <span className="w-[1.5px] h-[50%] bg-purple-500 rounded-full animate-[pulse_0.9s_infinite_0.1s]" />
-              </div>
-            ) : (
-              <span className="w-8 font-mono tabular-nums">{formatTime(duration)}</span>
-            )}
-          </div>
+          <DesktopProgressBar />
         </div>
 
         {/* Right Side: Extra Controls */}
@@ -724,43 +748,38 @@ export default function BottomPlayer() {
             />
           </div>
         </div>
-      </motion.div>
+      </div>
 
-      {/* ── MOBILE MINI PLAYER ── */}
       <div
-        className="md:hidden fixed bottom-[72px] left-3 right-3 h-14 rounded-2xl bg-zinc-950/80 border border-white/[0.08] backdrop-blur-3xl flex items-center justify-between px-3.5 z-40 select-none cursor-pointer shadow-[0_12px_36px_rgba(0,0,0,0.6)]"
+        className="md:hidden fixed bottom-[60px] left-2 right-2 h-12 rounded-lg bg-[#14141c] border border-white/[0.08] flex items-center justify-between px-2.5 z-40 select-none cursor-pointer shadow-lg"
         onClick={() => setIsMobileExpanded(true)}
       >
-        <div className="flex items-center gap-3 min-w-0">
-          <div className="w-9 h-9 rounded-xl overflow-hidden shrink-0">
-            <SafeImage src={art} videoId={videoId} alt="" className="w-full h-full object-cover" />
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className="w-9 h-9 rounded-lg overflow-hidden shrink-0 bg-zinc-900 border border-white/5">
+            <SafeImage src={art} videoId={videoId} title={title} artist={artist} alt="" className="w-full h-full object-cover" />
           </div>
           <div className="min-w-0">
             <h4 className="text-[11px] font-bold text-white truncate leading-tight tracking-tight">{title}</h4>
-            <p className="text-[9px] text-zinc-555 truncate mt-0.5 font-medium">{artist}</p>
+            <p className="text-[10px] text-zinc-400 truncate mt-0.5 font-medium">{artist}</p>
           </div>
         </div>
 
-        <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
           <motion.button
             whileTap={{ scale: 0.88 }}
             onClick={togglePlay}
-            className="w-8.5 h-8.5 rounded-full bg-white flex items-center justify-center text-black"
+            className="w-8 h-8 rounded-full bg-white flex items-center justify-center text-black"
           >
             {isPlaying ? <Pause size={13} fill="currentColor" /> : <Play size={13} fill="currentColor" className="ml-0.5" />}
           </motion.button>
-          <button onClick={nextTrack} className="p-2 text-zinc-400 hover:text-white">
+          <button onClick={nextTrack} className="p-1.5 text-zinc-400 hover:text-white">
             <SkipForward size={14} fill="currentColor" />
           </button>
         </div>
 
+
         {/* Progress Underline */}
-        <div className="absolute bottom-0 left-3 right-3 h-[2px] bg-white/[0.06] rounded-full overflow-hidden">
-          <div
-            className="h-full bg-purple-500 rounded-full transition-all duration-1000 ease-linear"
-            style={{ width: `${progress}%` }}
-          />
-        </div>
+        <MobileMiniProgressUnderline />
       </div>
       <AnimatePresence>
         {isMobileExpanded && (
@@ -777,36 +796,17 @@ export default function BottomPlayer() {
             animate={{ y: 0 }}
             exit={{ y: "100%" }}
             transition={{ ease: [0.16, 1, 0.3, 1], duration: 0.55 }}
-            className="md:hidden fixed inset-0 z-[60] flex flex-col select-none overflow-hidden bg-[#07070A] touch-none"
+            className="md:hidden fixed inset-0 z-[60] flex flex-col select-none overflow-hidden touch-none"
+            style={{ background: "var(--mf-bg-base)" }}
           >
             {/* Pull Dismiss Indicator Bar */}
             <div className="absolute top-2 left-0 right-0 z-20 flex justify-center py-2">
               <div className="w-12 h-1 bg-white/20 rounded-full" />
             </div>
 
-            {/* Blurred background artwork with dynamic rotating glow */}
-            <div className="absolute inset-0 overflow-hidden pointer-events-none">
-              <SafeImage
-                src={art}
-                videoId={videoId}
-                alt=""
-                className="w-full h-full object-cover scale-150 blur-[100px] opacity-[0.12]"
-              />
-              <div className="absolute inset-0 bg-[#07070A]/85" />
-              {/* Active ambient glow orb rotating */}
-              <motion.div
-                animate={{
-                  rotate: [0, 360],
-                  scale: [1, 1.08, 1],
-                }}
-                transition={{
-                  duration: 25,
-                  repeat: Infinity,
-                  ease: "linear",
-                }}
-                className="absolute -top-[20%] -left-[20%] w-[140%] h-[140%] bg-[radial-gradient(circle_at_30%_30%,rgba(168,85,247,0.18),rgba(236,72,153,0.12),transparent_50%)]"
-              />
-            </div>
+            {/* Clean dark backdrop */}
+            <div className="absolute inset-0 bg-[#09090e] pointer-events-none" />
+
 
             <div className="relative z-10 flex flex-col h-full px-6 pt-10 justify-between pb-8">
               {/* Header */}
@@ -835,7 +835,7 @@ export default function BottomPlayer() {
                   transition={{ type: "spring", stiffness: 200, damping: 22 }}
                   className="w-68 h-68 rounded-[32px] overflow-hidden shadow-[0_24px_50px_rgba(0,0,0,0.85)] border border-white/[0.08]"
                 >
-                  <SafeImage src={art} videoId={videoId} alt="" className="w-full h-full object-cover" />
+                  <SafeImage src={art} videoId={videoId} title={title} artist={artist} alt="" className="w-full h-full object-cover" />
                 </motion.div>
               </div>
 
@@ -862,25 +862,7 @@ export default function BottomPlayer() {
                 </div>
 
                 {/* Progress Timeline */}
-                <div className="space-y-2">
-                  <input
-                    type="range"
-                    min={0}
-                    max={100}
-                    value={progress}
-                    onChange={(e) => {
-                      if (!player) return;
-                      player.seekTo((Number(e.target.value) / 100) * duration, true);
-                    }}
-                    className="w-full h-1 rounded-full cursor-pointer outline-none"
-                    style={{ background: progressStyle, appearance: "none" }}
-                    aria-label="Seek"
-                  />
-                  <div className="flex justify-between text-[10px] font-mono text-zinc-500 tabular-nums">
-                    <span>{formatTime(currentTime)}</span>
-                    <span>{formatTime(duration)}</span>
-                  </div>
-                </div>
+                <MobileProgressBar />
 
                 {/* Major controls row */}
                 <div className="flex items-center justify-between py-1 px-1">
@@ -973,11 +955,8 @@ export default function BottomPlayer() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.25 }}
-            className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-zinc-950/95 backdrop-blur-3xl px-6 select-none"
+            className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-zinc-950/98 backdrop-blur-md px-6 select-none"
           >
-            {/* Ambient blur orbs */}
-            <div className="absolute top-1/4 left-1/4 w-[400px] h-[400px] rounded-full bg-purple-900/[0.08] blur-[150px] pointer-events-none" />
-            <div className="absolute bottom-1/4 right-1/4 w-[350px] h-[350px] rounded-full bg-pink-900/[0.06] blur-[120px] pointer-events-none" />
 
             <div className="relative z-10 max-w-2xl w-full flex flex-col h-[75vh] justify-between">
               {/* Header */}
@@ -987,6 +966,8 @@ export default function BottomPlayer() {
                     <SafeImage
                       src={art}
                       videoId={videoId}
+                      title={title}
+                      artist={artist}
                       alt=""
                       className="w-full h-full object-cover"
                     />

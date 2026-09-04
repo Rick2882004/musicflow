@@ -81,18 +81,10 @@ export default function LyricsPage() {
   }
 
   return (
-    <main className="max-w-3xl mx-auto space-y-8 select-none relative min-h-[80vh] pb-32">
-      {/* Cinematic Blurred Ambient Background */}
-      {thumbnail && (
-        <div
-          className="absolute inset-0 -top-20 z-0 bg-cover bg-center filter blur-[100px] opacity-15 pointer-events-none transition-all duration-700 rounded-3xl"
-          style={{ backgroundImage: `url(${thumbnail})` }}
-        />
-      )}
-
+    <main className="max-w-3xl mx-auto space-y-6 select-none relative min-h-[80vh] pb-32">
       {/* Dynamic Header */}
-      <div className="relative z-10 flex items-center gap-6 p-4 rounded-3xl bg-white/[0.015] border border-white/[0.04] shadow-2xl backdrop-blur-md">
-        <div className="relative w-24 h-24 sm:w-28 sm:h-28 rounded-2xl overflow-hidden shrink-0 border border-white/5 bg-zinc-950 shadow-lg">
+      <div className="relative z-10 flex items-center gap-4 p-4 rounded-2xl bg-[#121216] border border-white/[0.06]">
+        <div className="relative w-20 h-20 sm:w-24 sm:h-24 rounded-xl overflow-hidden shrink-0 border border-white/5 bg-zinc-950 shadow-md">
           <SafeImage
             src={thumbnail}
             videoId={videoId}
@@ -102,13 +94,13 @@ export default function LyricsPage() {
           />
         </div>
         <div className="min-w-0 text-left flex-grow">
-          <span className="text-[9px] font-black uppercase tracking-[0.18em] text-purple-400">
-            Real-Time Sync Lyrics
+          <span className="text-[10px] font-bold uppercase tracking-wider text-purple-400">
+            Lyrics
           </span>
-          <h1 className="text-xl sm:text-2xl font-black text-white truncate mt-1">
+          <h1 className="text-lg sm:text-xl font-black text-white truncate mt-0.5">
             {title}
           </h1>
-          <p className="text-xs sm:text-sm text-zinc-400 truncate mt-0.5">{artist}</p>
+          <p className="text-xs text-zinc-400 truncate mt-0.5">{artist}</p>
         </div>
         <div className="shrink-0 hidden sm:block">
           <AudioVisualizer isPlaying={Boolean(videoId && player)} bars={12} barColor="bg-purple-400" />
@@ -116,7 +108,7 @@ export default function LyricsPage() {
       </div>
 
       {/* Synchronized Lyrics Container */}
-      <div className="relative z-10 p-6 sm:p-10 rounded-3xl border border-white/[0.04] bg-zinc-950/20 backdrop-blur-xl min-h-[460px] overflow-hidden">
+      <div className="relative z-10 p-6 sm:p-10 rounded-2xl border border-white/[0.06] bg-[#121216] min-h-[460px] overflow-hidden">
         {loading ? (
           <div className="space-y-4 animate-pulse pt-4">
             {[1, 2, 3, 4, 5, 6].map((i) => (
@@ -141,8 +133,8 @@ export default function LyricsPage() {
                     onClick={() => jumpToLine(idx)}
                     className={`transition-all duration-300 transform origin-center cursor-pointer select-none leading-relaxed tracking-wide ${
                       isActive
-                        ? "text-white text-xl sm:text-2xl font-black scale-[1.02] text-glow opacity-100 py-1"
-                        : "text-zinc-550 text-sm sm:text-lg font-bold opacity-40 hover:opacity-85 hover:text-white"
+                        ? "text-white text-xl sm:text-2xl font-black scale-[1.02] opacity-100 py-1"
+                        : "text-zinc-400 text-sm sm:text-lg font-bold opacity-40 hover:opacity-85 hover:text-white"
                     }`}
                   >
                     {line}

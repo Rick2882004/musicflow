@@ -127,6 +127,8 @@ export default function QueueDrawer() {
                     <SafeImage
                       src={song.thumbnail}
                       videoId={song.videoId}
+                      title={song.title}
+                      artist={song.artist}
                       alt=""
                       className="w-10 h-10 rounded-lg object-cover shrink-0"
                     />

@@ -4,12 +4,24 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { usePlayerStore } from "@/store/player-store";
 import { useShallow } from "zustand/react/shallow";
-import { Track } from "@/types/music";
+import { Track, ChartTrack, ChartArtist, ChartAlbum } from "@/types/music";
 import { motion } from "framer-motion";
-import { Search, Play, ArrowRight } from "lucide-react";
+import {
+  Search,
+  Play,
+  ArrowRight,
+  TrendingUp,
+  Flame,
+  Heart,
+  ArrowUp,
+  ArrowDown,
+  Minus,
+  Sparkles,
+} from "lucide-react";
 import Link from "next/link";
 import PopularArtists from "../../src/components/home/PopularArtists";
 import { SafeImage } from "@/components/ui/SafeImage";
+import { DiscoveryModesBar } from "@/components/discovery/DiscoveryModesBar";
 
 const GENRES = [
   { name: "Bollywood", emoji: "🎬", color: "hover:border-red-500/30 hover:bg-red-500/5 hover:text-red-300" },
@@ -56,64 +68,90 @@ const EDITORS_PICKS = [
 ];
 
 const MOCK_PODCASTS = [
-  { id: "pod1", title: "The Huberman Lab", host: "Dr. Andrew Huberman", image: "", desc: "Neuroscience and science-based tools for everyday life." },
-  { id: "pod2", title: "Lex Fridman Podcast", host: "Lex Fridman", image: "", desc: "Conversations about science, tech, history, and philosophy." },
-  { id: "pod3", title: "The Daily", host: "The New York Times", image: "", desc: "This is what the news should sound like. Twenty minutes a day." },
+  { id: "pod1", title: "The Huberman Lab", host: "Dr. Andrew Huberman", image: "https://images.unsplash.com/photo-1590602847861-f357a9332bbc?w=500&q=80", desc: "Neuroscience and science-based tools for everyday life." },
+  { id: "pod2", title: "Lex Fridman Podcast", host: "Lex Fridman", image: "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&q=80", desc: "Conversations about science, tech, history, and philosophy." },
+  { id: "pod3", title: "The Daily", host: "The New York Times", image: "https://images.unsplash.com/photo-1478737270239-2f02b77fc618?w=500&q=80", desc: "This is what the news should sound like. Twenty minutes a day." },
 ];
 
 const MOCK_AUDIOBOOKS = [
-  { id: "ab1", title: "Atomic Habits", author: "James Clear", image: "", duration: "5h 35m", desc: "An easy and proven way to build good habits and break bad ones." },
-  { id: "ab2", title: "The Creative Act", author: "Rick Rubin", image: "", duration: "6h 12m", desc: "A beautiful and inspiring book about creativity and art." },
-  { id: "ab3", title: "Greenlights", author: "Matthew McConaughey", image: "", duration: "7h 04m", desc: "An album of Matthew McConaughey's life, lessons, and stories." },
+  { id: "ab1", title: "Atomic Habits", author: "James Clear", image: "https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=500&q=80", duration: "5h 35m", desc: "An easy and proven way to build good habits and break bad ones." },
+  { id: "ab2", title: "The Creative Act", author: "Rick Rubin", image: "https://images.unsplash.com/photo-1497633762265-9d179a990aa6?w=500&q=80", duration: "6h 12m", desc: "A beautiful and inspiring book about creativity and art." },
+  { id: "ab3", title: "Greenlights", author: "Matthew McConaughey", image: "https://images.unsplash.com/photo-1512820790803-83ca734da794?w=500&q=80", duration: "7h 04m", desc: "An album of Matthew McConaughey's life, lessons, and stories." },
 ];
 
 const MOCK_RADIO = [
-  { id: "rad1", title: "BBC Radio 1", freq: "98.1 FM", image: "", desc: "Hot new UK chart hits and music news." },
-  { id: "rad2", title: "Jazz FM", freq: "102.5 FM", image: "", desc: "Smooth jazz and classical instrumentals." },
-  { id: "rad3", title: "NPR News Radio", freq: "89.3 FM", image: "", desc: "National Public Radio news and discussions." },
+  { id: "rad1", title: "BBC Radio 1", freq: "98.1 FM", image: "https://images.unsplash.com/photo-1516280440614-37939bbacd81?w=500&q=80", desc: "Hot new UK chart hits and music news." },
+  { id: "rad2", title: "Jazz FM", freq: "102.5 FM", image: "https://images.unsplash.com/photo-1511192336575-5a79af67a629?w=500&q=80", desc: "Smooth jazz and classical instrumentals." },
+  { id: "rad3", title: "NPR News Radio", freq: "89.3 FM", image: "https://images.unsplash.com/photo-1598488035139-bdbb2231ce04?w=500&q=80", desc: "National Public Radio news and discussions." },
 ];
+
+function formatDur(s: number = 0) {
+  const m = Math.floor(s / 60);
+  const sec = Math.floor(s % 60);
+  return `${m}:${String(sec).padStart(2, "0")}`;
+}
 
 export default function ExplorePage() {
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState("");
   const [isFocused, setIsFocused] = useState(false);
-  const [trendingSongs, setTrendingSongs] = useState<Track[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [activeCategory, setActiveCategory] = useState<"music" | "podcasts" | "audiobooks" | "radio">("music");
+  const [activeCategory, setActiveCategory] = useState<"music" | "charts" | "podcasts" | "audiobooks" | "radio">("music");
+  
+  // Real-time dynamic charts state
+  const [chartTracks, setChartTracks] = useState<ChartTrack[]>([]);
+  const [chartArtists, setChartArtists] = useState<ChartArtist[]>([]);
+  const [chartAlbums, setChartAlbums] = useState<ChartAlbum[]>([]);
+  const [chartsLoading, setChartsLoading] = useState(true);
 
-  const { setTrack, setQueue } = usePlayerStore(
+  const { setTrack, setQueue, queue, likedSongs, toggleLike, videoId, isPlaying } = usePlayerStore(
     useShallow((s) => ({
       setTrack: s.setTrack,
       setQueue: s.setQueue,
+      queue: s.queue,
+      likedSongs: s.likedSongs,
+      toggleLike: s.toggleLike,
+      videoId: s.videoId,
+      isPlaying: s.isPlaying,
     }))
   );
 
   useEffect(() => {
     let isMounted = true;
-    async function loadTrending() {
+    async function loadCharts() {
       try {
-        const res = await fetch("/api/search?q=Trending Songs");
-        const json = await res.json();
-        if (isMounted) {
-          setTrendingSongs(json.results?.slice(0, 6) || []);
+        setChartsLoading(true);
+        const res = await fetch("/api/charts");
+        if (res.ok) {
+          const json = await res.json();
+          if (isMounted) {
+            setChartTracks(json.tracks || []);
+            setChartArtists(json.artists || []);
+            setChartAlbums(json.albums || []);
+          }
         }
       } catch (err) {
-        console.error(err);
+        console.error("Charts fetch error:", err);
       } finally {
-        if (isMounted) {
-          setLoading(false);
-        }
+        if (isMounted) setChartsLoading(false);
       }
     }
-    loadTrending();
+    loadCharts();
     return () => {
       isMounted = false;
     };
   }, []);
 
   const playSong = (song: Track, index: number) => {
-    setQueue(trendingSongs);
+    setQueue(chartTracks);
     setTrack(song.videoId, song.title, song.artist, song.thumbnail, index);
+  };
+
+  const playNext = (e: React.MouseEvent, song: Track) => {
+    e.stopPropagation();
+    const newQueue = [...queue];
+    const currentIndex = usePlayerStore.getState().currentIndex;
+    newQueue.splice(currentIndex + 1, 0, song);
+    setQueue(newQueue);
   };
 
   const handleSearchSubmit = (e: React.FormEvent) => {
@@ -123,67 +161,104 @@ export default function ExplorePage() {
     }
   };
 
-  return (
-    <main className="min-h-screen text-white select-none pb-36 text-left space-y-10 overflow-hidden">
-      {/* 1. Page Header */}
-      <section className="relative px-6 md:px-10 pt-6 md:pt-10 pb-2">
-        <div className="absolute top-0 left-[-10%] w-[500px] h-[300px] rounded-full bg-purple-900/[0.07] blur-[120px] pointer-events-none" />
+  const renderMovementBadge = (move?: "up" | "down" | "same" | "new") => {
+    if (move === "up") {
+      return (
+        <span className="inline-flex items-center text-[10px] font-mono font-bold text-emerald-400">
+          <ArrowUp size={10} className="mr-0.5" />
+        </span>
+      );
+    }
+    if (move === "down") {
+      return (
+        <span className="inline-flex items-center text-[10px] font-mono font-bold text-rose-400">
+          <ArrowDown size={10} className="mr-0.5" />
+        </span>
+      );
+    }
+    if (move === "new") {
+      return (
+        <span className="px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider bg-purple-500/20 text-purple-300 border border-purple-500/30">
+          NEW
+        </span>
+      );
+    }
+    return (
+      <span className="text-zinc-600 font-mono text-[10px]">
+        <Minus size={10} />
+      </span>
+    );
+  };
 
-        <div className="relative z-10 space-y-2">
-          <p className="text-[9px] font-black uppercase tracking-[0.18em] text-zinc-500">
-            Discovery Hub
-          </p>
-          <h1 className="font-display text-[44px] sm:text-[60px] font-black leading-[0.92] tracking-tighter text-white">
-            Explore.
+  return (
+    <main className="min-h-screen text-white select-none pb-36 text-left space-y-5 overflow-hidden">
+      {/* 1. Page Header */}
+      <section className="relative px-4 md:px-8 pt-4 pb-1">
+
+
+        <div className="relative z-10 space-y-1">
+          <h1 className="text-2xl md:text-3xl font-black leading-tight tracking-tight text-white">
+            Explore &amp; Browse
           </h1>
-          <p className="text-[12px] text-zinc-550 font-semibold max-w-md">
-            Discover trending charts, new album releases, genre radios, podcasts, and curated playlists.
+          <p className="text-xs text-zinc-400 max-w-md">
+            Discover real-time dynamic charts, genres, new releases, and curated collections.
           </p>
         </div>
       </section>
 
-      {/* 2. Interactive Search & Category Bar */}
-      <section className="px-6 md:px-10 relative z-10">
-        <motion.div
-          initial={{ opacity: 0, y: 15 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-          className="p-4 md:p-6 rounded-[28px] bg-white/[0.015] border border-white/[0.04] backdrop-blur-xl shadow-[0_20px_60px_rgba(0,0,0,0.5)] space-y-4"
+      {/* 2. Interactive Search & Category Selector Bar */}
+      <section className="px-4 md:px-8 relative z-10 space-y-3">
+        <div
+          className="p-3 md:p-4 rounded-xl space-y-3"
+          style={{
+            background: "rgba(255,255,255,0.02)",
+            border: "1px solid var(--mf-border)",
+          }}
         >
           <form onSubmit={handleSearchSubmit} className="relative">
-            <Search className={`absolute left-4 top-3.5 w-4 h-4 transition-colors ${isFocused ? "text-purple-400" : "text-zinc-650"}`} />
+            <Search
+              className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none"
+              style={{ color: isFocused ? "var(--mf-accent-light)" : "var(--mf-text-dim)" }}
+            />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               onFocus={() => setIsFocused(true)}
               onBlur={() => setIsFocused(false)}
-              placeholder="Search genres, artists, podcasts, radios..."
-              className="w-full h-11 pl-11 pr-24 rounded-2xl bg-white/[0.02] border border-white/[0.06] text-xs font-semibold text-white placeholder:text-zinc-600 outline-none focus:border-purple-550 transition-colors"
+              placeholder="Search songs, charts, genres, albums, podcasts..."
+              className="w-full h-11 pl-10 pr-24 rounded-xl text-[12px] font-semibold text-white outline-none transition-all"
+              style={{
+                background: "rgba(255,255,255,0.025)",
+                border: `1px solid ${isFocused ? "rgba(124,58,237,0.40)" : "var(--mf-border)"}`,
+                boxShadow: isFocused ? "0 0 0 3px rgba(124,58,237,0.12)" : "none",
+              }}
             />
             <button
               type="submit"
-              className="absolute right-1.5 top-1.5 h-8 px-4 rounded-xl bg-white hover:bg-zinc-150 text-black font-black text-[11px] transition active:scale-95 shadow-sm cursor-pointer"
+              className="absolute right-1.5 top-1.5 h-8 px-4 rounded-lg text-white font-bold text-[11px] transition active:scale-95 shadow-sm cursor-pointer"
+              style={{ background: "var(--mf-accent)" }}
             >
               Search
             </button>
           </form>
 
           {/* Category Selector Pills */}
-          <div className="flex items-center justify-between pt-2 border-t border-white/[0.04]">
+          <div className="flex items-center justify-between pt-2" style={{ borderTop: "1px solid var(--mf-border-soft)" }}>
             <div className="flex gap-2 overflow-x-auto scrollbar-none py-1">
               {[
-                { id: "music", label: "Music & Albums", emoji: "🎵" },
+                { id: "music", label: "Featured & Moods", emoji: "🎵" },
+                { id: "charts", label: "Real-Time Charts", emoji: "📈" },
                 { id: "podcasts", label: "Podcasts", emoji: "🎙️" },
                 { id: "audiobooks", label: "Audiobooks", emoji: "📚" },
                 { id: "radio", label: "Live Radio", emoji: "📻" },
               ].map((cat) => (
                 <button
                   key={cat.id}
-                  onClick={() => setActiveCategory(cat.id as "music" | "podcasts" | "audiobooks" | "radio")}
-                  className={`px-4 py-2 rounded-xl text-[11px] font-bold transition-all flex items-center gap-2 border cursor-pointer ${
+                  onClick={() => setActiveCategory(cat.id as "music" | "charts" | "podcasts" | "audiobooks" | "radio")}
+                  className={`px-3.5 py-1.5 rounded-full text-[11px] font-bold transition-all flex items-center gap-1.5 border cursor-pointer shrink-0 ${
                     activeCategory === cat.id
-                      ? "bg-white text-black border-white shadow-[0_4px_16px_rgba(255,255,255,0.15)]"
+                      ? "bg-white text-black border-white shadow-sm"
                       : "bg-white/[0.02] text-zinc-400 border-white/[0.05] hover:bg-white/[0.05] hover:text-white"
                   }`}
                 >
@@ -193,28 +268,247 @@ export default function ExplorePage() {
               ))}
             </div>
           </div>
-        </motion.div>
+        </div>
+
+        {/* Discovery Modes Bar */}
+        <DiscoveryModesBar />
       </section>
 
-      {activeCategory === "music" ? (
-        <>
-          {/* Popular Genres */}
-          <section className="px-6 md:px-10 space-y-6">
+      {/* 3. Main Views */}
+      {activeCategory === "charts" ? (
+        /* Real-Time Dynamic Charts View */
+        <section className="px-4 md:px-10 space-y-10">
+          <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
             <div>
-              <p className="text-[9px] font-black uppercase tracking-[0.18em] text-zinc-500 mb-1.5">
-                Quick Categories
-              </p>
-              <h2 className="font-display text-[22px] font-black text-white tracking-tight leading-none">
-                Popular Genres
+              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[10px] font-black uppercase tracking-wider mb-2">
+                <TrendingUp size={12} />
+                Live Dynamic Metrics
+              </div>
+              <h2 className="font-display text-[26px] md:text-[34px] font-black text-white tracking-tight leading-none">
+                Top Real-Time Charts
               </h2>
+              <p className="text-xs text-zinc-400 mt-1">
+                Updated in real time based on streaming volume and popularity velocity.
+              </p>
             </div>
-            <div className="flex gap-3 overflow-x-auto scrollbar-none pb-4 -mx-6 md:-mx-10 px-6 md:px-10">
+            <Link
+              href="/genres"
+              className="px-4 py-2 rounded-full bg-white/[0.03] border border-white/[0.06] hover:bg-white/[0.06] text-xs font-bold text-zinc-300 hover:text-white transition flex items-center gap-2"
+            >
+              <span>Explore Genre Rankings</span>
+              <ArrowRight size={13} />
+            </Link>
+          </div>
+
+          {/* Chart Tracks Ranking Table */}
+          <div className="p-5 md:p-6 rounded-[28px] bg-white/[0.015] border border-white/[0.04] space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-white/[0.04] text-[10px] uppercase font-black tracking-wider text-zinc-500">
+              <div className="flex items-center gap-6">
+                <span className="w-8 text-center">Rank</span>
+                <span>Title</span>
+              </div>
+              <div className="flex items-center gap-8">
+                <span className="hidden md:inline">Duration</span>
+                <span className="w-16 text-right">Actions</span>
+              </div>
+            </div>
+
+            {chartsLoading ? (
+              <div className="space-y-3 animate-pulse pt-2">
+                {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
+                  <div key={i} className="h-14 bg-white/[0.02] border border-white/[0.04] rounded-2xl w-full" />
+                ))}
+              </div>
+            ) : (
+              <div className="space-y-1.5">
+                {chartTracks.map((track, idx) => {
+                  const isCurrent = track.videoId === videoId;
+                  const isCurrentPlaying = isCurrent && isPlaying;
+                  const isLiked = likedSongs.some((s) => s.videoId === track.videoId);
+
+                  return (
+                    <div
+                      key={`${track.videoId}-${idx}`}
+                      onClick={() => playSong(track, idx)}
+                      className="flex items-center justify-between px-3.5 py-3 rounded-2xl bg-white/[0.01] border border-white/[0.03] hover:bg-white/[0.035] hover:border-purple-500/20 transition-all duration-150 cursor-pointer group"
+                    >
+                      <div className="flex items-center gap-4 min-w-0">
+                        {/* Rank + Movement */}
+                        <div className="w-8 flex flex-col items-center justify-center shrink-0">
+                          <span className={`text-xs font-black font-mono ${idx < 3 ? "text-amber-400 font-bold" : "text-zinc-400"}`}>
+                            {track.rank}
+                          </span>
+                          <span className="mt-0.5">{renderMovementBadge(track.movement)}</span>
+                        </div>
+
+                        {/* Thumbnail */}
+                        <div className="w-11 h-11 rounded-xl overflow-hidden bg-zinc-950 shrink-0 border border-white/5 relative">
+                          <SafeImage
+                            src={track.thumbnail}
+                            videoId={track.videoId}
+                            title={track.title}
+                            artist={track.artist}
+                            alt={track.title}
+                            className="w-full h-full object-cover"
+                            fallbackType="song"
+                          />
+                          <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                            <Play size={10} fill="white" className="text-white ml-0.5" />
+                          </div>
+                        </div>
+
+                        {/* Metadata */}
+                        <div className="min-w-0 text-left">
+                          <div className="flex items-center gap-1.5">
+                            <p className={`text-xs font-bold truncate ${isCurrent ? "text-purple-300 font-black" : "text-zinc-200 group-hover:text-white"}`}>
+                              {track.title}
+                            </p>
+                            {isCurrentPlaying && (
+                              <span className="flex items-end gap-0.5 h-3 shrink-0">
+                                <span className="w-0.5 h-2 bg-purple-400 animate-pulse" />
+                                <span className="w-0.5 h-3 bg-purple-300 animate-pulse delay-75" />
+                                <span className="w-0.5 h-1.5 bg-purple-400 animate-pulse delay-150" />
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-[10px] text-zinc-500 truncate mt-0.5">
+                            {track.artist}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Right Meta & Actions */}
+                      <div className="flex items-center gap-4 shrink-0" onClick={(e) => e.stopPropagation()}>
+                        <span className="hidden md:inline text-[10px] font-mono text-zinc-500 tabular-nums">
+                          {track.duration ? formatDur(track.duration) : "3:30"}
+                        </span>
+                        <button
+                          onClick={(e) => playNext(e, track)}
+                          className="px-2.5 py-1 rounded-lg bg-white/[0.03] hover:bg-white/[0.08] text-[10px] font-bold text-zinc-400 hover:text-white border border-white/[0.04] transition opacity-0 group-hover:opacity-100"
+                        >
+                          Play Next
+                        </button>
+                        <button
+                          onClick={() => toggleLike(track)}
+                          className={`p-1.5 rounded-lg transition ${isLiked ? "text-pink-500" : "text-zinc-600 hover:text-white"}`}
+                          aria-label="Like song"
+                        >
+                          <Heart size={13} fill={isLiked ? "currentColor" : "none"} />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Charting Artists & Albums Grid */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            {/* Top Charting Artists */}
+            <div className="p-6 rounded-[28px] bg-white/[0.015] border border-white/[0.04] space-y-5">
+              <div className="flex items-center justify-between">
+                <h3 className="font-display text-base font-black text-white flex items-center gap-2">
+                  <Flame size={15} className="text-orange-400" /> Top Charting Artists
+                </h3>
+                <span className="text-[10px] font-mono text-zinc-500 uppercase font-bold">Top 10</span>
+              </div>
+              <div className="space-y-2">
+                {chartArtists.map((artist) => (
+                  <div
+                    key={artist.name}
+                    onClick={() => router.push(`/artist/${encodeURIComponent(artist.name)}`)}
+                    className="flex items-center justify-between p-2.5 rounded-2xl bg-white/[0.01] hover:bg-white/[0.03] border border-white/[0.03] hover:border-purple-500/20 transition cursor-pointer group"
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <span className="w-5 text-center text-xs font-mono font-bold text-zinc-500">
+                        {artist.rank}
+                      </span>
+                      <div className="w-10 h-10 rounded-full overflow-hidden bg-zinc-950 border border-white/5 shrink-0">
+                        <SafeImage src={artist.image} alt={artist.name} className="w-full h-full object-cover" fallbackType="artist" />
+                      </div>
+                      <div className="min-w-0 text-left">
+                        <p className="text-xs font-bold text-zinc-200 group-hover:text-white truncate">
+                          {artist.name}
+                        </p>
+                        <p className="text-[9px] text-zinc-500">
+                          {artist.monthlyListeners} monthly listeners
+                        </p>
+                      </div>
+                    </div>
+                    {renderMovementBadge(artist.movement)}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Top Charting Albums */}
+            <div className="p-6 rounded-[28px] bg-white/[0.015] border border-white/[0.04] space-y-5">
+              <div className="flex items-center justify-between">
+                <h3 className="font-display text-base font-black text-white flex items-center gap-2">
+                  <Sparkles size={15} className="text-purple-400" /> Top Charting Albums
+                </h3>
+                <span className="text-[10px] font-mono text-zinc-500 uppercase font-bold">Top 10</span>
+              </div>
+              <div className="space-y-2">
+                {chartAlbums.map((album) => (
+                  <div
+                    key={album.albumId}
+                    onClick={() => router.push(`/album/${album.albumId}`)}
+                    className="flex items-center justify-between p-2.5 rounded-2xl bg-white/[0.01] hover:bg-white/[0.03] border border-white/[0.03] hover:border-purple-500/20 transition cursor-pointer group"
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <span className="w-5 text-center text-xs font-mono font-bold text-zinc-500">
+                        {album.rank}
+                      </span>
+                      <div className="w-10 h-10 rounded-xl overflow-hidden bg-zinc-950 border border-white/5 shrink-0">
+                        <SafeImage src={album.thumbnail} title={album.name} artist={album.artist} alt={album.name} className="w-full h-full object-cover" fallbackType="album" />
+                      </div>
+                      <div className="min-w-0 text-left">
+                        <p className="text-xs font-bold text-zinc-200 group-hover:text-white truncate">
+                          {album.name}
+                        </p>
+                        <p className="text-[9px] text-zinc-500 truncate">
+                          {album.artist} · {album.year}
+                        </p>
+                      </div>
+                    </div>
+                    {renderMovementBadge(album.movement)}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </section>
+      ) : activeCategory === "music" ? (
+        /* Featured & Moods View */
+        <>
+          {/* Quick Genres Grid */}
+          <section className="px-4 md:px-10 space-y-6">
+            <div className="flex items-end justify-between">
+              <div>
+                <p className="text-[9px] font-black uppercase tracking-[0.18em] text-zinc-500 mb-1.5">
+                  GENRE SELECTION
+                </p>
+                <h2 className="font-display text-[22px] font-black text-white tracking-tight leading-none">
+                  Popular Genres
+                </h2>
+              </div>
+              <Link
+                href="/genres"
+                className="text-[11px] text-zinc-500 hover:text-zinc-350 transition-colors font-bold uppercase tracking-wider flex items-center gap-1"
+              >
+                <span>Browse all genres</span>
+                <ArrowRight size={11} />
+              </Link>
+            </div>
+            <div className="flex gap-3 overflow-x-auto scrollbar-none pb-4 -mx-4 md:-mx-10 px-4 md:px-10">
               {GENRES.map((genre) => (
                 <motion.button
                   key={genre.name}
                   whileHover={{ y: -2 }}
                   whileTap={{ scale: 0.95 }}
-                  onClick={() => router.push(`/search?q=${encodeURIComponent(genre.name)}`)}
+                  onClick={() => router.push(`/genres`)}
                   className={`flex items-center gap-2 px-5 py-3 rounded-full bg-white/[0.025] border border-white/[0.05] text-[12px] font-bold text-zinc-300 hover:text-white transition-all duration-200 cursor-pointer select-none shrink-0 focus:outline-none ${genre.color}`}
                 >
                   <span>{genre.emoji}</span>
@@ -225,11 +519,11 @@ export default function ExplorePage() {
           </section>
 
           {/* Trending Albums */}
-          <section className="px-6 md:px-10 space-y-6">
+          <section className="px-4 md:px-10 space-y-6">
             <div className="flex items-end justify-between">
               <div>
                 <p className="text-[9px] font-black uppercase tracking-[0.18em] text-zinc-500 mb-1.5">
-                  Releases
+                  RELEASES
                 </p>
                 <h2 className="font-display text-[22px] font-black text-white tracking-tight leading-none">
                   Trending Albums
@@ -242,7 +536,7 @@ export default function ExplorePage() {
                 See all
               </Link>
             </div>
-            <div className="flex gap-5 overflow-x-auto scrollbar-none pb-4 -mx-6 md:-mx-10 px-6 md:px-10">
+            <div className="flex gap-5 overflow-x-auto scrollbar-none pb-4 -mx-4 md:-mx-10 px-4 md:px-10">
               {TRENDING_ALBUMS.map((album) => (
                 <motion.div
                   key={album.id}
@@ -253,6 +547,8 @@ export default function ExplorePage() {
                   <div className="relative rounded-[22px] overflow-hidden bg-zinc-900 aspect-square border border-white/[0.05] group-hover:border-purple-500/30 transition-all duration-300 shadow-[0_8px_28px_rgba(0,0,0,0.6)]">
                     <SafeImage
                       src={album.image}
+                      title={album.title}
+                      artist={album.artist}
                       alt={album.title}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                       fallbackType="album"
@@ -275,10 +571,10 @@ export default function ExplorePage() {
           </section>
 
           {/* Featured Playlists */}
-          <section className="px-6 md:px-10 space-y-6">
+          <section className="px-4 md:px-10 space-y-6">
             <div>
               <p className="text-[9px] font-black uppercase tracking-[0.18em] text-zinc-500 mb-1.5">
-                Curated
+                CURATED
               </p>
               <h2 className="font-display text-[22px] font-black text-white tracking-tight leading-none">
                 Featured Playlists
@@ -320,11 +616,11 @@ export default function ExplorePage() {
           <PopularArtists />
 
           {/* New Releases */}
-          <section className="px-6 md:px-10 space-y-6">
+          <section className="px-4 md:px-10 space-y-6">
             <div className="flex items-end justify-between">
               <div>
                 <p className="text-[9px] font-black uppercase tracking-[0.18em] text-zinc-500 mb-1.5">
-                  Fresh Music
+                  FRESH MUSIC
                 </p>
                 <h2 className="font-display text-[22px] font-black text-white tracking-tight leading-none">
                   New Releases
@@ -337,7 +633,7 @@ export default function ExplorePage() {
                 See all
               </Link>
             </div>
-            <div className="flex gap-5 overflow-x-auto scrollbar-none pb-4 -mx-6 md:-mx-10 px-6 md:px-10">
+            <div className="flex gap-5 overflow-x-auto scrollbar-none pb-4 -mx-4 md:-mx-10 px-4 md:px-10">
               {NEW_RELEASES.map((album) => (
                 <motion.div
                   key={`new-${album.id}`}
@@ -348,6 +644,8 @@ export default function ExplorePage() {
                   <div className="relative rounded-[20px] overflow-hidden bg-zinc-900 aspect-square border border-white/[0.05] group-hover:border-purple-500/30 transition-all duration-300 shadow-[0_8px_24px_rgba(0,0,0,0.5)]">
                     <SafeImage
                       src={album.image}
+                      title={album.title}
+                      artist={album.artist}
                       alt={album.title}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                       fallbackType="album"
@@ -365,10 +663,10 @@ export default function ExplorePage() {
           </section>
 
           {/* Mood Collections */}
-          <section className="px-6 md:px-10 space-y-6">
+          <section className="px-4 md:px-10 space-y-6">
             <div>
               <p className="text-[9px] font-black uppercase tracking-[0.18em] text-zinc-500 mb-1.5">
-                Atmosphere
+                ATMOSPHERE
               </p>
               <h2 className="font-display text-[22px] font-black text-white tracking-tight leading-none">
                 Mood Collections
@@ -395,11 +693,11 @@ export default function ExplorePage() {
           </section>
 
           {/* Editor's Picks */}
-          <section className="px-6 md:px-10 space-y-6">
+          <section className="px-4 md:px-10 space-y-6">
             <div className="flex items-end justify-between">
               <div>
                 <p className="text-[9px] font-black uppercase tracking-[0.18em] text-zinc-500 mb-1.5">
-                  Curator Selected
+                  CURATOR SELECTED
                 </p>
                 <h2 className="font-display text-[22px] font-black text-white tracking-tight leading-none">
                   Editor&apos;s Picks
@@ -417,6 +715,8 @@ export default function ExplorePage() {
                   <div className="w-16 h-16 rounded-2xl overflow-hidden shrink-0 bg-zinc-900 border border-white/5">
                     <SafeImage
                       src={pick.image}
+                      title={pick.title}
+                      artist={pick.artist}
                       alt={pick.title}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                       fallbackType="album"
@@ -437,63 +737,10 @@ export default function ExplorePage() {
               ))}
             </div>
           </section>
-
-          {/* Top Charts */}
-          <section className="px-6 md:px-10 space-y-6">
-            <div>
-              <p className="text-[9px] font-black uppercase tracking-[0.18em] text-zinc-500 mb-1.5">
-                Live Rankings
-              </p>
-              <h2 className="font-display text-[22px] font-black text-white tracking-tight leading-none">
-                Top Charts
-              </h2>
-            </div>
-
-            {loading ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-                {[1, 2, 3, 4, 5, 6].map((i) => (
-                  <div key={i} className="h-16 w-full mf-skeleton rounded-2xl bg-white/[0.015] border border-white/[0.05]" />
-                ))}
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-                {trendingSongs.map((song, index) => (
-                  <div
-                    key={`${song.videoId}-${index}`}
-                    onClick={() => playSong(song, index)}
-                    className="flex items-center justify-between p-3.5 rounded-2xl bg-white/[0.015] border border-white/[0.05] hover:border-purple-500/20 hover:bg-white/[0.03] transition-all duration-300 cursor-pointer group"
-                  >
-                    <div className="flex items-center gap-4 min-w-0">
-                      <span className="text-[11px] font-mono text-zinc-600 w-4.5 text-center shrink-0">
-                        {index + 1}
-                      </span>
-                      <div className="w-12 h-12 rounded-xl overflow-hidden shrink-0 border border-white/5 bg-zinc-950">
-                        <SafeImage
-                          src={song.thumbnail}
-                          videoId={song.videoId}
-                          alt={song.title}
-                          className="w-full h-full object-cover"
-                        />
-                      </div>
-                      <div className="min-w-0">
-                        <p className="font-display text-[13px] font-bold text-zinc-200 group-hover:text-white transition-colors truncate">
-                          {song.title}
-                        </p>
-                        <p className="text-[11px] text-zinc-550 truncate mt-0.5">{song.artist}</p>
-                      </div>
-                    </div>
-                    <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center text-black opacity-0 group-hover:opacity-100 transition-opacity shrink-0 ml-3">
-                      <Play size={10} fill="black" className="ml-0.5" />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </section>
         </>
       ) : (
         /* Podcasts, Audiobooks, Radio category views */
-        <section className="px-6 md:px-10 space-y-6">
+        <section className="px-4 md:px-10 space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
             {(activeCategory === "podcasts"
               ? MOCK_PODCASTS

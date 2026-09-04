@@ -80,16 +80,12 @@ export default function LikedSongsPage() {
     return (
       <ProtectedRoute>
         <main className="min-h-screen pb-36 text-white" style={{ background: "#07070A" }}>
-          {/* Ambient blobs */}
-          <div className="absolute top-0 right-0 w-[500px] h-[400px] rounded-full bg-pink-600/[0.05] blur-[150px] pointer-events-none" />
-          
           <div className="max-w-7xl mx-auto px-6 md:px-10 pt-20 flex flex-col items-center justify-center min-h-[60vh] text-center">
             <motion.div
               initial={{ opacity: 0, scale: 0.94 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-              className="p-8 rounded-[32px] bg-white/[0.015] border border-white/[0.04] flex flex-col items-center max-w-sm"
-              style={{ boxShadow: "0 24px 60px rgba(0,0,0,0.5)" }}
+              className="p-8 rounded-2xl bg-[#121216] border border-white/[0.06] flex flex-col items-center max-w-sm shadow-xl"
             >
               <div className="w-16 h-16 rounded-2xl bg-pink-500/10 flex items-center justify-center text-pink-400 mb-6">
                 <Heart size={28} fill="currentColor" />
@@ -118,84 +114,61 @@ export default function LikedSongsPage() {
 
   return (
     <ProtectedRoute>
-      <main className="min-h-screen pb-36 text-white text-left space-y-8" style={{ background: "#07070A" }}>
+      <main className="min-h-screen pb-36 text-white text-left space-y-8 px-4 md:px-8 pt-4">
 
         {/* 2. Hero Header */}
-        <section className="relative px-6 md:px-10 pt-10 pb-6 overflow-hidden">
-          {/* Ambient background blobs */}
-          <div className="absolute top-0 right-0 w-[500px] h-[400px] rounded-full bg-pink-650/[0.07] blur-[150px] pointer-events-none" />
-          <div className="absolute top-10 left-0 w-[400px] h-[300px] rounded-full bg-violet-850/[0.07] blur-[130px] pointer-events-none" />
-
-          {/* Glass Hero Card */}
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.65, ease: [0.16, 1, 0.3, 1] }}
-            className="relative z-10 p-6 md:p-10 rounded-[32px] bg-white/[0.015] border border-white/[0.04] backdrop-blur-2xl"
-            style={{ boxShadow: "0 24px 80px rgba(0, 0, 0, 0.4)" }}
-          >
-            <div className="flex flex-col md:flex-row items-start md:items-end gap-8">
-              {/* Artwork Block */}
-              <div
-                className="w-40 h-40 md:w-48 md:h-48 shrink-0 rounded-[24px] flex items-center justify-center relative overflow-hidden"
-                style={{
-                  background: "linear-gradient(135deg, #db2777 0%, #7c3aed 100%)",
-                  boxShadow: "0 20px 50px rgba(219,39,119,0.2), 0 8px 24px rgba(0,0,0,0.5)",
-                  border: "1px solid rgba(255,255,255,0.08)",
-                }}
-              >
-                <Heart size={64} fill="white" className="text-white drop-shadow-xl" />
-                <div className="absolute inset-0 bg-gradient-to-br from-white/[0.06] to-transparent pointer-events-none" />
-              </div>
-
-              {/* Meta information */}
-              <div className="space-y-4 text-left">
-                <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/[0.02] border border-white/[0.05]">
-                  <span className="w-1.5 h-1.5 rounded-full bg-pink-500 animate-pulse" />
-                  <span className="text-[9px] font-black uppercase tracking-[0.18em] text-zinc-550 select-none">
-                    PLAYLIST
-                  </span>
-                </div>
-
-                <h1 className="font-display text-[44px] sm:text-[68px] font-black leading-[0.92] tracking-tighter text-white select-none">
-                  Liked Songs.
-                </h1>
-
-                <div className="flex flex-wrap items-center gap-2.5 text-[12px] text-zinc-500 font-semibold">
-                  <span className="text-zinc-200">Your Library</span>
-                  <span className="text-zinc-700">·</span>
-                  <span>{likedSongs.length} songs</span>
-                  <span className="text-zinc-700">·</span>
-                  <span className="flex items-center gap-1">
-                    <Clock size={11} className="text-zinc-650" />
-                    {hours > 0 ? `${hours} hr ` : ""}{minutes} min
-                  </span>
-                </div>
-              </div>
+        <section className="relative pb-4 border-b border-white/[0.06]">
+          <div className="flex flex-col sm:flex-row items-start sm:items-end gap-6">
+            {/* Artwork Block */}
+            <div
+              className="w-36 h-36 sm:w-44 sm:h-44 shrink-0 rounded-xl flex items-center justify-center relative overflow-hidden shadow-lg bg-gradient-to-br from-pink-600 to-purple-700"
+            >
+              <Heart size={56} fill="white" className="text-white" />
             </div>
 
-            {/* Play & Shuffle Actions */}
-            <div className="flex items-center gap-4 mt-8">
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={playAll}
-                className="px-8 py-3 rounded-full bg-white hover:bg-zinc-150 text-black font-black text-sm flex items-center gap-2.5 shadow-lg active:scale-95 transition-all cursor-pointer"
-                style={{ boxShadow: "0 8px 24px rgba(255,255,255,0.12)" }}
-              >
-                <Play size={14} fill="black" className="text-black ml-0.5" /> Play All
-              </motion.button>
+            {/* Meta information */}
+            <div className="space-y-2 text-left flex-1 min-w-0">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">
+                Playlist
+              </span>
 
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={playShuffle}
-                className="px-6 py-3 rounded-full bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.05] text-white font-bold text-sm flex items-center gap-2 shadow-md active:scale-95 transition-all cursor-pointer"
-              >
-                <Shuffle size={14} /> Shuffle
-              </motion.button>
+              <h1 className="text-2xl sm:text-4xl font-black tracking-tight text-white select-none truncate">
+                Liked Songs
+              </h1>
+
+              <div className="flex flex-wrap items-center gap-2 text-xs text-zinc-400">
+                <span className="text-zinc-200 font-semibold">Your Library</span>
+                <span>·</span>
+                <span>{likedSongs.length} songs</span>
+                {likedSongs.length > 0 && (
+                  <>
+                    <span>·</span>
+                    <span className="flex items-center gap-1">
+                      <Clock size={11} className="text-zinc-400" />
+                      {hours > 0 ? `${hours} hr ` : ""}{minutes} min
+                    </span>
+                  </>
+                )}
+              </div>
+
+              {/* Play & Shuffle Actions */}
+              <div className="flex items-center gap-3 pt-2">
+                <button
+                  onClick={playAll}
+                  className="px-6 py-2.5 rounded-full bg-white hover:bg-zinc-200 text-black font-bold text-xs flex items-center gap-2 transition active:scale-95 cursor-pointer shadow-md"
+                >
+                  <Play size={13} fill="black" className="text-black ml-0.5" /> Play All
+                </button>
+
+                <button
+                  onClick={playShuffle}
+                  className="px-5 py-2.5 rounded-full bg-white/[0.06] hover:bg-white/10 border border-white/10 text-white font-semibold text-xs flex items-center gap-2 transition active:scale-95 cursor-pointer"
+                >
+                  <Shuffle size={13} /> Shuffle
+                </button>
+              </div>
             </div>
-          </motion.div>
+          </div>
         </section>
 
         {/* 3. Local Filters & Sort */}

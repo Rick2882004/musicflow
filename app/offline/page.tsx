@@ -6,7 +6,7 @@ import Link from "next/link";
 export default function OfflinePage() {
   return (
     <main className="min-h-screen bg-black text-white flex flex-col items-center justify-center p-6 text-center">
-      <div className="max-w-md w-full p-8 rounded-3xl bg-white/[0.02] border border-white/[0.06] backdrop-blur-xl shadow-2xl space-y-6">
+      <div className="max-w-md w-full p-8 rounded-2xl bg-[#121216] border border-white/[0.06] space-y-6">
         <div className="w-16 h-16 rounded-2xl bg-purple-500/10 border border-purple-500/20 text-purple-400 flex items-center justify-center mx-auto animate-pulse">
           <WifiOff size={32} />
         </div>

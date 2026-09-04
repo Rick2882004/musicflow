@@ -21,38 +21,31 @@ export default function AuthLayout({
       {/* Background Gradient */}
       <div className="absolute inset-0 bg-gradient-to-br from-purple-950/20 via-black to-blue-950/15" />
 
-      {/* Purple Glow */}
-      <div className="absolute -top-40 -left-40 w-[450px] h-[450px] rounded-full bg-fuchsia-600/10 blur-[120px]" />
-
-      {/* Blue Glow */}
-      <div className="absolute bottom-0 right-0 w-[450px] h-[450px] rounded-full bg-blue-500/10 blur-[120px]" />
-
       {/* Logo */}
       <Link
         href="/"
         className="absolute top-8 left-8 flex items-center gap-2 text-white"
       >
         <div className="w-9 h-9 rounded-xl bg-purple-550 flex items-center justify-center text-white">
-          <Disc size={18} className="animate-spin" style={{ animationDuration: "8s" }} />
+          <Disc size={18} />
         </div>
-        <span className="font-display text-lg font-black tracking-tighter">
-          MusicFlow.
+        <span className="font-display text-lg font-black tracking-tight">
+          MusicFlow
         </span>
       </Link>
 
-      {/* Glass Card */}
+      {/* Clean Auth Card */}
       <div
         className="
           relative
           z-10
           w-full
           max-w-md
-          rounded-[32px]
-          bg-white/[0.015]
-          backdrop-blur-2xl
+          rounded-2xl
+          bg-[#121216]
           border
-          border-white/[0.04]
-          shadow-[0_24px_80px_rgba(0,0,0,0.5)]
+          border-white/[0.08]
+          shadow-2xl
           p-8
           text-left
         "

@@ -7,7 +7,7 @@ import { usePlayerStore } from "@/store/player-store";
 import { useShallow } from "zustand/react/shallow";
 import ProtectedRoute from "../../src/components/auth/ProtectedRoute";
 import { motion, AnimatePresence, type Variants } from "framer-motion";
-import { ListMusic, Plus, Search, Play, Music, Sparkles, MoreHorizontal, X } from "lucide-react";
+import { ListMusic, Plus, Search, Play, Music, MoreHorizontal, X } from "lucide-react";
 import { Playlist } from "@/types/music";
 import { useHasMounted } from "@/hooks/useHasMounted";
 import { SafeImage } from "@/components/ui/SafeImage";
@@ -67,11 +67,11 @@ export default function PlaylistsPage() {
     );
   }
 
-  const totalSongs = playlists.reduce((total, p) => total + p.songs.length, 0);
+  const totalSongs = playlists.reduce((total, p) => total + (p?.songs?.length || 0), 0);
   const totalHours = Math.round(totalSongs * 3.5 / 60);
 
   const filteredPlaylists = playlists.filter((p: Playlist) =>
-    p.name.toLowerCase().includes(search.toLowerCase())
+    (p?.name || "").toLowerCase().includes(search.toLowerCase())
   );
 
   const triggerCreate = () => {
@@ -83,89 +83,27 @@ export default function PlaylistsPage() {
 
   return (
     <ProtectedRoute>
-      <main className="min-h-screen pb-36 text-white text-left space-y-16" style={{ background: "#07070A" }}>
+      <main className="min-h-screen pb-36 text-white text-left space-y-6" style={{ background: "#07070A" }}>
 
         {/* 1. Hero Section */}
-        <section className="relative px-4 md:px-10 pt-6 md:pt-10 pb-6 overflow-hidden">
-          {/* Ambient Background Orbs */}
-          <div className="absolute top-0 left-[-10%] w-[600px] h-[400px] rounded-full bg-purple-950/[0.08] blur-[140px] pointer-events-none" />
-          <div className="absolute top-20 right-0 w-[450px] h-[320px] rounded-full bg-fuchsia-950/[0.06] blur-[120px] pointer-events-none" />
-
-          {/* Glass Hero Container */}
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.65, ease: [0.16, 1, 0.3, 1] }}
-            className="relative z-10 p-6 md:p-10 rounded-[32px] bg-white/[0.015] border border-white/[0.04] backdrop-blur-2xl"
-            style={{ boxShadow: "0 24px 80px rgba(0, 0, 0, 0.4)" }}
-          >
-            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-8">
-              
-              <div className="flex flex-col md:flex-row items-start md:items-center gap-6">
-                {/* Playlist Cover Art Block */}
-                <div
-                  className="w-32 h-32 md:w-36 md:h-36 shrink-0 rounded-[24px] flex items-center justify-center relative overflow-hidden"
-                  style={{
-                    background: "linear-gradient(135deg, #7c3aed 0%, #d946ef 100%)",
-                    boxShadow: "0 20px 50px rgba(124,58,237,0.2), 0 8px 24px rgba(0,0,0,0.5)",
-                    border: "1px solid rgba(255,255,255,0.08)",
-                  }}
-                >
-                  <ListMusic size={52} className="text-white drop-shadow-xl" />
-                  <div className="absolute inset-0 bg-gradient-to-br from-white/[0.06] to-transparent pointer-events-none" />
-                </div>
-
-                <div className="space-y-4 text-left">
-                  {/* Small Badge */}
-                  <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/[0.02] border border-white/[0.05]">
-                    <Sparkles size={11} className="text-purple-450" />
-                    <span className="text-[9px] font-black uppercase tracking-[0.18em] text-zinc-550 select-none">
-                      COLLECTIONS
-                    </span>
-                  </div>
-
-                  {/* Title */}
-                  <h1 className="font-display text-[44px] sm:text-[68px] font-black leading-[0.92] tracking-tighter text-white select-none">
-                    Your Playlists.
-                  </h1>
-
-                  {/* Subtitle */}
-                  <p className="text-sm text-zinc-500 font-medium leading-relaxed max-w-sm">
-                    Build collections for every mood.
-                  </p>
-                </div>
-              </div>
-
-              {/* Statistics Grid & Actions */}
-              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6 shrink-0">
-                <div className="flex items-center gap-6 text-zinc-500 font-semibold text-xs border-r border-white/5 pr-6 hidden sm:flex">
-                  <div className="text-center">
-                    <p className="text-[10px] uppercase text-zinc-600 font-bold tracking-wider">Playlists</p>
-                    <p className="text-xl font-black text-zinc-200 mt-1">{playlists.length}</p>
-                  </div>
-                  <div className="text-center">
-                    <p className="text-[10px] uppercase text-zinc-600 font-bold tracking-wider">Songs</p>
-                    <p className="text-xl font-black text-zinc-200 mt-1">{totalSongs}</p>
-                  </div>
-                  <div className="text-center">
-                    <p className="text-[10px] uppercase text-zinc-600 font-bold tracking-wider">Hours</p>
-                    <p className="text-xl font-black text-zinc-200 mt-1">{totalHours}</p>
-                  </div>
-                </div>
-
-                <motion.button
-                  whileHover={{ scale: 1.04 }}
-                  whileTap={{ scale: 0.96 }}
-                  onClick={() => setIsCreating(!isCreating)}
-                  className="px-6 py-3 rounded-full bg-white hover:bg-zinc-150 text-black font-black text-sm flex items-center gap-2 shadow-lg active:scale-95 transition-all cursor-pointer"
-                  style={{ boxShadow: "0 8px 24px rgba(255,255,255,0.12)" }}
-                >
-                  <Plus size={15} /> Create Playlist
-                </motion.button>
-              </div>
-
+        <section className="relative px-4 md:px-8 pt-4 pb-2 border-b border-white/[0.06]">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h1 className="text-2xl md:text-3xl font-black tracking-tight text-white select-none">
+                Your Playlists
+              </h1>
+              <p className="text-xs text-zinc-400 mt-0.5">
+                {playlists.length} playlists · {totalSongs} tracks{totalHours > 0 ? ` · ${totalHours}h` : ""}
+              </p>
             </div>
-          </motion.div>
+
+            <button
+              onClick={() => setIsCreating(!isCreating)}
+              className="px-5 py-2.5 rounded-full bg-white hover:bg-zinc-200 text-black font-bold text-xs flex items-center gap-2 active:scale-95 transition-all cursor-pointer shadow-md self-start sm:self-auto"
+            >
+              <Plus size={14} /> Create Playlist
+            </button>
+          </div>
         </section>
 
         {/* Create playlist collapse */}
@@ -282,7 +220,8 @@ export default function PlaylistsPage() {
               className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-5"
             >
               {filteredPlaylists.map((playlist: Playlist) => {
-                const updatedMock = playlist.songs.length > 0 ? "Updated 2 days ago" : "Created recently";
+                const songs = playlist?.songs || [];
+                const updatedMock = songs.length > 0 ? "Updated 2 days ago" : "Created recently";
                 return (
                   <motion.div key={playlist.id} variants={itemVariants} whileHover={{ y: -6 }}>
                     <Link href={`/playlists/${playlist.id}`}>
@@ -290,17 +229,17 @@ export default function PlaylistsPage() {
                         <div
                           className="relative aspect-square rounded-[22px] overflow-hidden bg-zinc-900 border border-white/[0.05] shadow-[0_8px_24px_rgba(0,0,0,0.6)] group-hover:border-purple-500/25 transition-all duration-300"
                         >
-                          {playlist.songs[0] ? (
+                          {songs[0] ? (
                             <SafeImage
-                              src={playlist.songs[0].thumbnail}
-                              videoId={playlist.songs[0].videoId}
+                              src={songs[0].thumbnail}
+                              videoId={songs[0].videoId}
                               alt={playlist.name}
                               className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                               fallbackType="song"
                             />
                           ) : (
                             <div className="w-full h-full flex items-center justify-center bg-zinc-950">
-                              <Music size={36} className="text-zinc-750" />
+                              <Music size={36} className="text-zinc-755" />
                             </div>
                           )}
                           <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
@@ -315,7 +254,7 @@ export default function PlaylistsPage() {
                               {playlist.name}
                             </h3>
                             <p className="text-[10px] text-zinc-555 mt-0.5 font-medium">
-                              {playlist.songs.length} Tracks · {updatedMock}
+                              {songs.length} Tracks · {updatedMock}
                             </p>
                           </div>
                           <button className="text-zinc-650 hover:text-white opacity-0 group-hover:opacity-100 transition-opacity p-0.5 shrink-0">

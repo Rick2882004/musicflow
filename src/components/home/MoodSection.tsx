@@ -2,7 +2,6 @@
 
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { Compass } from "lucide-react";
 
 const moods = [
   { name: "Focus", emoji: "🎯", color: "hover:border-blue-500/30 hover:bg-blue-500/5 hover:text-blue-300" },
@@ -26,31 +25,50 @@ export default function MoodSection() {
   const router = useRouter();
 
   return (
-    <section className="px-4 md:px-10 pb-14 text-left space-y-6">
+    <section className="mf-section px-4 md:px-8 pb-12 text-left select-none">
       {/* Header */}
-      <div>
-        <p className="text-[9px] font-black uppercase tracking-[0.18em] text-purple-400 mb-1 flex items-center gap-1.5">
-          <Compass size={11} /> Explore Vibes
-        </p>
-        <h2 className="font-display text-[22px] font-black text-white tracking-tight leading-none">
-          Moods &amp; Dynamic Collections
-        </h2>
+      <div className="mf-section-header">
+        <div>
+          <p
+            className="text-[9px] font-black uppercase mb-1"
+            style={{ letterSpacing: "0.18em", color: "var(--mf-text-dim)" }}
+          >
+            Genres &amp; Moods
+          </p>
+          <h2 className="mf-section-title">Explore by Vibe</h2>
+        </div>
       </div>
 
+
       {/* Pill cloud */}
-      <div className="flex overflow-x-auto scrollbar-none pb-2 -mx-4 px-4 md:flex-wrap md:mx-0 md:px-0 gap-2.5">
+      <div className="flex overflow-x-auto scrollbar-none pb-2 -mx-4 px-4 md:flex-wrap md:mx-0 md:px-0 gap-2">
         {moods.map((mood, idx) => (
           <motion.button
             key={mood.name}
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1], delay: idx * 0.015 }}
-            whileHover={{ y: -3, scale: 1.05 }}
+            transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1], delay: idx * 0.015 }}
+            whileHover={{ y: -2 }}
             whileTap={{ scale: 0.95 }}
             onClick={() => router.push(`/search?q=${encodeURIComponent(mood.name)}`)}
-            className={`flex items-center gap-2 px-4.5 py-2.5 rounded-full bg-white/[0.015] border border-white/[0.05] text-[12px] font-bold text-zinc-300 transition-all duration-200 cursor-pointer select-none focus:outline-none ${mood.color}`}
+            className="flex items-center gap-2 px-3.5 py-2 rounded-full text-[12px] font-semibold transition-all duration-150 cursor-pointer select-none focus:outline-none"
+            style={{
+              background: "rgba(255,255,255,0.03)",
+              border: "1px solid var(--mf-border)",
+              color: "var(--mf-text-secondary)",
+            }}
+            onMouseEnter={(e) => {
+              (e.currentTarget as HTMLElement).style.background = "rgba(124,58,237,0.12)";
+              (e.currentTarget as HTMLElement).style.borderColor = "var(--mf-border-accent)";
+              (e.currentTarget as HTMLElement).style.color = "var(--mf-text-primary)";
+            }}
+            onMouseLeave={(e) => {
+              (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.03)";
+              (e.currentTarget as HTMLElement).style.borderColor = "var(--mf-border)";
+              (e.currentTarget as HTMLElement).style.color = "var(--mf-text-secondary)";
+            }}
           >
-            <span>{mood.emoji}</span>
+            <span className="text-sm">{mood.emoji}</span>
             <span>{mood.name}</span>
           </motion.button>
         ))}

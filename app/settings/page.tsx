@@ -72,14 +72,14 @@ export default function SettingsPage() {
     }
   };
 
-  const sectionCardStyle = "p-5 rounded-[22px] bg-white/[0.015] border border-white/[0.04] space-y-5 shadow-lg text-left";
+  const sectionCardStyle = "p-5 rounded-2xl bg-[#121216] border border-white/[0.06] space-y-5 text-left";
   const labelStyle = "text-xs font-bold text-zinc-200 block";
-  const descStyle = "text-[10px] text-zinc-555 block font-medium mt-0.5";
+  const descStyle = "text-[10px] text-zinc-400 block font-medium mt-0.5";
   const selectStyle = "bg-[#0c0c0e]/95 border border-white/[0.06] rounded-xl px-3 py-1.5 text-xs text-white outline-none cursor-pointer focus:border-purple-550 transition-colors";
 
   return (
     <ProtectedRoute>
-      <main className="max-w-3xl mx-auto space-y-8 select-none pb-36">
+      <main className="max-w-3xl mx-auto space-y-6 select-none pb-36">
         
         {/* Save confirmation toast */}
         <AnimatePresence>
@@ -96,25 +96,19 @@ export default function SettingsPage() {
         </AnimatePresence>
 
         {/* 1. Page Header */}
-        <div className="relative px-4 md:px-10 pt-6 md:pt-10 pb-4 overflow-hidden text-left flex items-center justify-between">
-          {/* Ambient Glow */}
-          <div className="absolute top-0 left-[-10%] w-[500px] h-[300px] rounded-full bg-purple-900/[0.06] blur-[120px] pointer-events-none" />
-          
-          <div className="relative z-10">
-            <p className="text-[9px] font-black uppercase tracking-[0.18em] text-zinc-600 mb-1.5">
-              Workspace Settings
-            </p>
-            <h1 className="font-display text-[44px] sm:text-[60px] font-black leading-[0.92] tracking-tighter text-white select-none">
-              Settings.
+        <div className="px-4 md:px-10 pt-4 pb-2 border-b border-white/[0.06] text-left flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl md:text-3xl font-black tracking-tight text-white">
+              Settings
             </h1>
-            <p className="text-[12px] text-zinc-550 font-semibold mt-2">
-              Configure playback, downloads, system notifications, and privacy preferences.
+            <p className="text-xs text-zinc-400 mt-0.5">
+              Audio quality, playback preferences, and account controls
             </p>
           </div>
 
           <button
             onClick={() => router.back()}
-            className="w-10 h-10 rounded-full bg-white/[0.02] border border-white/[0.05] hover:bg-white/[0.06] flex items-center justify-center text-zinc-400 hover:text-white transition shrink-0"
+            className="w-9 h-9 rounded-full bg-white/[0.04] border border-white/[0.06] hover:bg-white/[0.08] flex items-center justify-center text-zinc-400 hover:text-white transition shrink-0"
           >
             <ArrowLeft size={16} />
           </button>
@@ -154,15 +148,15 @@ export default function SettingsPage() {
 
             <div className="flex items-center justify-between">
               <div>
-                <span className={labelStyle}>Workspace Skin Style</span>
-                <span className={descStyle}>Change the background style of your desktop player</span>
+                <span className={labelStyle}>Theme Style</span>
+                <span className={descStyle}>Select appearance and contrast mode</span>
               </div>
               <select
                 value={theme}
                 onChange={(e) => setTheme(e.target.value)}
                 className={selectStyle}
               >
-                <option value="glass">Premium Glass</option>
+                <option value="glass">Dark (Default)</option>
                 <option value="dark">Vibrant Dark</option>
                 <option value="amoled">Amoled Black</option>
               </select>

@@ -68,60 +68,82 @@ export default function PersonalizedMixes() {
   };
 
   return (
-    <section className="px-4 md:px-10 space-y-6">
-      <div className="flex items-center justify-between">
+    <section className="px-4 md:px-8 select-none text-left">
+      <div className="flex items-center justify-between mb-3">
         <div>
-          <p className="text-[9px] font-black uppercase tracking-[0.18em] text-purple-400 mb-1 flex items-center gap-1.5">
-            <Sparkles size={11} /> Crafted For You
+          <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-0.5">
+            Crafted for you
           </p>
-          <h2 className="font-display text-[22px] font-black text-white tracking-tight leading-none">
+          <h2 className="text-xl md:text-2xl font-black text-white tracking-tight">
             Personalized Mixes
           </h2>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {mixes.map((mix) => (
           <motion.div
             key={mix.id}
-            whileHover={{ y: -6, scale: 1.02 }}
+            whileHover={{ y: -4 }}
             transition={{ type: "spring", stiffness: 350, damping: 25 }}
             onClick={() => handlePlayMix(mix.tracks)}
-            className={`group relative p-5 rounded-3xl bg-gradient-to-br ${mix.gradient} border border-white/[0.06] ${mix.border} transition-all duration-300 cursor-pointer overflow-hidden backdrop-blur-xl shadow-xl`}
+            className="group relative p-4 rounded-xl transition-all duration-200 cursor-pointer overflow-hidden border border-white/[0.06] bg-[#121216] hover:bg-white/[0.04] hover:border-white/10"
           >
-            {/* Background Ambient Glow */}
-            <div className="absolute top-0 right-0 w-32 h-32 rounded-full bg-white/[0.03] blur-2xl pointer-events-none" />
 
-            <div className="flex items-center justify-between mb-4">
-              <div className={`w-10 h-10 rounded-2xl bg-white/[0.06] border border-white/10 flex items-center justify-center ${mix.iconColor}`}>
-                <mix.icon size={20} />
+            <div className="flex items-center justify-between mb-4 relative z-10">
+              <div
+                className={`w-10 h-10 rounded-xl flex items-center justify-center ${mix.iconColor}`}
+                style={{ background: "rgba(255,255,255,0.04)", border: "1px solid var(--mf-border)" }}
+              >
+                <mix.icon size={18} />
               </div>
 
-              <div className="w-10 h-10 rounded-full bg-purple-550 text-black flex items-center justify-center opacity-0 translate-y-2 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-300 shadow-lg">
-                <Play size={18} fill="black" className="ml-0.5" />
+              <div
+                className="w-9 h-9 rounded-full flex items-center justify-center opacity-0 translate-y-2 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-300 shadow-md"
+                style={{ background: "var(--mf-accent)", color: "#fff" }}
+              >
+                <Play size={14} fill="currentColor" className="ml-0.5" />
               </div>
             </div>
 
-            <div className="space-y-1 text-left">
-              <h3 className="font-display text-base font-black text-white tracking-tight leading-snug group-hover:text-purple-200 transition-colors">
+            <div className="relative z-10 text-left">
+              <h3 className="text-[14px] font-bold text-white tracking-tight leading-snug group-hover:text-purple-300 transition-colors">
                 {mix.title}
               </h3>
-              <p className="text-xs text-zinc-400 font-medium line-clamp-1">
+              <p
+                className="text-[11px] truncate mt-1 font-medium"
+                style={{ color: "var(--mf-text-muted)" }}
+              >
                 {mix.subtitle}
               </p>
             </div>
 
-            {/* Thumbnail Preview Stack */}
-            <div className="flex items-center gap-2 mt-4 pt-3 border-t border-white/[0.05]">
-              {mix.tracks.slice(0, 3).map((song, i) => (
-                <div key={`${mix.id}-thumb-${i}`} className="w-8 h-8 rounded-lg overflow-hidden border border-white/10 shrink-0 bg-zinc-900">
-                  <SafeImage src={song.thumbnail} videoId={song.videoId} alt={song.title} className="w-full h-full object-cover" />
+            {/* Subtle multi-art preview thumbnails */}
+            {mix.tracks.length > 0 && (
+              <div className="flex items-center gap-1.5 mt-4 pt-3 border-t border-white/[0.04] relative z-10">
+                <div className="flex -space-x-2 overflow-hidden">
+                  {mix.tracks.slice(0, 3).map((track, i) => (
+                    <div
+                      key={i}
+                      className="inline-block w-6 h-6 rounded-full ring-1 ring-zinc-950 overflow-hidden bg-zinc-900"
+                    >
+                      <SafeImage
+                        src={track.thumbnail}
+                        videoId={track.videoId}
+                        alt=""
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                  ))}
                 </div>
-              ))}
-              {mix.tracks.length === 0 && (
-                <span className="text-[10px] text-zinc-500 font-semibold italic">Play songs to personalize</span>
-              )}
-            </div>
+                <span
+                  className="text-[9px] font-mono tracking-wider ml-1"
+                  style={{ color: "var(--mf-text-dim)" }}
+                >
+                  {mix.tracks.length} tracks
+                </span>
+              </div>
+            )}
           </motion.div>
         ))}
       </div>

@@ -2,28 +2,34 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { motion } from "framer-motion";
-import { Home, Search, Music2, ListMusic, User } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Home, Search, Compass, Library, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const TABS = [
-  { name: "Home", href: "/", icon: Home },
-  { name: "Search", href: "/search", icon: Search },
-  { name: "Library", href: "/library", icon: Music2 },
-  { name: "Playlists", href: "/playlists", icon: ListMusic },
-  { name: "Profile", href: "/profile", icon: User },
+  { name: "Home",    href: "/",        icon: Home    },
+  { name: "Search",  href: "/search",  icon: Search  },
+  { name: "Explore", href: "/explore", icon: Compass },
+  { name: "Library", href: "/library", icon: Library },
+  { name: "Profile", href: "/profile", icon: User    },
 ];
 
 export default function MobileBottomNav() {
   const pathname = usePathname();
 
+  // Hide on auth pages
+  if (pathname === "/login" || pathname === "/signup") return null;
+
   return (
     <nav
       aria-label="Mobile Bottom Navigation"
-      className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-[#0a0a0e]/90 backdrop-blur-xl border-t border-white/[0.05] flex items-center justify-around px-2 pb-safe pt-2 shadow-[0_-8px_32px_rgba(0,0,0,0.5)]"
+      className="md:hidden fixed bottom-0 left-0 right-0 z-50 flex items-center justify-around pb-safe bg-[#09090e] border-t border-white/[0.08] h-[56px]"
     >
       {TABS.map((tab) => {
-        const isActive = pathname === tab.href || (tab.href !== "/" && pathname.startsWith(tab.href));
+        const isActive =
+          tab.href === "/"
+            ? pathname === "/"
+            : pathname === tab.href || pathname.startsWith(tab.href + "/");
         const Icon = tab.icon;
 
         return (
@@ -32,44 +38,54 @@ export default function MobileBottomNav() {
             href={tab.href}
             aria-label={tab.name}
             aria-current={isActive ? "page" : undefined}
-            className="relative flex flex-col items-center justify-center w-14 h-12 rounded-xl transition duration-150 active:scale-90"
+            className={cn(
+              "relative flex flex-col items-center justify-center gap-1 w-16 min-h-[52px] rounded-xl transition-all duration-150 active:scale-90"
+            )}
           >
-            {/* Background Active Pill Indicator */}
+            {/* Active background pill */}
             {isActive && (
               <motion.div
-                layoutId="activeTabBackground"
-                className="absolute inset-0 bg-purple-500/10 border border-purple-500/20 rounded-xl"
-                transition={{ type: "spring", stiffness: 380, damping: 30 }}
+                layoutId="mobileNavPill"
+                className="absolute inset-0 rounded-xl"
+                style={{ background: "rgba(124,58,237,0.10)" }}
+                transition={{ type: "spring", stiffness: 400, damping: 30 }}
               />
             )}
 
             <Icon
-              size={18}
-              className={cn(
-                "relative z-10 transition-colors duration-200",
-                isActive ? "text-purple-400" : "text-zinc-500"
-              )}
+              size={19}
+              className={cn("relative z-10 transition-colors duration-150")}
+              style={{ color: isActive ? "var(--mf-accent-light)" : "var(--mf-text-dim)" }}
             />
+
             <span
               className={cn(
-                "text-[9px] font-bold tracking-wide mt-1 relative z-10 transition-colors duration-200",
-                isActive ? "text-purple-300" : "text-zinc-500"
+                "relative z-10 text-[9px] font-bold tracking-wide transition-colors duration-150"
               )}
+              style={{ color: isActive ? "var(--mf-accent-light)" : "var(--mf-text-dim)" }}
             >
               {tab.name}
             </span>
 
-            {/* Micro Active Glow Dot */}
-            {isActive && (
-              <motion.span
-                layoutId="activeTabDot"
-                className="absolute bottom-1 w-1 h-1 rounded-full bg-purple-400 shadow-[0_0_8px_#a855f7]"
-                transition={{ type: "spring", stiffness: 380, damping: 30 }}
-              />
-            )}
+            {/* Active underline dot */}
+            <AnimatePresence>
+              {isActive && (
+                <motion.span
+                  key="dot"
+                  layoutId="mobileNavDot"
+                  className="absolute bottom-1 w-1 h-1 rounded-full"
+                  style={{ background: "var(--mf-accent-light)" }}
+                  initial={{ opacity: 0, scale: 0 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0 }}
+                  transition={{ type: "spring", stiffness: 400, damping: 28 }}
+                />
+              )}
+            </AnimatePresence>
           </Link>
         );
       })}
     </nav>
   );
 }
+

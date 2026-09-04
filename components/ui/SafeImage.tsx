@@ -1,16 +1,20 @@
 "use client";
 
 import { useState, useEffect, memo } from "react";
+import { useResolvedArtwork } from "@/lib/metadata-resolver";
 
 type SafeImageProps = {
   src?: string;
   videoId?: string;
+  title?: string;
+  artist?: string;
+  album?: string;
   alt: string;
   className?: string;
   fallbackType?: "song" | "artist" | "album";
 };
 
-const QUALITIES = ["maxresdefault", "sddefault", "hqdefault", "mqdefault", "default"];
+const QUALITIES = ["hqdefault", "mqdefault", "default"];
 
 const SVG_FALLBACKS = {
   song: `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="500" height="500" viewBox="0 0 500 500"><rect width="500" height="500" fill="%230c0c0e"/><radialGradient id="g" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="%237c3aed" stop-opacity="0.3"/><stop offset="100%" stop-color="%23000000" stop-opacity="0"/></radialGradient><rect width="500" height="500" fill="url(%23g)"/><path d="M220 170 v120 a35 35 0 1 1 -30 -34.5 v-85.5 l90 -25 v95 a35 35 0 1 1 -30 -34.5 v-65.5 z" fill="%23a855f7"/></svg>`,
@@ -21,10 +25,23 @@ const SVG_FALLBACKS = {
 export const SafeImage = memo(function SafeImage({
   src,
   videoId,
+  title,
+  artist,
+  album,
   alt,
   className = "",
   fallbackType = "song",
 }: SafeImageProps) {
+  // Centralized iTunes metadata & high-resolution artwork resolver
+  const { artworkUrl: resolvedSrc } = useResolvedArtwork({
+    title,
+    artist,
+    album,
+    videoId,
+    initialSrc: src,
+    fallbackType,
+  });
+
   const [imgSrc, setImgSrc] = useState<string>("");
   const [resolvedVid, setResolvedVid] = useState<string>("");
   const [fallbackIndex, setFallbackIndex] = useState<number>(-1);
@@ -37,25 +54,37 @@ export const SafeImage = memo(function SafeImage({
     setIsLoaded(false);
     setFallbackIndex(-1);
 
+    const activeSource = resolvedSrc || src;
+
     let resolved = videoId || "";
-    if (!resolved && src) {
-      const ytMatch = src.match(/\/vi\/([a-zA-Z0-9_-]{11})/);
+    if (!resolved && activeSource) {
+      const ytMatch = activeSource.match(/\/vi\/([a-zA-Z0-9_-]{11})/);
       if (ytMatch) {
         resolved = ytMatch[1];
       }
     }
     setResolvedVid(resolved);
 
-    if (src && !src.includes("placehold.co") && !src.includes("via.placeholder.com")) {
-      setImgSrc(src);
+    // Filter out invalid or placeholder domains
+    const isInvalid = !activeSource || activeSource === "undefined" || activeSource === "null" || activeSource.includes("placehold.co") || activeSource.includes("via.placeholder.com");
+
+    if (!isInvalid && activeSource) {
+      // Normalize YouTube maxresdefault / sddefault to hqdefault (prevents 404s for videos without 720p thumbnails)
+      const normalized = activeSource
+        .replace(/\/maxresdefault\.jpg(\?.*)?$/i, "/hqdefault.jpg$1")
+        .replace(/\/sddefault\.jpg(\?.*)?$/i, "/hqdefault.jpg$1");
+      setImgSrc(normalized);
+      if (resolved && normalized.includes("hqdefault.jpg")) {
+        setFallbackIndex(0);
+      }
     } else if (resolved) {
-      setImgSrc(`https://img.youtube.com/vi/${resolved}/maxresdefault.jpg`);
+      setImgSrc(`https://img.youtube.com/vi/${resolved}/hqdefault.jpg`);
       setFallbackIndex(0);
     } else {
       setHasFailedAll(true);
       setImgSrc(SVG_FALLBACKS[fallbackType] || SVG_FALLBACKS.song);
     }
-  }, [src, videoId, fallbackType]);
+  }, [resolvedSrc, src, videoId, fallbackType]);
 
   const handleError = () => {
     if (resolvedVid && !hasFailedAll) {

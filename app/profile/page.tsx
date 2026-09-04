@@ -5,7 +5,6 @@ import ProtectedRoute from "../../src/components/auth/ProtectedRoute";
 import { useAuth } from "../../src/context/AuthContext";
 import { usePlayerStore } from "@/store/player-store";
 import { useShallow } from "zustand/react/shallow";
-import { motion } from "framer-motion";
 import { Edit2, Check, Mail, Award, Flame, Settings, Sparkles, Clock, Star, Music, Disc, Activity } from "lucide-react";
 import { Track } from "@/types/music";
 import { useHasMounted } from "@/hooks/useHasMounted";
@@ -16,9 +15,10 @@ import { calculateListeningStats } from "@/lib/analytics";
 export default function ProfilePage() {
   const { user } = useAuth();
   const mounted = useHasMounted();
-  const { recentSongs, likedSongs, playlists, setTrack, setQueue } = usePlayerStore(useShallow((s) => ({
+  const { recentSongs, likedSongs, history, playlists, setTrack, setQueue } = usePlayerStore(useShallow((s) => ({
     recentSongs: s.recentSongs,
     likedSongs:  s.likedSongs,
+    history:     s.history,
     playlists:   s.playlists,
     setTrack:    s.setTrack,
     setQueue:    s.setQueue,
@@ -75,7 +75,8 @@ export default function ProfilePage() {
 
   const getTopArtists = () => {
     const artistCounts: { [key: string]: number } = {};
-    recentSongs.forEach((song: Track) => {
+    const tracksToProcess = history.length > 0 ? history.map((h) => h.track) : recentSongs;
+    tracksToProcess.forEach((song: Track) => {
       artistCounts[song.artist] = (artistCounts[song.artist] || 0) + 1;
     });
 
@@ -87,7 +88,8 @@ export default function ProfilePage() {
 
   const getTopTracks = () => {
     const trackCounts: { [key: string]: { song: Track; count: number } } = {};
-    recentSongs.forEach((song: Track) => {
+    const tracksToProcess = history.length > 0 ? history.map((h) => h.track) : recentSongs;
+    tracksToProcess.forEach((song: Track) => {
       const key = `${song.title}-${song.artist}`;
       if (!trackCounts[key]) {
         trackCounts[key] = { song, count: 0 };
@@ -102,8 +104,9 @@ export default function ProfilePage() {
 
   const topArtists = getTopArtists();
   const topTracks = getTopTracks();
-  const stats = calculateListeningStats(recentSongs, likedSongs);
+  const stats = calculateListeningStats(recentSongs, likedSongs, history);
   const listeningLevel = Math.floor(stats.songsPlayed / 10) + 1;
+
 
   const getAchievementIcon = (id: string) => {
     switch (id) {
@@ -121,21 +124,13 @@ export default function ProfilePage() {
 
   return (
     <ProtectedRoute>
-      <main className="min-h-screen pb-36 text-white text-left space-y-16" style={{ background: "#07070A" }}>
+      <main className="min-h-screen pb-36 text-white text-left space-y-8 px-4 md:px-8 pt-4">
 
         {/* 1. Profile Hero & Stats Header */}
-        <section className="relative px-4 md:px-10 pt-6 md:pt-10 pb-6 overflow-hidden">
-          {/* Ambient Glow */}
-          <div className="absolute top-0 left-[-10%] w-[600px] h-[400px] rounded-full bg-purple-950/[0.08] blur-[140px] pointer-events-none" />
-          <div className="absolute top-20 right-0 w-[450px] h-[320px] rounded-full bg-pink-950/[0.06] blur-[120px] pointer-events-none" />
-
-          {/* Glass Card Hero */}
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.65, ease: [0.16, 1, 0.3, 1] }}
-            className="relative z-10 p-6 md:p-10 rounded-[32px] bg-white/[0.015] border border-white/[0.04] backdrop-blur-2xl"
-            style={{ boxShadow: "0 24px 80px rgba(0, 0, 0, 0.4)" }}
+        <section className="relative pb-2 overflow-hidden">
+          {/* Clean Profile Header */}
+          <div 
+            className="relative z-10 p-6 md:p-8 rounded-2xl bg-[#121216] border border-white/[0.06]"
           >
             <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-8">
               
@@ -193,7 +188,7 @@ export default function ProfilePage() {
                         </span>
                       </div>
 
-                      <h1 className="font-display text-[32px] sm:text-[48px] font-black leading-[0.92] tracking-tighter text-white select-none truncate">
+                      <h1 className="text-2xl md:text-3xl font-black tracking-tight text-white select-none truncate">
                         {displayName}
                       </h1>
 
@@ -262,67 +257,67 @@ export default function ProfilePage() {
               </div>
 
             </div>
-          </motion.div>
+          </div>
         </section>
 
         {/* 2. Stats Dashboard & Info Grid */}
-        <section className="px-4 md:px-10">
-          <div className="grid grid-cols-1 lg:grid-cols-[1.2fr_1.8fr] gap-8">
+        <section className="w-full">
+          <div className="grid grid-cols-1 lg:grid-cols-[1fr_1.5fr] gap-6">
             
             {/* Left Column: Stats & Settings */}
-            <div className="space-y-6">
+            <div className="space-y-4">
               <div>
-                <p className="text-[9px] font-black uppercase tracking-[0.18em] text-zinc-600 mb-1.5">Overview</p>
-                <h2 className="font-display text-[18px] font-black text-white tracking-tight leading-none">Listening Metrics</h2>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-1">Overview</p>
+                <h2 className="text-base font-bold text-white tracking-tight leading-none">Listening Metrics</h2>
               </div>
 
               {/* Metrics cards */}
-              <div className="grid grid-cols-2 gap-3.5">
-                <div className="p-4 rounded-2xl bg-white/[0.015] border border-white/[0.04] flex flex-col justify-between h-20">
-                  <span className="text-[10px] text-zinc-555 font-bold uppercase tracking-wider flex items-center gap-1.5">
-                    <Music size={11} className="text-purple-400" /> Tracks Played
+              <div className="grid grid-cols-2 gap-2.5">
+                <div className="p-3.5 rounded-xl bg-[#121216] border border-white/[0.06] flex flex-col justify-between h-[76px]">
+                  <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider flex items-center gap-1.5">
+                    <Music size={11} className="text-[var(--mf-accent)]" /> Tracks Played
                   </span>
-                  <span className="text-xl font-black text-white font-mono">{stats.songsPlayed}</span>
+                  <span className="text-lg font-bold text-white font-mono">{stats.songsPlayed}</span>
                 </div>
-                <div className="p-4 rounded-2xl bg-white/[0.015] border border-white/[0.04] flex flex-col justify-between h-20">
-                  <span className="text-[10px] text-zinc-555 font-bold uppercase tracking-wider flex items-center gap-1.5">
+                <div className="p-3.5 rounded-xl bg-[#121216] border border-white/[0.06] flex flex-col justify-between h-[76px]">
+                  <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider flex items-center gap-1.5">
                     <Clock size={11} className="text-indigo-400" /> Listening Time
                   </span>
-                  <span className="text-xl font-black text-white font-mono">{stats.listeningHours} hrs</span>
+                  <span className="text-lg font-bold text-white font-mono">{stats.listeningHours} hrs</span>
                 </div>
-                <div className="p-4 rounded-2xl bg-white/[0.015] border border-white/[0.04] flex flex-col justify-between h-20">
-                  <span className="text-[10px] text-zinc-555 font-bold uppercase tracking-wider flex items-center gap-1.5">
+                <div className="p-3.5 rounded-xl bg-[#121216] border border-white/[0.06] flex flex-col justify-between h-[76px]">
+                  <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider flex items-center gap-1.5">
                     <Disc size={11} className="text-teal-400" /> Top Genre
                   </span>
-                  <span className="text-xs font-black text-zinc-200 truncate">{stats.favoriteGenre}</span>
+                  <span className="text-xs font-bold text-zinc-200 truncate">{stats.favoriteGenre}</span>
                 </div>
-                <div className="p-4 rounded-2xl bg-white/[0.015] border border-white/[0.04] flex flex-col justify-between h-20">
-                  <span className="text-[10px] text-zinc-555 font-bold uppercase tracking-wider flex items-center gap-1.5">
+                <div className="p-3.5 rounded-xl bg-[#121216] border border-white/[0.06] flex flex-col justify-between h-[76px]">
+                  <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider flex items-center gap-1.5">
                     <Star size={11} className="text-pink-400" /> Top Artist
                   </span>
-                  <span className="text-xs font-black text-zinc-200 truncate">{stats.favoriteArtist}</span>
+                  <span className="text-xs font-bold text-zinc-200 truncate">{stats.favoriteArtist}</span>
                 </div>
-                <div className="p-4 rounded-2xl bg-white/[0.015] border border-white/[0.04] flex flex-col justify-between h-20">
-                  <span className="text-[10px] text-zinc-555 font-bold uppercase tracking-wider flex items-center gap-1.5">
+                <div className="p-3.5 rounded-xl bg-[#121216] border border-white/[0.06] flex flex-col justify-between h-[76px]">
+                  <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider flex items-center gap-1.5">
                     <Flame size={11} className="text-orange-400" /> Current Streak
                   </span>
-                  <span className="text-xl font-black text-white font-mono">{stats.listeningStreak} days</span>
+                  <span className="text-lg font-bold text-white font-mono">{stats.listeningStreak} days</span>
                 </div>
-                <div className="p-4 rounded-2xl bg-white/[0.015] border border-white/[0.04] flex flex-col justify-between h-20">
-                  <span className="text-[10px] text-zinc-555 font-bold uppercase tracking-wider flex items-center gap-1.5">
+                <div className="p-3.5 rounded-xl bg-[#121216] border border-white/[0.06] flex flex-col justify-between h-[76px]">
+                  <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider flex items-center gap-1.5">
                     <Activity size={11} className="text-rose-400" /> Completion Rate
                   </span>
-                  <span className="text-xl font-black text-white font-mono">{stats.completionRate}%</span>
+                  <span className="text-lg font-bold text-white font-mono">{stats.completionRate}%</span>
                 </div>
               </div>
 
               {/* Theme Settings Selector */}
-              <div className="p-5 rounded-2xl bg-white/[0.015] border border-white/[0.04] space-y-4">
-                <div className="flex items-center gap-3.5">
-                  <Settings size={14} className="text-zinc-650" />
+              <div className="p-4 rounded-xl bg-[#121216] border border-white/[0.06] space-y-3">
+                <div className="flex items-center gap-3">
+                  <Settings size={14} className="text-zinc-400" />
                   <div>
-                    <span className="text-[11px] font-bold text-zinc-300">Theme Workspace Skin</span>
-                    <p className="text-[9px] text-zinc-500 font-medium">Customize your styling preference</p>
+                    <span className="text-xs font-bold text-zinc-300">Theme Workspace Skin</span>
+                    <p className="text-[10px] text-zinc-500 font-medium">Customize your styling preference</p>
                   </div>
                 </div>
                 <select
@@ -331,7 +326,7 @@ export default function ProfilePage() {
                     setThemePref(e.target.value);
                     if (user?.uid) localStorage.setItem(`profile-theme-${user.uid}`, e.target.value);
                   }}
-                  className="w-full bg-[#0c0c0e]/95 border border-white/[0.08] rounded-xl px-3 py-2 text-xs text-white outline-none cursor-pointer focus:border-purple-550"
+                  className="w-full bg-[#0c0c0e] border border-white/[0.08] rounded-lg px-3 py-2 text-xs text-white outline-none cursor-pointer focus:border-[var(--mf-accent)]"
                 >
                   <option value="glass">Premium Glass</option>
                   <option value="dark">Vibrant Dark</option>
@@ -342,41 +337,31 @@ export default function ProfilePage() {
             </div>
 
             {/* Right Column: Achievements & Activity */}
-            <div className="space-y-6">
+            <div className="space-y-4">
               
               {/* Achievements */}
               <div>
-                <p className="text-[9px] font-black uppercase tracking-[0.18em] text-zinc-600 mb-1.5">Progression</p>
-                <h2 className="font-display text-[18px] font-black text-white tracking-tight leading-none">Achievements</h2>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-1">Progression</p>
+                <h2 className="text-base font-bold text-white tracking-tight leading-none">Achievements</h2>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-3">
                 {stats.achievements.map((ach: { id: string; name: string; desc: string; color: string }) => {
                   const Icon = getAchievementIcon(ach.id);
                   return (
                     <div
                       key={ach.id}
-                      className="p-4 rounded-2xl bg-white/[0.015] border border-white/[0.04] flex items-center gap-3.5"
+                      className="p-3.5 rounded-xl bg-[#121216] border border-white/[0.06] flex items-center gap-3"
                     >
-                      <div className={`w-9 h-9 rounded-xl bg-gradient-to-br ${ach.color} flex items-center justify-center text-black shadow-md shrink-0`}>
-                        <Icon size={16} />
+                      <div className={`w-8 h-8 rounded-lg bg-gradient-to-br ${ach.color} flex items-center justify-center text-black shadow-sm shrink-0`}>
+                        <Icon size={14} />
                       </div>
                       <div className="text-left min-w-0">
                         <span className="text-xs font-bold text-zinc-200 block truncate">{ach.name}</span>
-                        <span className="text-[9px] text-zinc-555 block font-medium truncate mt-0.5">{ach.desc}</span>
+                        <span className="text-[10px] text-zinc-500 block truncate">{ach.desc}</span>
                       </div>
                     </div>
                   );
                 })}
-              </div>
-
-              {/* Listening Personality */}
-              <div className="p-5 rounded-2xl bg-gradient-to-br from-purple-900/10 via-white/[0.015] to-zinc-950/20 border border-white/[0.05] space-y-3 text-left">
-                <div className="flex items-center gap-2">
-                  <Sparkles size={13} className="text-purple-400 animate-pulse" />
-                  <span className="text-[9px] font-black uppercase tracking-[0.18em] text-purple-400">Listening Style</span>
-                </div>
-                <h3 className="font-display text-base font-black text-white">{stats.personality.title} ({stats.personality.type})</h3>
-                <p className="text-xs text-zinc-400 font-medium leading-relaxed">{stats.personality.description}</p>
               </div>
 
             </div>
@@ -385,106 +370,70 @@ export default function ProfilePage() {
         </section>
 
         {/* 3. Top Tracks & Top Artists */}
-        <section className="px-4 md:px-10">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+        <section className="w-full">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             
             {/* Column: Top Artists */}
-            <div className="space-y-4">
+            <div className="space-y-3">
               <div>
-                <p className="text-[9px] font-black uppercase tracking-[0.18em] text-zinc-600 mb-1.5">Metrics</p>
-                <h2 className="font-display text-[18px] font-black text-white tracking-tight leading-none">Top Artists</h2>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-1">Metrics</p>
+                <h2 className="text-base font-bold text-white tracking-tight leading-none">Top Artists</h2>
               </div>
               {topArtists.length > 0 ? (
-                <div className="space-y-2">
+                <div className="space-y-1.5">
                   {topArtists.map((artist, idx) => (
                     <div
                       key={artist.name}
-                      className="flex items-center justify-between p-3.5 rounded-2xl bg-white/[0.015] border border-white/[0.04] hover:bg-white/[0.035] hover:border-purple-500/20 transition-all duration-300 group cursor-pointer"
+                      className="flex items-center justify-between p-2.5 rounded-lg bg-[#121216] border border-white/[0.04] hover:bg-[#181820] transition group cursor-pointer"
                     >
-                      <div className="flex items-center gap-3.5">
-                        <span className="text-[12px] font-mono text-zinc-650 w-4 text-center">{idx + 1}</span>
-                        <span className="text-xs font-bold text-zinc-250 group-hover:text-white transition-colors">{artist.name}</span>
+                      <div className="flex items-center gap-3">
+                        <span className="text-xs font-mono text-zinc-500 w-4 text-center">{idx + 1}</span>
+                        <span className="text-xs font-semibold text-zinc-200 group-hover:text-white transition-colors">{artist.name}</span>
                       </div>
-                      <span className="text-[10px] font-mono text-zinc-600 font-bold uppercase tracking-wider">{artist.count} plays</span>
+                      <span className="text-[10px] font-mono text-zinc-400 font-medium uppercase tracking-wider">{artist.count} plays</span>
                     </div>
                   ))}
                 </div>
               ) : (
-                <div className="text-center py-10 bg-white/[0.01] border border-white/[0.04] rounded-2xl text-zinc-600 text-xs">
+                <div className="text-center py-8 bg-[#121216] border border-white/[0.06] rounded-xl text-zinc-400 text-xs">
                   Listening history is empty.
                 </div>
               )}
             </div>
 
             {/* Column: Top Tracks */}
-            <div className="space-y-4">
+            <div className="space-y-3">
               <div>
-                <p className="text-[9px] font-black uppercase tracking-[0.18em] text-zinc-600 mb-1.5">Metrics</p>
-                <h2 className="font-display text-[18px] font-black text-white tracking-tight leading-none">Top Tracks</h2>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-1">Metrics</p>
+                <h2 className="text-base font-bold text-white tracking-tight leading-none">Top Tracks</h2>
               </div>
               {topTracks.length > 0 ? (
-                <div className="space-y-2">
+                <div className="space-y-1.5">
                   {topTracks.map((item, idx) => (
                     <div
                       key={`top-track-${item.song.videoId}-${idx}`}
                       onClick={() => handlePlaySong(item.song, idx)}
-                      className="flex items-center justify-between p-2.5 rounded-2xl bg-white/[0.015] border border-white/[0.04] hover:bg-white/[0.035] hover:border-purple-500/20 transition-all duration-300 group cursor-pointer"
+                      className="flex items-center justify-between p-2 rounded-lg bg-[#121216] border border-white/[0.04] hover:bg-[#181820] transition group cursor-pointer"
                     >
-                      <div className="flex items-center gap-3 min-w-0">
-                        <span className="text-[12px] font-mono text-zinc-650 w-4 text-center shrink-0">{idx + 1}</span>
-                        <div className="w-10 h-10 rounded-lg overflow-hidden shrink-0 border border-white/5 bg-zinc-950">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <span className="text-xs font-mono text-zinc-500 w-4 text-center shrink-0">{idx + 1}</span>
+                        <div className="w-8 h-8 rounded-md overflow-hidden shrink-0 border border-white/[0.06] bg-zinc-900">
                           <SafeImage src={item.song.thumbnail} videoId={item.song.videoId} alt="" className="w-full h-full object-cover" />
                         </div>
                         <div className="min-w-0 text-left">
-                          <p className="text-xs font-bold text-zinc-250 group-hover:text-purple-300 truncate leading-snug">{item.song.title}</p>
-                          <p className="text-[9px] text-zinc-555 truncate mt-0.5">{item.song.artist}</p>
+                          <p className="text-xs font-medium text-zinc-200 group-hover:text-white truncate leading-snug">{item.song.title}</p>
+                          <p className="text-[10px] text-zinc-400 truncate mt-0.5">{item.song.artist}</p>
                         </div>
                       </div>
-                      <span className="text-[10px] font-mono text-zinc-600 font-bold uppercase tracking-wider shrink-0 pr-2">{item.count} plays</span>
+                      <span className="text-[10px] font-mono text-zinc-400 font-medium uppercase tracking-wider shrink-0 pr-2">{item.count} plays</span>
                     </div>
                   ))}
                 </div>
               ) : (
-                <div className="text-center py-10 bg-white/[0.01] border border-white/[0.04] rounded-2xl text-zinc-600 text-xs">
+                <div className="text-center py-8 bg-[#121216] border border-white/[0.06] rounded-xl text-zinc-400 text-xs">
                   Listening history is empty.
                 </div>
               )}
-            </div>
-
-          </div>
-        </section>
-
-        {/* 4. Activity Timeline */}
-        <section className="px-4 md:px-10 space-y-6">
-          <div>
-            <p className="text-[9px] font-black uppercase tracking-[0.18em] text-zinc-600 mb-1.5">Logs</p>
-            <h2 className="font-display text-[22px] font-black text-white tracking-tight leading-none">Activity Timeline</h2>
-          </div>
-          
-          <div className="p-5 rounded-[24px] bg-white/[0.015] border border-white/[0.04] relative space-y-6 pl-10 border-l border-white/[0.04] ml-3">
-            
-            <div className="relative text-left">
-              <div className="absolute left-[-47px] top-1 w-5 h-5 rounded-full bg-purple-900 border border-purple-550 flex items-center justify-center">
-                <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
-              </div>
-              <span className="text-[9px] font-bold text-zinc-600 tracking-widest uppercase">Today</span>
-              <p className="text-xs font-semibold text-zinc-250 mt-1">Logged into platform workspace, synchronized listening cloud sessions</p>
-            </div>
-
-            <div className="relative text-left">
-              <div className="absolute left-[-47px] top-1 w-5 h-5 rounded-full bg-zinc-950 border border-white/10 flex items-center justify-center">
-                <span className="w-1.5 h-1.5 rounded-full bg-zinc-650" />
-              </div>
-              <span className="text-[9px] font-bold text-zinc-650 tracking-widest uppercase">Yesterday</span>
-              <p className="text-xs font-semibold text-zinc-350 mt-1">Streamed {recentSongs.slice(0, 3).length} new tracks from explore dashboard suggestions</p>
-            </div>
-
-            <div className="relative text-left">
-              <div className="absolute left-[-47px] top-1 w-5 h-5 rounded-full bg-zinc-950 border border-white/10 flex items-center justify-center">
-                <span className="w-1.5 h-1.5 rounded-full bg-zinc-650" />
-              </div>
-              <span className="text-[9px] font-bold text-zinc-650 tracking-widest uppercase">3 Days Ago</span>
-              <p className="text-xs font-semibold text-zinc-350 mt-1">Constructed a new public sound collection playlist with custom metadata details</p>
             </div>
 
           </div>
@@ -492,30 +441,31 @@ export default function ProfilePage() {
 
         {/* 5. Recent Playlists (Carousel) */}
         {playlists.length > 0 && (
-          <section className="px-4 md:px-10 space-y-6">
+          <section className="w-full space-y-3">
             <div>
-              <p className="text-[9px] font-black uppercase tracking-[0.18em] text-zinc-600 mb-1.5">Collections</p>
-              <h2 className="font-display text-[22px] font-black text-white tracking-tight leading-none">Recent Playlists</h2>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-1">Collections</p>
+              <h2 className="text-lg font-bold text-white tracking-tight leading-none">Recent Playlists</h2>
             </div>
-            <div className="flex gap-5 overflow-x-auto scrollbar-none pb-4 -mx-4 md:-mx-10 px-4 md:px-10">
-              {playlists.slice(0, 6).map((playlist) => (
-                <motion.div
+            <div className="flex gap-3 overflow-x-auto scrollbar-none pb-2">
+              {playlists.slice(0, 8).map((playlist) => (
+                <div
                   key={`profile-playlist-${playlist.id}`}
-                  whileHover={{ y: -6 }}
-                  className="group shrink-0 w-[140px] md:w-[155px] p-3 rounded-[20px] bg-white/[0.015] border border-white/[0.04] hover:bg-white/[0.03] hover:border-purple-500/25 transition-all duration-300 cursor-pointer text-left"
+                  className="group shrink-0 w-[120px] md:w-[135px] flex flex-col gap-2 cursor-pointer text-left"
                 >
-                  <div className="relative aspect-square rounded-[14px] overflow-hidden bg-zinc-950 border border-white/5 shadow-sm mb-3">
+                  <div className="relative aspect-square rounded-lg overflow-hidden bg-zinc-900 border border-white/[0.06]">
                     {playlist.songs[0] ? (
-                      <SafeImage src={playlist.songs[0].thumbnail} videoId={playlist.songs[0].videoId} alt={playlist.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" fallbackType="song" />
+                      <SafeImage src={playlist.songs[0].thumbnail} videoId={playlist.songs[0].videoId} alt={playlist.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" fallbackType="song" />
                     ) : (
-                      <div className="w-full h-full flex items-center justify-center bg-zinc-950">
-                        <Music size={28} className="text-zinc-800" />
+                      <div className="w-full h-full flex items-center justify-center bg-zinc-900">
+                        <Music size={24} className="text-zinc-600" />
                       </div>
                     )}
                   </div>
-                  <p className="text-[11px] font-bold text-zinc-300 truncate leading-tight group-hover:text-white transition-colors">{playlist.name}</p>
-                  <p className="text-[9px] text-zinc-555 truncate mt-0.5">{playlist.songs.length} Tracks</p>
-                </motion.div>
+                  <div className="min-w-0">
+                    <p className="text-xs font-semibold text-zinc-200 truncate group-hover:text-white transition-colors">{playlist.name}</p>
+                    <p className="text-[10px] text-zinc-400 truncate mt-0.5">{playlist.songs.length} Tracks</p>
+                  </div>
+                </div>
               ))}
             </div>
           </section>

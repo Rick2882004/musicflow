@@ -17,18 +17,14 @@ function formatDur(s: number = 0) {
   return `${m}:${String(sec).padStart(2, "0")}`;
 }
 
-const SUGGESTED_SONGS = [
-  { videoId: "V0KD0nDkbpM", title: "Arijit Singh Hits", artist: "Arijit Singh", thumbnail: "https://img.youtube.com/vi/V0KD0nDkbpM/hqdefault.jpg", duration: 180 },
-  { videoId: "xRb8hxwN5zc", title: "Kabir Singh", artist: "Sachet Tandon", thumbnail: "https://img.youtube.com/vi/xRb8hxwN5zc/hqdefault.jpg", duration: 240 },
-  { videoId: "OkpIoEC44kk", title: "Lofi Bollywood", artist: "Lofi Fruit", thumbnail: "https://img.youtube.com/vi/OkpIoEC44kk/hqdefault.jpg", duration: 210 },
-];
-
 export default function PlaylistPage() {
   const params = useParams();
   const router = useRouter();
 
   const {
     playlists,
+    likedSongs,
+    recentSongs,
     setTrack,
     setQueue,
     removeSongFromPlaylist,
@@ -37,6 +33,8 @@ export default function PlaylistPage() {
     videoId,
   } = usePlayerStore(useShallow((s) => ({
     playlists: s.playlists,
+    likedSongs: s.likedSongs,
+    recentSongs: s.recentSongs,
     setTrack: s.setTrack,
     setQueue: s.setQueue,
     removeSongFromPlaylist: s.removeSongFromPlaylist,
@@ -46,8 +44,9 @@ export default function PlaylistPage() {
   })));
 
 
+  const rawId = Array.isArray(params?.id) ? params.id[0] : params?.id;
   const playlist = playlists.find(
-    (p: Playlist) => p.id.toString() === params.id
+    (p: Playlist) => p && p.id != null && p.id.toString() === rawId
   );
 
   const mounted = useHasMounted();
@@ -91,8 +90,9 @@ export default function PlaylistPage() {
     );
   }
 
-  const totalDuration = playlist.songs.reduce(
-    (total: number, song: Track) => total + (song.duration || 210),
+  const songs = playlist.songs || [];
+  const totalDuration = songs.reduce(
+    (total: number, song: Track) => total + (song?.duration || 210),
     0
   );
   const totalMinutes = Math.round(totalDuration / 60);
@@ -107,20 +107,20 @@ export default function PlaylistPage() {
   };
 
   const playSong = (song: Track, index: number) => {
-    setQueue(playlist.songs);
+    setQueue(songs);
     setTrack(song.videoId, song.title, song.artist, song.thumbnail, index);
   };
 
   const playAll = () => {
-    if (playlist.songs.length === 0) return;
-    setQueue(playlist.songs);
-    const firstSong = playlist.songs[0];
+    if (songs.length === 0) return;
+    setQueue(songs);
+    const firstSong = songs[0];
     setTrack(firstSong.videoId, firstSong.title, firstSong.artist, firstSong.thumbnail, 0);
   };
 
   const shufflePlay = () => {
-    if (playlist.songs.length === 0) return;
-    const shuffled = [...playlist.songs].sort(() => Math.random() - 0.5);
+    if (songs.length === 0) return;
+    const shuffled = [...songs].sort(() => Math.random() - 0.5);
     setQueue(shuffled);
     const first = shuffled[0];
     setTrack(first.videoId, first.title, first.artist, first.thumbnail, 0);
@@ -135,10 +135,10 @@ export default function PlaylistPage() {
 
   // Dynamic Cover Image Grid
   const renderCoverImage = () => {
-    if (playlist.songs.length >= 4) {
+    if (songs.length >= 4) {
       return (
-        <div className="grid grid-cols-2 grid-rows-2 w-40 h-40 md:w-48 md:h-48 rounded-[24px] overflow-hidden shadow-2xl shrink-0 border border-white/5 bg-zinc-950">
-          {playlist.songs.slice(0, 4).map((song, i) => (
+        <div className="grid grid-cols-2 grid-rows-2 w-36 h-36 md:w-44 md:h-44 rounded-xl overflow-hidden shadow-lg shrink-0 border border-white/5 bg-zinc-950">
+          {songs.slice(0, 4).map((song, i) => (
             <SafeImage
               key={i}
               src={song.thumbnail}
@@ -150,18 +150,18 @@ export default function PlaylistPage() {
         </div>
       );
     }
-    if (playlist.songs.length > 0) {
+    if (songs.length > 0) {
       return (
         <SafeImage
-          src={playlist.songs[0].thumbnail}
-          videoId={playlist.songs[0].videoId}
+          src={songs[0].thumbnail}
+          videoId={songs[0].videoId}
           alt=""
-          className="w-40 h-40 md:w-48 md:h-48 rounded-[24px] object-cover shadow-2xl shrink-0 border border-white/5 bg-zinc-950"
+          className="w-36 h-36 md:w-44 md:h-44 rounded-xl object-cover shadow-lg shrink-0 border border-white/5 bg-zinc-950"
         />
       );
     }
     return (
-      <div className="w-40 h-40 md:w-48 md:h-48 bg-white/[0.02] rounded-[24px] flex items-center justify-center text-4xl shrink-0 border border-white/[0.05] shadow-inner text-zinc-650">
+      <div className="w-36 h-36 md:w-44 md:h-44 bg-white/[0.02] rounded-xl flex items-center justify-center text-4xl shrink-0 border border-white/[0.05] text-zinc-650">
         🎵
       </div>
     );
@@ -169,23 +169,13 @@ export default function PlaylistPage() {
 
   return (
     <ProtectedRoute>
-      <main className="min-h-screen pb-36 text-white text-left space-y-8" style={{ background: "#07070A" }}>
+      <main className="min-h-screen pb-36 text-white text-left space-y-6 px-4 md:px-8 pt-4">
 
-        {/* 1. Glass Hero Header */}
-        <section className="relative px-6 md:px-10 pt-10 pb-6 overflow-hidden">
-          {/* Ambient glow blobs */}
-          <div className="absolute top-0 right-0 w-[500px] h-[400px] rounded-full bg-purple-900/[0.07] blur-[150px] pointer-events-none" />
-          <div className="absolute bottom-0 left-0 w-[400px] h-[300px] rounded-full bg-pink-950/[0.05] blur-[135px] pointer-events-none" />
+        {/* 1. Clean Music Header */}
+        <section className="relative pb-2">
+          <div className="flex flex-col md:flex-row items-start md:items-end gap-6 pt-2">
+            {renderCoverImage()}
 
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.65, ease: [0.16, 1, 0.3, 1] }}
-            className="relative z-10 p-6 md:p-10 rounded-[32px] bg-white/[0.015] border border-white/[0.04] backdrop-blur-2xl"
-            style={{ boxShadow: "0 24px 80px rgba(0, 0, 0, 0.4)" }}
-          >
-            <div className="flex flex-col md:flex-row items-start md:items-end gap-8">
-              {renderCoverImage()}
 
               <div className="flex-grow space-y-4 text-center md:text-left min-w-0">
                 {editMode ? (
@@ -225,9 +215,10 @@ export default function PlaylistPage() {
                       </span>
                     </div>
 
-                    <h1 className="font-display text-[36px] sm:text-[54px] font-black leading-[0.92] tracking-tighter text-white select-none truncate">
+                    <h1 className="text-2xl md:text-3xl font-black tracking-tight text-white select-none truncate">
                       {playlist.name}
                     </h1>
+
 
                     {playlist.description && (
                       <p className="text-xs text-zinc-500 font-semibold leading-relaxed max-w-xl">
@@ -238,7 +229,7 @@ export default function PlaylistPage() {
                     <div className="flex flex-wrap items-center gap-2 text-[12px] text-zinc-500 font-semibold justify-center md:justify-start">
                       <span className="text-zinc-200">Created by Me</span>
                       <span className="text-zinc-700">·</span>
-                      <span>{playlist.songs.length} songs</span>
+                      <span>{songs.length} songs</span>
                       <span className="text-zinc-700">·</span>
                       <span>About {totalMinutes} min</span>
                       <span className="text-zinc-700">·</span>
@@ -271,7 +262,7 @@ export default function PlaylistPage() {
             {/* Actions Row */}
             <div className="flex items-center justify-between mt-8 border-t border-white/5 pt-6">
               <div className="flex items-center gap-3">
-                {playlist.songs.length > 0 && (
+                {songs.length > 0 && (
                   <>
                     <motion.button
                       whileHover={{ scale: 1.04 }}
@@ -309,17 +300,16 @@ export default function PlaylistPage() {
                 <Trash size={13} />
               </button>
             </div>
-
-          </motion.div>
         </section>
 
+
         {/* 2. Grid Layout: Main Columns (Col 1: Track list, Col 2: Sidebar) */}
-        <section className="px-6 md:px-10">
+        <section className="w-full">
           <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-8">
             
             {/* Col 1: Track List Table */}
             <div className="space-y-6">
-              {playlist.songs.length > 0 ? (
+              {songs.length > 0 ? (
                 <div className="overflow-x-auto">
                   <table className="w-full border-collapse text-left text-zinc-300">
                     <thead>
@@ -333,7 +323,7 @@ export default function PlaylistPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {playlist.songs.map((song, index) => {
+                      {songs.map((song, index) => {
                         const isCurrent = song.videoId === videoId;
                         return (
                           <tr
@@ -436,39 +426,41 @@ export default function PlaylistPage() {
               </div>
 
               {/* Suggested Tracks */}
-              <div className="space-y-4">
-                <div>
-                  <p className="text-[8px] font-black uppercase tracking-[0.16em] text-zinc-600 mb-0.5">Recommended</p>
-                  <h4 className="font-display text-xs font-black text-white uppercase tracking-wider">Suggested Songs</h4>
-                </div>
-                <div className="space-y-2.5">
-                  {SUGGESTED_SONGS.map((song) => (
-                    <div
-                      key={`suggest-${song.videoId}`}
-                      onClick={() => setTrack(song.videoId, song.title, song.artist, song.thumbnail, 0)}
-                      className="flex items-center justify-between p-2 rounded-xl bg-white/[0.01] border border-white/[0.04] hover:bg-white/[0.025] hover:border-purple-500/20 transition duration-200 cursor-pointer group"
-                    >
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <div className="w-9 h-9 rounded-lg overflow-hidden shrink-0 border border-white/5">
-                          <SafeImage
-                            src={song.thumbnail}
-                            videoId={song.videoId}
-                            alt={song.title}
-                            className="w-full h-full object-cover"
-                          />
+              {(likedSongs.length > 0 || recentSongs.length > 0) && (
+                <div className="space-y-4">
+                  <div>
+                    <p className="text-[8px] font-black uppercase tracking-[0.16em] text-zinc-600 mb-0.5">Recommended</p>
+                    <h4 className="font-display text-xs font-black text-white uppercase tracking-wider">Suggested Songs</h4>
+                  </div>
+                  <div className="space-y-2.5">
+                    {(likedSongs.length > 0 ? likedSongs : recentSongs).slice(0, 3).map((song) => (
+                      <div
+                        key={`suggest-${song.videoId}`}
+                        onClick={() => setTrack(song.videoId, song.title, song.artist, song.thumbnail, 0)}
+                        className="flex items-center justify-between p-2 rounded-xl bg-white/[0.01] border border-white/[0.04] hover:bg-white/[0.025] hover:border-purple-500/20 transition duration-200 cursor-pointer group"
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div className="w-9 h-9 rounded-lg overflow-hidden shrink-0 border border-white/5">
+                            <SafeImage
+                              src={song.thumbnail}
+                              videoId={song.videoId}
+                              alt={song.title}
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
+                          <div className="min-w-0 text-left">
+                            <p className="text-[11px] font-bold text-zinc-300 truncate leading-snug group-hover:text-purple-300 transition-colors">{song.title}</p>
+                            <p className="text-[9px] text-zinc-555 truncate">{song.artist}</p>
+                          </div>
                         </div>
-                        <div className="min-w-0 text-left">
-                          <p className="text-[11px] font-bold text-zinc-300 truncate leading-snug group-hover:text-purple-300 transition-colors">{song.title}</p>
-                          <p className="text-[9px] text-zinc-555 truncate">{song.artist}</p>
+                        <div className="w-6 h-6 rounded-full bg-white opacity-0 group-hover:opacity-100 flex items-center justify-center text-black shadow transition-opacity shrink-0">
+                          <Play size={8} fill="black" className="text-black ml-0.5" />
                         </div>
                       </div>
-                      <div className="w-6 h-6 rounded-full bg-white opacity-0 group-hover:opacity-100 flex items-center justify-center text-black shadow transition-opacity shrink-0">
-                        <Play size={8} fill="black" className="text-black ml-0.5" />
-                      </div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
 
             </div>
 
@@ -483,7 +475,6 @@ export default function PlaylistPage() {
             subtitle={`${playlist.songs.length} tracks · MusicFlow Playlist`}
             thumbnail={playlist.coverImage || playlist.songs[0]?.thumbnail}
             type="playlist"
-            isPublic={!playlist.isCollaborative}
           />
         )}
       </main>

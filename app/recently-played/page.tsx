@@ -2,389 +2,203 @@
 
 import { usePlayerStore } from "@/store/player-store";
 import { useShallow } from "zustand/react/shallow";
-import { SongCard } from "@/components/ui/SongCard";
 import ProtectedRoute from "../../src/components/auth/ProtectedRoute";
-import { motion } from "framer-motion";
-import { History, Play, Clock, Music, Disc, Layers } from "lucide-react";
+import { History, Play, Trash2, CheckCircle, Calendar } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { Track } from "@/types/music";
-import { useHasMounted } from "@/hooks/useHasMounted";
-import { SafeImage } from "@/components/ui/SafeImage";
+import { Track, ListeningHistoryEntry } from "@/types/music";
+import { useState, useMemo } from "react";
+import { TrackRow } from "@/components/ui/TrackRow";
 
-const FAVORITE_ARTISTS = [
-  { name: "Arijit Singh", image: "https://img.youtube.com/vi/T94PHkuyd8c/hqdefault.jpg" },
-  { name: "Atif Aslam", image: "https://img.youtube.com/vi/V0KD0nDkbpM/hqdefault.jpg" },
-  { name: "KK", image: "https://img.youtube.com/vi/xRb8hxwN5zc/hqdefault.jpg" },
-];
+function computeHistoryBuckets(
+  history: ListeningHistoryEntry[],
+  recentSongs: Track[],
+  baseNow: number
+) {
+  const oneDay = 24 * 60 * 60 * 1000;
+  const twoDays = 48 * 60 * 60 * 1000;
+  const sevenDays = 7 * 24 * 60 * 60 * 1000;
 
-const RECOMMENDED_ALBUMS = [
-  { id: "MPREb_HtIOxExZ0cj", title: "Arijit Singh Hits", artist: "Arijit Singh", image: "https://img.youtube.com/vi/T94PHkuyd8c/hqdefault.jpg" },
-  { id: "MPREb_FCKWeH9GnWF", title: "Jigra Collection", artist: "Achint", image: "https://yt3.googleusercontent.com/F8s9lSInfQQu6PvEl23by6_KPoazHLcjk4226uEZqcabT7w_QQP4IX8nxutH5pLJOtwAi32VfMhRJPo=w226-h226-l90-rj" },
-  { id: "MPREb_aak6B9FGA6U", title: "Bollywood Essentials", artist: "Various Artists", image: "https://yt3.googleusercontent.com/FPXzFBDqz2viDjL-yyPFSVLyzc8dv9uLHBVyJIfSc1hTQiGe6Lie2fbVRhMjpYtMD1NLcNo_l3T9Mg=w226-h226-l90-rj" },
-];
+  const list: ListeningHistoryEntry[] =
+    history.length > 0
+      ? history
+      : recentSongs.map((song, i) => ({
+          id: `${song.videoId}-${i}`,
+          track: song,
+          timestamp: baseNow - i * 3600000 * 4,
+          playbackDuration: (song.duration || 210) * 0.85,
+          completionPercentage: 85,
+        }));
+
+  const today = list.filter((e) => baseNow - e.timestamp <= oneDay);
+  const yesterday = list.filter(
+    (e) => baseNow - e.timestamp > oneDay && baseNow - e.timestamp <= twoDays
+  );
+  const thisWeek = list.filter(
+    (e) => baseNow - e.timestamp > twoDays && baseNow - e.timestamp <= sevenDays
+  );
+  const earlier = list.filter((e) => baseNow - e.timestamp > sevenDays);
+
+  return {
+    displayHistory: list,
+    todayEntries: today,
+    yesterdayEntries: yesterday,
+    thisWeekEntries: thisWeek,
+    earlierEntries: earlier,
+  };
+}
 
 export default function RecentlyPlayedPage() {
-  const router = useRouter();
-  const mounted = useHasMounted();
-  const { recentSongs, setTrack, setQueue } = usePlayerStore(
+  const [notif, setNotif] = useState("");
+  const [now] = useState(() => Date.now());
+
+  const {
+    history,
+    recentSongs,
+    setTrack,
+    setQueue,
+    clearHistory,
+  } = usePlayerStore(
     useShallow((s) => ({
+      history: s.history,
       recentSongs: s.recentSongs,
-      setTrack:    s.setTrack,
-      setQueue:    s.setQueue,
+      setTrack: s.setTrack,
+      setQueue: s.setQueue,
+      clearHistory: s.clearHistory,
     }))
   );
 
-  if (!mounted) {
-    return (
-      <ProtectedRoute>
-        <div className="h-screen flex items-center justify-center">
-          <div className="text-zinc-450 text-xl font-bold animate-pulse">Loading Recently Played...</div>
-        </div>
-      </ProtectedRoute>
-    );
-  }
+  const showToast = (msg: string) => {
+    setNotif(msg);
+    setTimeout(() => setNotif(""), 2000);
+  };
 
-  const uniqueRecentSongs = Array.from(
-    new Map(recentSongs.map((song) => [song.videoId, song])).values()
+  const {
+    displayHistory,
+    todayEntries,
+    yesterdayEntries,
+    thisWeekEntries,
+    earlierEntries,
+  } = useMemo(
+    () => computeHistoryBuckets(history, recentSongs, now),
+    [history, recentSongs, now]
   );
 
-  const totalTracksCount = uniqueRecentSongs.length;
-  const listeningHours = Math.round(totalTracksCount * 3.5 / 60 * 10) / 10;
+  const allTracks = displayHistory.map((h) => h.track);
 
   const playSong = (song: Track, index: number) => {
-    setQueue(uniqueRecentSongs);
+    setQueue(allTracks);
     setTrack(song.videoId, song.title, song.artist, song.thumbnail, index);
   };
 
   const playAll = () => {
-    if (uniqueRecentSongs.length === 0) return;
-    setQueue(uniqueRecentSongs);
-    const s = uniqueRecentSongs[0];
+    if (allTracks.length === 0) return;
+    setQueue(allTracks);
+    const s = allTracks[0];
     setTrack(s.videoId, s.title, s.artist, s.thumbnail, 0);
   };
 
-  // Group songs into simulated timeline
-  const todaySongs = uniqueRecentSongs.slice(0, 2);
-  const yesterdaySongs = uniqueRecentSongs.slice(2, 4);
-  const thisWeekSongs = uniqueRecentSongs.slice(4, 6);
-  const earlierSongs = uniqueRecentSongs.slice(6);
+  const handleClear = () => {
+    if (confirm("Are you sure you want to clear your entire listening history?")) {
+      clearHistory();
+      showToast("Listening history cleared");
+    }
+  };
 
-  // Derive favorite artist / genre
-  const favoriteArtist = uniqueRecentSongs[0]?.artist || "Arijit Singh";
-  const favoriteGenre = "Bollywood Hits";
-
-  if (uniqueRecentSongs.length === 0) {
+  if (displayHistory.length === 0) {
     return (
       <ProtectedRoute>
-        <main className="min-h-screen pb-36 text-white" style={{ background: "#07070A" }}>
-          {/* Ambient blobs */}
-          <div className="absolute top-0 right-0 w-[500px] h-[400px] rounded-full bg-violet-800/[0.05] blur-[150px] pointer-events-none" />
-          
-          <div className="max-w-7xl mx-auto px-6 md:px-10 pt-20 flex flex-col items-center justify-center min-h-[60vh] text-center">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.94 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-              className="p-8 rounded-[32px] bg-white/[0.015] border border-white/[0.04] flex flex-col items-center max-w-sm"
-              style={{ boxShadow: "0 24px 60px rgba(0,0,0,0.5)" }}
-            >
-              <div className="w-16 h-16 rounded-2xl bg-white/5 border border-white/5 flex items-center justify-center text-zinc-400 mb-6">
-                <History size={26} />
-              </div>
-              <h2 className="font-display text-[22px] font-black text-white mb-2">
-                Listening history is empty
-              </h2>
-              <p className="text-[12px] text-zinc-500 leading-relaxed mb-6">
-                Songs you play will appear here so you can easily resume listening later.
-              </p>
-              <Link href="/explore">
-                <motion.button
-                  whileHover={{ scale: 1.04 }}
-                  whileTap={{ scale: 0.96 }}
-                  className="px-6 py-2.5 rounded-full font-bold text-xs bg-white text-black hover:bg-zinc-150 transition active:scale-95 cursor-pointer shadow-md"
-                >
-                  Find Songs
-                </motion.button>
-              </Link>
-            </motion.div>
+        <main className="min-h-[70vh] flex flex-col items-center justify-center text-center px-4">
+          <div className="w-16 h-16 rounded-full bg-white/[0.04] border border-white/5 flex items-center justify-center text-zinc-500 mb-4">
+            <History size={26} />
           </div>
+          <h2 className="text-xl font-bold text-white mb-1.5">
+            No listening history yet
+          </h2>
+          <p className="text-xs text-zinc-400 max-w-sm mb-6">
+            Tracks you play will be saved here so you can easily jump back in.
+          </p>
+          <Link
+            href="/explore"
+            className="px-6 py-2.5 rounded-full font-bold text-xs bg-white text-black hover:bg-zinc-200 transition active:scale-95 shadow-md"
+          >
+            Explore Music
+          </Link>
         </main>
       </ProtectedRoute>
     );
   }
 
+  const renderSection = (title: string, entries: ListeningHistoryEntry[], startIndex: number) => {
+    if (entries.length === 0) return null;
+
+    return (
+      <div className="space-y-2">
+        <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-500 flex items-center gap-1.5 px-3">
+          <Calendar size={12} className="text-purple-400" />
+          {title}
+        </h3>
+        <div className="space-y-0.5">
+          {entries.map((entry, idx) => (
+            <TrackRow
+              key={entry.id}
+              song={entry.track}
+              index={startIndex + idx}
+              onPlay={playSong}
+            />
+          ))}
+        </div>
+      </div>
+    );
+  };
+
   return (
     <ProtectedRoute>
-      <main className="min-h-screen pb-36 text-white text-left space-y-16" style={{ background: "#07070A" }}>
+      <main className="text-white text-left px-4 md:px-8 pt-4 pb-16 space-y-6">
+        {/* Toast */}
+        {notif && (
+          <div className="fixed top-8 left-1/2 -translate-x-1/2 z-[100] px-4 py-2 rounded-xl text-white font-bold text-xs flex items-center gap-2 shadow-2xl bg-purple-600">
+            <CheckCircle size={14} /> {notif}
+          </div>
+        )}
 
-        {/* 1. Hero & Stats */}
-        <section className="relative px-6 md:px-10 pt-10 pb-6 overflow-hidden">
-          {/* Ambient Background Glow */}
-          <div className="absolute top-0 left-[-10%] w-[600px] h-[400px] rounded-full bg-violet-950/[0.08] blur-[140px] pointer-events-none" />
-          <div className="absolute top-20 right-0 w-[450px] h-[320px] rounded-full bg-indigo-950/[0.06] blur-[120px] pointer-events-none" />
-
-          {/* Glass Hero Card */}
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.65, ease: [0.16, 1, 0.3, 1] }}
-            className="relative z-10 p-6 md:p-10 rounded-[32px] bg-white/[0.015] border border-white/[0.04] backdrop-blur-2xl"
-            style={{ boxShadow: "0 24px 80px rgba(0, 0, 0, 0.4)" }}
-          >
-            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-8">
-              
-              <div className="space-y-4 max-w-xl">
-                {/* Small Badge */}
-                <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/[0.02] border border-white/[0.05]">
-                  <History size={11} className="text-purple-400 animate-pulse" />
-                  <span className="text-[9px] font-black uppercase tracking-[0.18em] text-zinc-550 select-none">
-                    LISTEN TIMELINE
-                  </span>
-                </div>
-
-                {/* Title */}
-                <h1 className="font-display text-[44px] sm:text-[68px] font-black leading-[0.92] tracking-tighter text-white select-none">
-                  Recently Played.
-                </h1>
-
-                {/* Subtitle */}
-                <p className="text-sm text-zinc-500 font-medium leading-relaxed">
-                  Continue where you left off. Review your listening habits and resume previous tracks.
-                </p>
-
-                <div className="pt-2">
-                  <motion.button
-                    whileHover={{ scale: 1.04 }}
-                    whileTap={{ scale: 0.96 }}
-                    onClick={playAll}
-                    className="px-6 py-2.5 rounded-full bg-white hover:bg-zinc-150 text-black font-black text-xs flex items-center gap-2 shadow-md"
-                  >
-                    <Play size={12} fill="black" className="text-black ml-0.5" /> Play All
-                  </motion.button>
-                </div>
-              </div>
-
-              {/* Statistics Grid */}
-              <div className="grid grid-cols-2 gap-3 shrink-0 lg:w-[380px]">
-                {/* Tracks played */}
-                <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/[0.04] flex flex-col justify-between h-20">
-                  <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider flex items-center gap-1.5">
-                    <Music size={11} className="text-purple-400" /> Tracks Played
-                  </span>
-                  <span className="text-2xl font-black text-white">{totalTracksCount}</span>
-                </div>
-
-                {/* Listening Hours */}
-                <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/[0.04] flex flex-col justify-between h-20">
-                  <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider flex items-center gap-1.5">
-                    <Clock size={11} className="text-indigo-400" /> Listening Hours
-                  </span>
-                  <span className="text-2xl font-black text-white">{listeningHours}h</span>
-                </div>
-
-                {/* Favorite Artist */}
-                <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/[0.04] flex flex-col justify-between h-20">
-                  <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider flex items-center gap-1.5">
-                    <Disc size={11} className="text-teal-400" /> Top Artist
-                  </span>
-                  <span className="text-sm font-black text-zinc-200 truncate">{favoriteArtist}</span>
-                </div>
-
-                {/* Favorite Genre */}
-                <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/[0.04] flex flex-col justify-between h-20">
-                  <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider flex items-center gap-1.5">
-                    <Layers size={11} className="text-pink-400" /> Top Genre
-                  </span>
-                  <span className="text-sm font-black text-zinc-200 truncate">{favoriteGenre}</span>
-                </div>
-              </div>
-
-            </div>
-          </motion.div>
-        </section>
-
-        {/* 2. Continue Listening (Resume widgets with progress indicators) */}
-        <section className="px-6 md:px-10 space-y-6">
+        {/* Clean Music Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-white/[0.06]">
           <div>
-            <p className="text-[9px] font-black uppercase tracking-[0.18em] text-zinc-600 mb-1.5">
-              Resume
+            <h1 className="text-2xl md:text-3xl font-black text-white tracking-tight">
+              Recently Played
+            </h1>
+            <p className="text-xs text-zinc-400 mt-0.5">
+              {displayHistory.length} songs streamed
             </p>
-            <h2 className="font-display text-[22px] font-black text-white tracking-tight leading-none">
-              Continue Listening
-            </h2>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-            {uniqueRecentSongs.slice(0, 3).map((song, i) => (
-              <motion.div
-                key={`resume-${song.videoId}-${i}`}
-                whileHover={{ y: -6 }}
-                onClick={() => playSong(song, i)}
-                className="group relative p-4 rounded-3xl bg-white/[0.015] border border-white/[0.04] hover:border-purple-500/20 hover:bg-white/[0.035] transition-all duration-300 flex gap-4 cursor-pointer overflow-hidden"
-              >
-                <div className="w-16 h-16 rounded-2xl overflow-hidden shrink-0 border border-white/5 shadow-sm bg-zinc-950">
-                  <SafeImage src={song.thumbnail} videoId={song.videoId} alt={song.title} className="w-full h-full object-cover" />
-                </div>
-                <div className="flex-grow min-w-0 flex flex-col justify-center text-left">
-                  <h3 className="font-display text-xs font-bold text-zinc-200 group-hover:text-white truncate">
-                    {song.title}
-                  </h3>
-                  <p className="text-[10px] text-zinc-500 truncate mt-0.5">{song.artist}</p>
-                  
-                  {/* Progress bar simulation */}
-                  <div className="w-full bg-white/[0.04] h-1 rounded-full mt-3 overflow-hidden">
-                    <div className="bg-purple-550 h-full w-[45%] rounded-full group-hover:bg-purple-400 transition-colors" />
-                  </div>
-                </div>
-                <div className="absolute top-3 right-3 flex items-center justify-center w-6 h-6 rounded-full bg-white/[0.03] group-hover:bg-white text-zinc-500 group-hover:text-black transition">
-                  <Play size={10} fill="currentColor" className="ml-0.5" />
-                </div>
-              </motion.div>
-            ))}
-          </div>
-        </section>
-
-        {/* 3. Listening Timeline */}
-        <section className="px-6 md:px-10 space-y-8">
-          <div>
-            <p className="text-[9px] font-black uppercase tracking-[0.18em] text-zinc-600 mb-1.5">
-              Chronology
-            </p>
-            <h2 className="font-display text-[22px] font-black text-white tracking-tight leading-none">
-              Listening Timeline
-            </h2>
           </div>
 
-          <div className="relative border-l border-white/[0.04] ml-3 pl-8 space-y-12">
-            
-            {/* Today */}
-            {todaySongs.length > 0 && (
-              <div className="relative">
-                <div className="absolute left-[-41px] top-1.5 w-6 h-6 rounded-full bg-purple-900 border border-purple-500 flex items-center justify-center">
-                  <span className="w-1.5 h-1.5 rounded-full bg-white" />
-                </div>
-                <div className="space-y-4">
-                  <h4 className="font-display text-xs font-black text-zinc-400 uppercase tracking-widest">Today</h4>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-5">
-                    {todaySongs.map((song, index) => (
-                      <SongCard key={`today-${song.videoId}-${index}`} song={{ id: song.videoId, title: song.title, artist: song.artist, thumbnail: song.thumbnail, duration: song.duration || 0 }} />
-                    ))}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Yesterday */}
-            {yesterdaySongs.length > 0 && (
-              <div className="relative">
-                <div className="absolute left-[-41px] top-1.5 w-6 h-6 rounded-full bg-zinc-900 border border-white/[0.1] flex items-center justify-center">
-                  <span className="w-1.5 h-1.5 rounded-full bg-zinc-650" />
-                </div>
-                <div className="space-y-4">
-                  <h4 className="font-display text-xs font-black text-zinc-400 uppercase tracking-widest">Yesterday</h4>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-5">
-                    {yesterdaySongs.map((song, index) => (
-                      <SongCard key={`yesterday-${song.videoId}-${index}`} song={{ id: song.videoId, title: song.title, artist: song.artist, thumbnail: song.thumbnail, duration: song.duration || 0 }} />
-                    ))}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* This Week */}
-            {thisWeekSongs.length > 0 && (
-              <div className="relative">
-                <div className="absolute left-[-41px] top-1.5 w-6 h-6 rounded-full bg-zinc-900 border border-white/[0.1] flex items-center justify-center">
-                  <span className="w-1.5 h-1.5 rounded-full bg-zinc-650" />
-                </div>
-                <div className="space-y-4">
-                  <h4 className="font-display text-xs font-black text-zinc-400 uppercase tracking-widest">This Week</h4>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-5">
-                    {thisWeekSongs.map((song, index) => (
-                      <SongCard key={`week-${song.videoId}-${index}`} song={{ id: song.videoId, title: song.title, artist: song.artist, thumbnail: song.thumbnail, duration: song.duration || 0 }} />
-                    ))}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Earlier */}
-            {earlierSongs.length > 0 && (
-              <div className="relative">
-                <div className="absolute left-[-41px] top-1.5 w-6 h-6 rounded-full bg-zinc-900 border border-white/[0.1] flex items-center justify-center">
-                  <span className="w-1.5 h-1.5 rounded-full bg-zinc-650" />
-                </div>
-                <div className="space-y-4">
-                  <h4 className="font-display text-xs font-black text-zinc-400 uppercase tracking-widest">Earlier</h4>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-5">
-                    {earlierSongs.map((song, index) => (
-                      <SongCard key={`earlier-${song.videoId}-${index}`} song={{ id: song.videoId, title: song.title, artist: song.artist, thumbnail: song.thumbnail, duration: song.duration || 0 }} />
-                    ))}
-                  </div>
-                </div>
-              </div>
-            )}
-
+          <div className="flex items-center gap-2.5">
+            <button
+              onClick={playAll}
+              className="px-5 py-2 rounded-full text-white font-bold text-xs flex items-center gap-2 shadow-md transition bg-purple-600 hover:bg-purple-500 active:scale-95 cursor-pointer"
+            >
+              <Play size={13} fill="currentColor" /> Play All
+            </button>
+            <button
+              onClick={handleClear}
+              className="px-3.5 py-2 rounded-full text-zinc-400 hover:text-rose-400 text-xs font-semibold transition active:scale-95 cursor-pointer flex items-center gap-1.5"
+            >
+              <Trash2 size={13} /> Clear
+            </button>
           </div>
-        </section>
+        </div>
 
-        {/* 4. Favorite Artists */}
-        <section className="px-6 md:px-10 space-y-6">
-          <div>
-            <p className="text-[9px] font-black uppercase tracking-[0.18em] text-zinc-600 mb-1.5">
-              Top Picks
-            </p>
-            <h2 className="font-display text-[22px] font-black text-white tracking-tight leading-none">
-              Favorite Artists
-            </h2>
-          </div>
-          <div className="flex gap-5 overflow-x-auto scrollbar-none pb-4 -mx-6 md:-mx-10 px-6 md:px-10">
-            {FAVORITE_ARTISTS.map((artist) => (
-              <motion.div
-                key={artist.name}
-                whileHover={{ y: -6 }}
-                onClick={() => router.push(`/artist/${encodeURIComponent(artist.name)}`)}
-                className="group flex flex-col items-center gap-3 cursor-pointer shrink-0 w-24"
-              >
-                <div className="w-20 h-20 rounded-full overflow-hidden bg-zinc-950 border border-white/[0.05] group-hover:border-purple-500/30 transition-all duration-300 shadow-md">
-                  <SafeImage src={artist.image} alt={artist.name} className="w-full h-full object-cover" fallbackType="artist" />
-                </div>
-                <p className="text-[12px] font-bold text-zinc-300 group-hover:text-white transition-colors truncate w-full">{artist.name}</p>
-              </motion.div>
-            ))}
-          </div>
-        </section>
-
-        {/* 5. Recommended Again */}
-        <section className="px-6 md:px-10 space-y-6">
-          <div>
-            <p className="text-[9px] font-black uppercase tracking-[0.18em] text-zinc-600 mb-1.5">
-              Re-discover
-            </p>
-            <h2 className="font-display text-[22px] font-black text-white tracking-tight leading-none">
-              Recommended Again
-            </h2>
-          </div>
-          <div className="flex gap-5 overflow-x-auto scrollbar-none pb-4 -mx-6 md:-mx-10 px-6 md:px-10">
-            {RECOMMENDED_ALBUMS.map((album) => (
-              <motion.div
-                key={`rec-album-${album.id}`}
-                whileHover={{ y: -6 }}
-                onClick={() => router.push(`/album/${album.id}`)}
-                className="group shrink-0 w-[140px] md:w-[160px] flex flex-col gap-3 cursor-pointer text-left"
-              >
-                <div className="relative rounded-[20px] overflow-hidden bg-zinc-900 aspect-square border border-white/[0.05] group-hover:border-purple-500/35 transition-all duration-300 shadow-[0_8px_24px_rgba(0,0,0,0.5)]">
-                  <SafeImage src={album.image} alt={album.title} className="w-full h-full object-cover" fallbackType="album" />
-                </div>
-                <div className="px-0.5">
-                  <p className="font-display text-[12px] font-bold text-zinc-300 group-hover:text-white truncate leading-tight tracking-tight">{album.title}</p>
-                  <p className="text-[10px] text-zinc-555 truncate mt-0.5">{album.artist}</p>
-                </div>
-              </motion.div>
-            ))}
-          </div>
-        </section>
-
+        {/* Chronological History Groups */}
+        <div className="space-y-6">
+          {renderSection("Today", todayEntries, 0)}
+          {renderSection("Yesterday", yesterdayEntries, todayEntries.length)}
+          {renderSection("This Week", thisWeekEntries, todayEntries.length + yesterdayEntries.length)}
+          {renderSection(
+            "Earlier",
+            earlierEntries,
+            todayEntries.length + yesterdayEntries.length + thisWeekEntries.length
+          )}
+        </div>
       </main>
     </ProtectedRoute>
   );

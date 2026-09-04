@@ -1,8 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
-import { motion } from "framer-motion";
 import Link from "next/link";
 import { SafeImage } from "@/components/ui/SafeImage";
 
@@ -12,28 +10,62 @@ type ArtistItem = {
   image: string;
 };
 
-const INITIAL_ARTISTS = [
-  { name: "Arijit Singh", genre: "Bollywood" },
-  { name: "Atif Aslam", genre: "Romantic" },
-  { name: "KK", genre: "Indie Pop" },
-  { name: "Shreya Ghoshal", genre: "Classical" },
-  { name: "Sonu Nigam", genre: "Playback" },
-  { name: "Armaan Malik", genre: "Pop" },
-  { name: "Neha Kakkar", genre: "Bollywood" },
-  { name: "Yo Yo Honey Singh", genre: "Hip-Hop" },
+const INITIAL_ARTISTS: ArtistItem[] = [
+  {
+    name: "Arijit Singh",
+    genre: "Bollywood",
+    image: "https://cdn-images.dzcdn.net/images/artist/ac5350cff290edd5b69fa584b8b1bd4f/500x500-000000-80-0-0.jpg",
+  },
+  {
+    name: "Atif Aslam",
+    genre: "Romantic",
+    image: "https://cdn-images.dzcdn.net/images/artist/0ea90444148fff9c11d77f06a344724e/500x500-000000-80-0-0.jpg",
+  },
+  {
+    name: "Shreya Ghoshal",
+    genre: "Classical",
+    image: "https://cdn-images.dzcdn.net/images/artist/3bb832d37d10ff2affcfa9afdc7c68a0/500x500-000000-80-0-0.jpg",
+  },
+  {
+    name: "KK",
+    genre: "Indie Pop",
+    image: "https://cdn-images.dzcdn.net/images/artist/15b11225390ff41cbc862cbbd9190ee1/500x500-000000-80-0-0.jpg",
+  },
+  {
+    name: "Sonu Nigam",
+    genre: "Playback",
+    image: "https://cdn-images.dzcdn.net/images/artist/812220125c4f0db57050438b65afcf78/500x500-000000-80-0-0.jpg",
+  },
+  {
+    name: "Armaan Malik",
+    genre: "Pop",
+    image: "https://cdn-images.dzcdn.net/images/artist/3aacd4e00a34aefb6041d30e0cc5bc5e/500x500-000000-80-0-0.jpg",
+  },
+  {
+    name: "Neha Kakkar",
+    genre: "Bollywood",
+    image: "https://cdn-images.dzcdn.net/images/artist/3a0f7ba65d6d8c1081b461ee49cb59e8/500x500-000000-80-0-0.jpg",
+  },
+  {
+    name: "Yo Yo Honey Singh",
+    genre: "Hip-Hop",
+    image: "https://cdn-images.dzcdn.net/images/artist/7859b461c10352f02a11368905f0903f/500x500-000000-80-0-0.jpg",
+  },
 ];
 
 export default function PopularArtists() {
-  const router = useRouter();
-  const [artistList, setArtistList] = useState<ArtistItem[]>(
-    INITIAL_ARTISTS.map((a) => ({ ...a, image: "" }))
-  );
+  const [artistList, setArtistList] = useState<ArtistItem[]>(INITIAL_ARTISTS);
 
   useEffect(() => {
     let isMounted = true;
     async function loadArtistImages() {
+      // If any artist has an empty image, fetch it
+      const missing = artistList.filter((a) => !a.image);
+      if (missing.length === 0) return;
+
       const updated = await Promise.all(
-        INITIAL_ARTISTS.map(async (artist) => {
+        artistList.map(async (artist) => {
+          if (artist.image) return artist;
           try {
             const res = await fetch(`/api/artist-image?artist=${encodeURIComponent(artist.name)}`);
             const data = await res.json();
@@ -42,7 +74,7 @@ export default function PopularArtists() {
               image: data.image || "",
             };
           } catch {
-            return { ...artist, image: "" };
+            return artist;
           }
         })
       );
@@ -54,61 +86,51 @@ export default function PopularArtists() {
     return () => {
       isMounted = false;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+
   return (
-    <section className="px-4 md:px-10 pt-10 pb-4 text-left relative overflow-hidden select-none">
-      {/* Header */}
-      <div className="flex items-end justify-between mb-6">
+    <section className="mf-section px-4 md:px-8 select-none text-left">
+      <div className="mf-section-header">
         <div>
-          <p className="text-[9px] font-black uppercase tracking-[0.18em] text-zinc-500 mb-1.5">
-            Featured
+          <p
+            className="text-[9px] font-black uppercase mb-1"
+            style={{ letterSpacing: "0.18em", color: "var(--mf-text-dim)" }}
+          >
+            Discover
           </p>
-          <h2 className="font-display text-[22px] font-black text-white tracking-tight leading-none">
-            Popular Artists
-          </h2>
+          <h2 className="mf-section-title">Popular Artists</h2>
         </div>
-        <Link
-          href="/explore"
-          className="text-[11px] font-bold text-zinc-500 hover:text-zinc-300 uppercase tracking-wider transition-colors active:scale-95"
-        >
-          See all
+        <Link href="/explore" className="mf-see-all">
+          See All
         </Link>
       </div>
 
-      {/* Horizontal Scroll Layout */}
-      <div className="flex gap-5 overflow-x-auto scrollbar-none pb-4 -mx-4 md:-mx-10 px-4 md:px-10">
-        {artistList.map((artist, idx) => (
-          <motion.button
+      <div className="mf-rail -mx-4 md:-mx-8 px-4 md:px-8">
+        {artistList.map((artist) => (
+          <Link
             key={artist.name}
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: idx * 0.04, duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-            whileHover={{ y: -6 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={() => router.push(`/artist/${encodeURIComponent(artist.name)}`)}
-            className="flex flex-col items-center gap-3 shrink-0 group focus:outline-none cursor-pointer"
+            href={`/artist/${encodeURIComponent(artist.name)}`}
+            className="group flex flex-col items-center gap-2 p-1.5 rounded-xl hover:bg-white/[0.03] transition-all duration-150 cursor-pointer select-none text-center w-[110px] md:w-[124px] shrink-0"
           >
-            {/* Avatar Frame with border and shadow */}
-            <div className="relative w-24 h-24 md:w-28 md:h-28 rounded-full overflow-hidden bg-zinc-900 border border-white/[0.06] group-hover:border-purple-500/40 transition-colors duration-300 shadow-[0_8px_24px_rgba(0,0,0,0.5)]">
+            <div className="relative w-20 h-20 md:w-24 md:h-24 rounded-full overflow-hidden bg-zinc-900 border border-white/[0.08] shadow-md transition-transform duration-200 group-hover:scale-105">
               <SafeImage
                 src={artist.image}
                 alt={artist.name}
-                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                className="w-full h-full object-cover"
                 fallbackType="artist"
               />
-              {/* Inner overlay */}
-              <div className="absolute inset-0 bg-black/10 group-hover:bg-black/0 transition-colors" />
             </div>
-
-            {/* Meta */}
-            <div className="text-center">
-              <p className="text-[13px] font-bold text-zinc-300 group-hover:text-white transition-colors duration-200 leading-tight">
+            <div className="w-full px-1">
+              <p className="text-[12px] font-bold text-zinc-200 group-hover:text-white truncate transition-colors leading-tight">
                 {artist.name}
               </p>
-              <p className="text-[10px] text-zinc-500 font-medium mt-0.5">{artist.genre}</p>
+              <p className="text-[10px] text-zinc-500 font-medium truncate mt-0.5">
+                {artist.genre || "Artist"}
+              </p>
             </div>
-          </motion.button>
+          </Link>
         ))}
       </div>
     </section>

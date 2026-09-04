@@ -51,3 +51,68 @@ export interface UserStats {
   topArtists: { name: string; playCount: number }[];
   topTracks: { title: string; artist: string; playCount: number }[];
 }
+
+export interface ListeningHistoryEntry {
+  id: string;
+  track: Track;
+  timestamp: number; // Date.now() timestamp
+  playbackDuration: number; // seconds listened
+  completionPercentage: number; // 0-100
+}
+
+export interface ChartTrack extends Track {
+  rank: number;
+  previousRank?: number;
+  peakRank?: number;
+  movement?: "up" | "down" | "same" | "new";
+  playsCount?: string;
+}
+
+export interface ChartArtist {
+  rank: number;
+  name: string;
+  image?: string;
+  monthlyListeners?: string;
+  movement?: "up" | "down" | "same" | "new";
+}
+
+export interface ChartAlbum {
+  rank: number;
+  albumId: string;
+  name: string;
+  artist: string;
+  thumbnail: string;
+  year?: number;
+  movement?: "up" | "down" | "same" | "new";
+}
+
+export interface GenreDetail {
+  id: string;
+  name: string;
+  emoji: string;
+  tagline: string;
+  description: string;
+  color: string;
+  gradient: string;
+  featuredArtists: string[];
+  popularSearchQueries: string[];
+}
+
+export type DiscoveryModeType =
+  | "surprise"
+  | "quick-mix"
+  | "deep-focus"
+  | "mood"
+  | "artist-radio"
+  | "song-radio"
+  | "genre-radio"
+  | "similar";
+
+export interface ShareCardData {
+  type: "track" | "album" | "artist" | "playlist" | "profile";
+  title: string;
+  subtitle?: string;
+  image?: string;
+  url: string;
+}
+

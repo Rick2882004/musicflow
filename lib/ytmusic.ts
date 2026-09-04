@@ -7,7 +7,6 @@ export async function initializeYTMusic() {
   if (!initialized) {
     await ytmusic.initialize();
     initialized = true;
-    console.log("YTMusic initialized");
   }
 }
 
