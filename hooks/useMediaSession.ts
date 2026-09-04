@@ -1,21 +1,30 @@
-"use client";
+﻿"use client";
 
 /**
  * useMediaSession — Single canonical MediaSession integration for MusicFlow.
  *
- * KEY DESIGN DECISIONS:
- * 1. Action handlers are registered ONCE on mount and never re-registered.
- *    They always read live state from usePlayerStore.getState() — no stale closures.
- * 2. Metadata (title/artist/artwork) is updated reactively whenever the track changes.
- * 3. playbackState is driven by YoutubePlayer onStateChange (source of truth).
- *    This hook also sets it on play/pause actions from the OS.
- * 4. prevTrack: if position > 3s, restart current track. Otherwise go to previous.
- * 5. Artwork MIME type: detect jpeg vs png from URL to satisfy strict Android validators.
+ * ARCHITECTURE:
+ * 1. Action handlers are registered on mount AND re-asserted whenever the
+ *    YouTube iframe triggers a playing state change (the iframe's own MediaSession
+ *    can overwrite our handlers — we reclaim them immediately).
+ * 2. Handlers always read live state via usePlayerStore.getState() — no stale closures.
+ * 3. Metadata updates whenever track/artwork changes.
+ * 4. playbackState is synced via YouTube onStateChange (primary) + store subscription.
+ * 5. prevTrack: if position > 3s, restart current track. Otherwise go to previous.
+ * 6. Artwork MIME type: auto-detected from URL (iTunes = jpeg, icons = png).
+ *
+ * IMPORTANT — Chrome Android iframe conflict:
+ * YouTube's embedded iframe registers its own MediaSession with only play/pause.
+ * Our main-page MediaSession must be re-asserted after any YouTube state event.
+ * Additionally, PlayerEngine must NOT use display:none (use off-screen CSS instead)
+ * so Chrome treats the iframe as rendered and surfaces all our registered actions.
  */
 
 import { useEffect, useRef } from "react";
 import { usePlayerStore } from "@/store/player-store";
 import { useShallow } from "zustand/react/shallow";
+
+const IS_DEV = process.env.NODE_ENV === "development";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -23,8 +32,7 @@ function getArtworkMimeType(url: string): string {
   if (!url) return "image/jpeg";
   const lower = url.toLowerCase();
   if (lower.includes(".png") || lower.includes("icon-")) return "image/png";
-  // iTunes mzstatic.com URLs are always JPEG even without extension
-  if (lower.includes("mzstatic.com")) return "image/jpeg";
+  if (lower.includes("mzstatic.com")) return "image/jpeg"; // iTunes — always JPEG
   if (lower.includes(".webp")) return "image/webp";
   return "image/jpeg";
 }
@@ -53,6 +61,7 @@ export function safeSetPositionState(
     !("mediaSession" in navigator) ||
     typeof navigator.mediaSession.setPositionState !== "function"
   ) return;
+  // All values must be valid — Chrome throws on bad input
   if (duration <= 0 || position < 0 || playbackRate <= 0) return;
   const safePos = Math.min(Math.max(position, 0), duration - 0.001);
   try {
@@ -62,25 +71,149 @@ export function safeSetPositionState(
       playbackRate,
     });
   } catch {
-    // setPositionState not supported or invalid values — swallow silently
+    // setPositionState not supported or values invalid — silently ignore
   }
 }
 
+// Log registration result — visible in dev, silent in prod
 function tryRegisterAction(
   action: MediaSessionAction,
   handler: MediaSessionActionHandler | null
-) {
+): boolean {
   try {
     navigator.mediaSession.setActionHandler(action, handler);
-  } catch {
-    // Action not supported by this browser/OS — ignore safely
+    if (IS_DEV) console.debug(`[MediaSession] ✓ Registered: ${action}`);
+    return true;
+  } catch (err) {
+    // Always warn on failure so we can diagnose on real devices
+    console.warn(`[MediaSession] ✗ Registration failed: ${action}`, err);
+    return false;
   }
+}
+
+// Register all MusicFlow MediaSession action handlers
+// Called once on mount AND re-called when YouTube's iframe may have overwritten them
+function registerAllHandlers() {
+  if (typeof navigator === "undefined" || !("mediaSession" in navigator)) return;
+
+  // PLAY
+  tryRegisterAction("play", () => {
+    const { player } = usePlayerStore.getState();
+    if (player) { try { player.playVideo(); } catch { /* ignore */ } }
+    usePlayerStore.getState().setIsPlaying(true);
+    navigator.mediaSession.playbackState = "playing";
+  });
+
+  // PAUSE
+  tryRegisterAction("pause", () => {
+    const { player } = usePlayerStore.getState();
+    if (player) { try { player.pauseVideo(); } catch { /* ignore */ } }
+    usePlayerStore.getState().setIsPlaying(false);
+    navigator.mediaSession.playbackState = "paused";
+  });
+
+  // NEXT TRACK — calls canonical nextTrack() which advances queue & loads new video
+  tryRegisterAction("nexttrack", () => {
+    if (IS_DEV) console.debug("[MediaSession] nexttrack triggered");
+    usePlayerStore.getState().nextTrack();
+  });
+
+  // PREVIOUS TRACK — restart if > 3s in, else go to prev queue item
+  tryRegisterAction("previoustrack", () => {
+    if (IS_DEV) console.debug("[MediaSession] previoustrack triggered");
+    const store = usePlayerStore.getState();
+    const { player, currentTime, prevTrack, duration, playbackSpeed } = store;
+
+    if (currentTime > 3 && player) {
+      try {
+        player.seekTo(0, true);
+        store.setCurrentTime(0);
+        safeSetPositionState(duration, 0, playbackSpeed);
+        navigator.mediaSession.playbackState = "playing";
+      } catch { /* ignore */ }
+      return;
+    }
+
+    prevTrack();
+  });
+
+  // SEEK BACKWARD (default 10s)
+  tryRegisterAction("seekbackward", (details) => {
+    const store = usePlayerStore.getState();
+    const { player, currentTime, duration, playbackSpeed } = store;
+    if (!player) return;
+    const skipTime = details?.seekOffset ?? 10;
+    const target = Math.max(currentTime - skipTime, 0);
+    try {
+      player.seekTo(target, true);
+      store.setCurrentTime(target);
+      safeSetPositionState(duration, target, playbackSpeed);
+    } catch { /* ignore */ }
+  });
+
+  // SEEK FORWARD (default 10s)
+  tryRegisterAction("seekforward", (details) => {
+    const store = usePlayerStore.getState();
+    const { player, currentTime, duration, playbackSpeed } = store;
+    if (!player) return;
+    const skipTime = details?.seekOffset ?? 10;
+    const target = Math.min(currentTime + skipTime, duration);
+    try {
+      player.seekTo(target, true);
+      store.setCurrentTime(target);
+      safeSetPositionState(duration, target, playbackSpeed);
+    } catch { /* ignore */ }
+  });
+
+  // SEEK TO — OS lock-screen seek bar drag
+  tryRegisterAction("seekto", (details) => {
+    if (IS_DEV) console.debug("[MediaSession] seekto triggered:", details?.seekTime);
+    const store = usePlayerStore.getState();
+    const { player, duration, playbackSpeed } = store;
+    if (!player || details?.seekTime == null) return;
+    // Clamp: position must be [0, duration)
+    const target = Math.min(Math.max(details.seekTime, 0), Math.max(duration - 0.001, 0));
+    try {
+      player.seekTo(target, true);
+      store.setCurrentTime(target);
+      safeSetPositionState(duration, target, playbackSpeed);
+    } catch { /* ignore */ }
+  });
+
+  // STOP — Android sometimes shows this
+  tryRegisterAction("stop", () => {
+    const { player } = usePlayerStore.getState();
+    if (player) { try { player.pauseVideo(); } catch { /* ignore */ } }
+    usePlayerStore.getState().setIsPlaying(false);
+    navigator.mediaSession.playbackState = "paused";
+  });
+}
+
+// ── Development diagnostic dump ───────────────────────────────────────────────
+export function logMediaSessionDiagnostics() {
+  if (typeof navigator === "undefined" || !("mediaSession" in navigator)) {
+    console.info("[MediaSession] NOT AVAILABLE in this environment");
+    return;
+  }
+  const store = usePlayerStore.getState();
+  console.group("[MediaSession] Diagnostics");
+  console.info("Available:", true);
+  console.info("playbackState:", navigator.mediaSession.playbackState);
+  console.info("metadata title:", navigator.mediaSession.metadata?.title);
+  console.info("metadata artist:", navigator.mediaSession.metadata?.artist);
+  console.info("metadata artwork count:", navigator.mediaSession.metadata?.artwork?.length);
+  console.info("Zustand isPlaying:", store.isPlaying);
+  console.info("Zustand duration:", store.duration);
+  console.info("Zustand currentTime:", store.currentTime);
+  console.info("Zustand playbackSpeed:", store.playbackSpeed);
+  console.info("Zustand player:", store.player ? "connected" : "null");
+  console.groupEnd();
 }
 
 // ── The Hook ─────────────────────────────────────────────────────────────────
 
 export function useMediaSession() {
-  const handlersRegistered = useRef(false);
+  const initialRegistrationDone = useRef(false);
 
   // Reactive values that drive metadata updates only
   const { videoId, title, artist, thumbnail } = usePlayerStore(
@@ -92,107 +225,30 @@ export function useMediaSession() {
     }))
   );
 
-  // ── Register all action handlers ONCE on mount ─────────────────────────────
+  // ── Register all action handlers on first mount ────────────────────────────
   useEffect(() => {
     if (typeof window === "undefined" || !("mediaSession" in navigator)) return;
-    if (handlersRegistered.current) return;
-    handlersRegistered.current = true;
+    if (initialRegistrationDone.current) return;
+    initialRegistrationDone.current = true;
 
-    // PLAY
-    tryRegisterAction("play", () => {
-      const { player } = usePlayerStore.getState();
-      if (player) { try { player.playVideo(); } catch { /* ignore */ } }
-      usePlayerStore.getState().setIsPlaying(true);
-      navigator.mediaSession.playbackState = "playing";
-    });
+    if (IS_DEV) console.debug("[MediaSession] Initial handler registration");
+    registerAllHandlers();
 
-    // PAUSE
-    tryRegisterAction("pause", () => {
-      const { player } = usePlayerStore.getState();
-      if (player) { try { player.pauseVideo(); } catch { /* ignore */ } }
-      usePlayerStore.getState().setIsPlaying(false);
-      navigator.mediaSession.playbackState = "paused";
-    });
+    // Expose diagnostic helper on window in dev
+    if (IS_DEV) {
+      (window as any).__musicflowMediaDiag = logMediaSessionDiagnostics; // eslint-disable-line @typescript-eslint/no-explicit-any
+      console.debug("[MediaSession] Run window.__musicflowMediaDiag() to inspect state");
+    }
 
-    // NEXT TRACK
-    tryRegisterAction("nexttrack", () => {
-      usePlayerStore.getState().nextTrack();
-    });
-
-    // PREVIOUS TRACK — restart if > 3s in, else go to prev queue item
-    tryRegisterAction("previoustrack", () => {
-      const store = usePlayerStore.getState();
-      const { player, currentTime, prevTrack, duration, playbackSpeed } = store;
-
-      if (currentTime > 3 && player) {
-        try {
-          player.seekTo(0, true);
-          store.setCurrentTime(0);
-          safeSetPositionState(duration, 0, playbackSpeed);
-          navigator.mediaSession.playbackState = "playing";
-        } catch { /* ignore */ }
-        return;
-      }
-
-      prevTrack();
-    });
-
-    // SEEK BACKWARD (default 10s)
-    tryRegisterAction("seekbackward", (details) => {
-      const store = usePlayerStore.getState();
-      const { player, currentTime, duration, playbackSpeed } = store;
-      if (!player) return;
-      const skipTime = details?.seekOffset ?? 10;
-      const target = Math.max(currentTime - skipTime, 0);
-      try {
-        player.seekTo(target, true);
-        store.setCurrentTime(target);
-        safeSetPositionState(duration, target, playbackSpeed);
-      } catch { /* ignore */ }
-    });
-
-    // SEEK FORWARD (default 10s)
-    tryRegisterAction("seekforward", (details) => {
-      const store = usePlayerStore.getState();
-      const { player, currentTime, duration, playbackSpeed } = store;
-      if (!player) return;
-      const skipTime = details?.seekOffset ?? 10;
-      const target = Math.min(currentTime + skipTime, duration);
-      try {
-        player.seekTo(target, true);
-        store.setCurrentTime(target);
-        safeSetPositionState(duration, target, playbackSpeed);
-      } catch { /* ignore */ }
-    });
-
-    // SEEK TO (OS lock-screen drag seek bar)
-    tryRegisterAction("seekto", (details) => {
-      const store = usePlayerStore.getState();
-      const { player, duration, playbackSpeed } = store;
-      if (!player || details?.seekTime == null) return;
-      const target = Math.min(Math.max(details.seekTime, 0), duration);
-      try {
-        player.seekTo(target, true);
-        store.setCurrentTime(target);
-        safeSetPositionState(duration, target, playbackSpeed);
-      } catch { /* ignore */ }
-    });
-
-    // STOP (Android sometimes shows this button)
-    tryRegisterAction("stop", () => {
-      const { player } = usePlayerStore.getState();
-      if (player) { try { player.pauseVideo(); } catch { /* ignore */ } }
-      usePlayerStore.getState().setIsPlaying(false);
-      navigator.mediaSession.playbackState = "paused";
-    });
-
-  }, []); // Empty deps: intentional — handlers read live state via getState(), not closures
+  }, []); // Run once on mount
 
   // ── Update Metadata whenever track/artwork changes ─────────────────────────
+  // Also re-assert handlers here — YouTube iframe may have overwritten them
   useEffect(() => {
     if (typeof window === "undefined" || !("mediaSession" in navigator)) return;
     if (!videoId || !title) return;
 
+    // 1. Set metadata for the new track
     navigator.mediaSession.metadata = new MediaMetadata({
       title,
       artist: artist || "MusicFlow",
@@ -200,24 +256,41 @@ export function useMediaSession() {
       artwork: buildArtworkList(thumbnail),
     });
 
-    // Reset position state for new track (duration unknown yet, will update from poll)
+    // 2. Re-assert all handlers — YouTube's iframe MediaSession may have stolen focus
+    //    and overwritten previoustrack/nexttrack with its own (empty) handlers.
+    //    We reclaim them immediately on every track change.
+    registerAllHandlers();
+
+    // 3. Reset position state for new track
     const { duration, playbackSpeed } = usePlayerStore.getState();
     if (duration > 0) {
       safeSetPositionState(duration, 0, playbackSpeed);
     }
 
+    if (IS_DEV) {
+      console.debug(`[MediaSession] Track changed → "${title}" by "${artist}"`);
+      console.debug(`[MediaSession] Artwork: ${thumbnail?.substring(0, 80)}`);
+    }
+
   }, [videoId, title, artist, thumbnail]);
 
-  // ── Sync playbackState via store subscription ──────────────────────────────
-  // YoutubePlayer.onStateChange is primary. This is a safety net for edge cases.
+  // ── Sync playbackState + re-assert handlers on play state change ───────────
+  // When YouTube starts playing (onStateChange YT_PLAYING), its internal MediaSession
+  // fires and can overwrite our handlers. We catch that by subscribing to isPlaying.
   useEffect(() => {
     if (typeof window === "undefined" || !("mediaSession" in navigator)) return;
+
     const unsub = usePlayerStore.subscribe((state, prev) => {
       if (state.isPlaying !== prev.isPlaying) {
         navigator.mediaSession.playbackState = state.isPlaying ? "playing" : "paused";
+
+        // Re-assert handlers whenever playback state changes — this reclaims the
+        // session from YouTube's iframe after every play/pause/track-start event
+        if (state.isPlaying) {
+          registerAllHandlers();
+        }
       }
     });
     return unsub;
-  }, []); // Empty deps: intentional — uses store.subscribe() not React state
-
+  }, []); // Run once — uses store.subscribe internally
 }
