@@ -8,6 +8,7 @@ import { Track, Playlist, ListeningHistoryEntry, FollowedArtist, SavedAlbum } fr
 import { getCachedArtwork, resolveTrackMetadata } from "@/lib/metadata-resolver";
 import { playAudioAnchor } from "@/lib/audio-anchor";
 import { clearIntentionalUserPause } from "@/lib/playback-intent";
+import { logBgDiag } from "@/lib/bg-diagnostics";
 
 interface PlayerState {
   videoId: string;
@@ -143,7 +144,11 @@ export const usePlayerStore = create<PlayerState>()(
           }
         }
       },
-      setIsPlaying: (playing) => set({ isPlaying: playing }),
+      setIsPlaying: (playing) => {
+        const stack = new Error().stack?.split("\n").slice(2, 5).map((s) => s.trim()).join(" -> ");
+        logBgDiag("store-setIsPlaying", { playing, callerStack: stack });
+        set({ isPlaying: playing });
+      },
       toggleShuffle: () => set((state) => ({ isShuffle: !state.isShuffle })),
       toggleRepeat: () => set((state) => ({ isRepeat: !state.isRepeat })),
       toggleQueue: () => set((state) => ({ isQueueOpen: !state.isQueueOpen })),

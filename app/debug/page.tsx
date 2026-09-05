@@ -9,9 +9,11 @@ import { usePlayerStore } from "@/store/player-store";
 
 export default function DebugPage() {
   const [copied, setCopied] = useState(false);
+  const [copiedAnalysis, setCopiedAnalysis] = useState(false);
   const [, setTick] = useState(0);
   const [logCount, setLogCount] = useState(0);
   const [recentLogs, setRecentLogs] = useState<any[]>([]); // eslint-disable-line @typescript-eslint/no-explicit-any
+  const [cutoutInfo, setCutoutInfo] = useState<any>(null); // eslint-disable-line @typescript-eslint/no-explicit-any
 
   // Poll state every 500ms
   useEffect(() => {
@@ -21,7 +23,10 @@ export default function DebugPage() {
       if (diag?.getLogs) {
         const logs = diag.getLogs();
         setLogCount(logs.length);
-        setRecentLogs(logs.slice(-30).reverse());
+        setRecentLogs(logs.slice(-35).reverse());
+      }
+      if (diag?.analyzeCutout) {
+        setCutoutInfo(diag.analyzeCutout());
       }
     }, 500);
     return () => clearInterval(interval);
@@ -42,6 +47,14 @@ export default function DebugPage() {
     }
   };
 
+  const handleCopyAnalysis = () => {
+    if (cutoutInfo?.summary && navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(cutoutInfo.summary);
+      setCopiedAnalysis(true);
+      setTimeout(() => setCopiedAnalysis(false), 3000);
+    }
+  };
+
   const handleSetAnchorMode = (mode: "silent" | "audible") => {
     setAudioAnchorMode(mode);
     setTick((t) => t + 1);
@@ -53,6 +66,7 @@ export default function DebugPage() {
       diag.clear();
       setRecentLogs([]);
       setLogCount(0);
+      setCutoutInfo(null);
     }
   };
 
@@ -79,23 +93,66 @@ export default function DebugPage() {
         </span>
       </div>
 
+      {/* Cutout Sequence Analyzer Banner */}
+      <div
+        className={`border rounded-2xl p-4 space-y-2 transition ${
+          cutoutInfo?.detected
+            ? "bg-red-950/40 border-red-500/60 text-red-200"
+            : "bg-emerald-950/20 border-emerald-500/30 text-emerald-200"
+        }`}
+      >
+        <div className="flex items-center justify-between">
+          <span className="font-bold text-sm flex items-center gap-2">
+            {cutoutInfo?.detected ? "⚠️ Audio Cutout Detected!" : "✅ Playback State Monitor"}
+          </span>
+          {cutoutInfo?.category && cutoutInfo.category !== "NONE" && (
+            <span className="bg-red-600 text-white px-2 py-0.5 rounded font-black text-[11px] uppercase tracking-wider">
+              Category {cutoutInfo.category}
+            </span>
+          )}
+        </div>
+        <div className="text-xs font-semibold leading-relaxed bg-black/60 p-3 rounded-xl border border-white/10 select-text font-mono text-zinc-200">
+          {cutoutInfo?.summary || "Monitoring playback... awaiting any cutout or pause event."}
+        </div>
+        {cutoutInfo?.categoryDescription && (
+          <div className="text-[11px] text-zinc-300">
+            <strong className="text-white">Trigger:</strong> {cutoutInfo.categoryDescription}
+          </div>
+        )}
+      </div>
+
       {/* Control Buttons */}
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-3 gap-2">
+        <button
+          onClick={handleCopyAnalysis}
+          disabled={!cutoutInfo?.detected}
+          className={`flex items-center justify-center gap-1.5 p-2.5 rounded-xl font-bold transition text-white text-[11px] ${
+            !cutoutInfo?.detected
+              ? "bg-zinc-800 text-zinc-600 cursor-not-allowed"
+              : copiedAnalysis
+              ? "bg-emerald-600"
+              : "bg-amber-600 hover:bg-amber-500"
+          }`}
+        >
+          {copiedAnalysis ? <Check size={14} /> : <Copy size={14} />}
+          <span>{copiedAnalysis ? "Analysis Copied!" : "Copy Analysis"}</span>
+        </button>
+
         <button
           onClick={handleCopyLogs}
-          className={`flex items-center justify-center gap-2 p-3 rounded-xl font-bold transition text-white ${
+          className={`flex items-center justify-center gap-1.5 p-2.5 rounded-xl font-bold transition text-white text-[11px] ${
             copied ? "bg-emerald-600" : "bg-purple-600 hover:bg-purple-500"
           }`}
         >
-          {copied ? <Check size={16} /> : <Copy size={16} />}
+          {copied ? <Check size={14} /> : <Copy size={14} />}
           <span>{copied ? "Logs Copied!" : `Copy Logs (${logCount})`}</span>
         </button>
 
         <button
           onClick={handleClearLogs}
-          className="flex items-center justify-center gap-2 p-3 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-bold transition"
+          className="flex items-center justify-center gap-1.5 p-2.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-bold transition text-[11px]"
         >
-          <Trash2 size={16} />
+          <Trash2 size={14} />
           <span>Clear Logs</span>
         </button>
       </div>

@@ -34,7 +34,7 @@ export interface BgDiagEvent {
   extra?: Record<string, unknown>;
 }
 
-const MAX_LOGS = 300;
+const MAX_LOGS = 600;
 const logBuffer: BgDiagEvent[] = [];
 const mediaSessionRegistrations: Record<string, boolean> = {};
 
@@ -269,8 +269,136 @@ export function initBgDiagnostics() {
   window.addEventListener("online", onOnline);
   window.addEventListener("offline", onOffline);
 
+  // Heartbeat Stagnation & Audio Cutout Detector (checks every 1000ms)
+  let prevPlayerTime: number | undefined;
+  let stagnantCount = 0;
+
+  setInterval(() => {
+    try {
+      const yt = getYTPlayerInfo();
+      let isPlaying = false;
+      try {
+        const store = (window as unknown as { __musicflowStore?: { getState: () => { isPlaying: boolean } } }).__musicflowStore?.getState?.();
+        isPlaying = store?.isPlaying ?? false;
+      } catch { /* ignore */ }
+
+      if (isPlaying && yt.connected) {
+        const curTime = yt.currentTime;
+        if (curTime !== undefined && prevPlayerTime !== undefined) {
+          if (Math.abs(curTime - prevPlayerTime) < 0.05 && yt.state === 1) {
+            stagnantCount++;
+            if (stagnantCount === 2) {
+              logBgDiag("audio-stagnation-cutout", {
+                frozenAtTime: curTime,
+                ytState: yt.state,
+                ytStateName: yt.stateName,
+                audioAnchor: getAudioAnchorState(),
+                visibilityState: document.visibilityState,
+                hasFocus: document.hasFocus(),
+              });
+            }
+          } else {
+            stagnantCount = 0;
+          }
+        }
+        prevPlayerTime = curTime;
+      } else {
+        stagnantCount = 0;
+        prevPlayerTime = yt.currentTime;
+      }
+    } catch { /* ignore */ }
+  }, 1000);
+
+  function runCutoutAnalysis() {
+    if (logBuffer.length === 0) {
+      return {
+        detected: false,
+        summary: "No logs recorded yet.",
+        category: "NONE",
+        firstEvent: null,
+      };
+    }
+
+    let cutoutIdx = -1;
+    for (let i = 0; i < logBuffer.length; i++) {
+      const ev = logBuffer[i];
+      if (
+        ev.type === "audio-stagnation-cutout" ||
+        ev.type === "yt-error" ||
+        (ev.type === "yt-state-change" && (ev.ytState === 2 || ev.ytState === 3)) ||
+        (ev.type === "store-setIsPlaying" && ev.extra?.playing === false) ||
+        ev.type === "audio-anchor-pause-called" ||
+        ev.type === "call-pauseVideo" ||
+        (ev.type === "mediasession-playbackstate-synced" && ev.extra?.playbackState === "paused") ||
+        ev.type === "freeze"
+      ) {
+        cutoutIdx = i;
+        break;
+      }
+    }
+
+    if (cutoutIdx === -1) {
+      return {
+        detected: false,
+        summary: "No playback cutout detected in recorded logs so far.",
+        category: "NONE",
+        firstEvent: null,
+      };
+    }
+
+    const firstEvent = logBuffer[cutoutIdx];
+    const secondEvent = cutoutIdx + 1 < logBuffer.length ? logBuffer[cutoutIdx + 1] : null;
+
+    let category: "A" | "B" | "C" | "D" | "E" | "F" | "G" = "G";
+    let categoryDescription = "";
+
+    if (firstEvent.type === "yt-state-change" && (firstEvent.ytState === 2 || firstEvent.ytState === 3)) {
+      category = "A";
+      categoryDescription = `A: YouTube changed to ${firstEvent.ytStateName} (${firstEvent.ytState})`;
+    } else if (firstEvent.type === "store-setIsPlaying" && firstEvent.extra?.playing === false) {
+      category = "B";
+      categoryDescription = `B: MusicFlow changed isPlaying to false (source: ${firstEvent.extra?.callerStack || "unknown"})`;
+    } else if (firstEvent.type === "call-pauseVideo") {
+      category = "B";
+      categoryDescription = `B: MusicFlow called pauseVideo() (source: ${firstEvent.extra?.source || "unknown"})`;
+    } else if (firstEvent.type === "audio-anchor-pause-called") {
+      category = "C";
+      categoryDescription = `C: MusicFlow paused the audio anchor (caller: ${firstEvent.extra?.callerStack || "unknown"})`;
+    } else if (firstEvent.type === "mediasession-playbackstate-synced" && firstEvent.extra?.playbackState === "paused") {
+      category = "D";
+      categoryDescription = "D: MediaSession changed to paused";
+    } else if (firstEvent.type === "blur" || firstEvent.type === "visibilitychange" || firstEvent.type === "freeze" || firstEvent.type === "pagehide") {
+      category = "E";
+      categoryDescription = `E: Browser lifecycle event occurred (${firstEvent.type})`;
+    } else if (firstEvent.type === "yt-error") {
+      category = "F";
+      categoryDescription = `F: YouTube emitted error code ${firstEvent.extra?.error}`;
+    } else if (firstEvent.type === "audio-stagnation-cutout") {
+      category = "G";
+      categoryDescription = `G: None of the above — audio simply became silent (currentTime frozen at ${firstEvent.extra?.frozenAtTime}s while state was PLAYING)`;
+    }
+
+    const secondDesc = secondEvent ? `"${secondEvent.type}" at ${secondEvent.time}` : "no subsequent event";
+    const summary = `At timestamp ${firstEvent.time}, event "${firstEvent.type}" (${categoryDescription}) happened first, followed by ${secondDesc}.`;
+
+    return {
+      detected: true,
+      category,
+      categoryDescription,
+      firstEvent,
+      secondEvent,
+      summary,
+      timeline: logBuffer.slice(Math.max(0, cutoutIdx - 2), Math.min(logBuffer.length, cutoutIdx + 6)),
+    };
+  }
+
   (window as unknown as { __musicflowBgDiag: unknown }).__musicflowBgDiag = {
     getLogs: () => [...logBuffer],
+    analyzeCutout: () => {
+      const res = runCutoutAnalysis();
+      console.log(`[BgDiag Cutout Analysis] ${res.summary}`);
+      return res;
+    },
     dump: () => {
       console.table(
         logBuffer.map((l) => ({
@@ -282,6 +410,7 @@ export function initBgDiagnostics() {
           storePlaying: l.isPlaying,
           anchorPaused: l.audioAnchor?.paused,
           track: l.currentTrack?.title?.substring(0, 20),
+          extra: l.extra ? JSON.stringify(l.extra) : "",
         }))
       );
       return logBuffer;
@@ -341,6 +470,7 @@ export function initBgDiagnostics() {
         iframe: iframe,
         userAgent: navigator.userAgent,
         logCount: logBuffer.length,
+        cutoutAnalysis: runCutoutAnalysis().summary,
       };
     },
   };

@@ -65,7 +65,20 @@ export default function YoutubePlayer({ videoId }: Props) {
   const onStateChange = (event: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
     const state = event.data;
     const isHidden = typeof document !== "undefined" && document.visibilityState === "hidden";
-    logBgDiag("yt-state-change", { ytState: state, videoId, isHidden });
+    let curTime: number | undefined;
+    let dur: number | undefined;
+    try {
+      curTime = event.target.getCurrentTime?.();
+      dur = event.target.getDuration?.();
+    } catch { /* ignore */ }
+    logBgDiag("yt-state-change", {
+      ytState: state,
+      ytStateName: getYTStateName(state),
+      videoId,
+      isHidden,
+      currentTime: curTime != null ? Math.round(curTime * 100) / 100 : undefined,
+      duration: dur != null ? Math.round(dur * 100) / 100 : undefined,
+    });
 
     // Sync actual YouTube playback state → Zustand store
     if (state === YT_PLAYING) {
@@ -205,6 +218,12 @@ export default function YoutubePlayer({ videoId }: Props) {
           logBgDiag("yt-error-skipping-nextTrack", { error: e.data });
           nextTrack();
         }
+      }}
+      onPlaybackRateChange={(e: { data: unknown }) => {
+        logBgDiag("yt-playback-rate-change", { rate: e.data, videoId });
+      }}
+      onPlaybackQualityChange={(e: { data: unknown }) => {
+        logBgDiag("yt-playback-quality-change", { quality: e.data, videoId });
       }}
       opts={{
         width: "100%",

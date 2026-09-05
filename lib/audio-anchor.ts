@@ -197,7 +197,8 @@ export function playAudioAnchor() {
   }
 
   ensureDomAttached(audio);
-  logBgDiag("audio-anchor-play-attempted", { state: getAudioAnchorState() });
+  const playStack = new Error().stack?.split("\n").slice(2, 5).map((s) => s.trim()).join(" -> ");
+  logBgDiag("audio-anchor-play-attempted", { state: getAudioAnchorState(), callerStack: playStack });
 
   try {
     const playPromise = audio.play();
@@ -222,7 +223,8 @@ export function playAudioAnchor() {
 export function pauseAudioAnchor() {
   const audio = getAudioAnchor();
   if (audio && !audio.paused) {
-    logBgDiag("audio-anchor-pause-called", { state: getAudioAnchorState() });
+    const pauseStack = new Error().stack?.split("\n").slice(2, 5).map((s) => s.trim()).join(" -> ");
+    logBgDiag("audio-anchor-pause-called", { state: getAudioAnchorState(), callerStack: pauseStack });
     audio.pause();
   }
 }

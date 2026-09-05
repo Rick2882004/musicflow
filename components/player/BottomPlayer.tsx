@@ -30,6 +30,7 @@ import { useSmartQueue } from "@/hooks/useSmartQueue";
 import { useMediaSession, notifyMediaSessionSeek, updateMediaSessionPosition } from "@/hooks/useMediaSession";
 import { playAudioAnchor, pauseAudioAnchor } from "@/lib/audio-anchor";
 import { markIntentionalUserPause, clearIntentionalUserPause } from "@/lib/playback-intent";
+import { logBgDiag } from "@/lib/bg-diagnostics";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
@@ -257,12 +258,14 @@ export default function BottomPlayer() {
     if (!player) return;
     const store = usePlayerStore.getState();
     if (isPlaying) {
+      logBgDiag("call-pauseVideo", { source: "BottomPlayer:togglePlay", isPlaying: true });
       markIntentionalUserPause();
       pauseAudioAnchor();
       player.pauseVideo();
       setIsPlaying(false);
       updateMediaSessionPosition(store.currentTime, store.duration, store.playbackSpeed, true);
     } else {
+      logBgDiag("call-playVideo", { source: "BottomPlayer:togglePlay", isPlaying: false });
       clearIntentionalUserPause();
       playAudioAnchor();
       player.playVideo();
@@ -289,6 +292,7 @@ export default function BottomPlayer() {
           const state = store.player.getPlayerState();
           // Resume if paused (2) or ended (0) or unstarted (-1)
           if (state === 2 || state === 0 || state === -1) {
+            logBgDiag("call-playVideo", { source: "BottomPlayer:handleVisibilityChange", previousState: state });
             store.player.playVideo();
           }
         } catch {
@@ -302,6 +306,7 @@ export default function BottomPlayer() {
       const currentlyPlaying = usePlayerStore.getState().isPlaying;
       if (currentPlayer && currentlyPlaying) {
         try {
+          logBgDiag("call-playVideo", { source: "BottomPlayer:handleOnline" });
           currentPlayer.playVideo();
         } catch {
           // Ignore network reconnect recovery errors
@@ -348,12 +353,14 @@ export default function BottomPlayer() {
           e.preventDefault();
           if (store.player) {
             if (store.isPlaying) {
+              logBgDiag("call-pauseVideo", { source: "BottomPlayer:Spacebar" });
               markIntentionalUserPause();
               pauseAudioAnchor();
               store.player.pauseVideo();
               store.setIsPlaying(false);
               updateMediaSessionPosition(store.currentTime, store.duration, store.playbackSpeed, true);
             } else {
+              logBgDiag("call-playVideo", { source: "BottomPlayer:Spacebar" });
               clearIntentionalUserPause();
               playAudioAnchor();
               store.player.playVideo();
@@ -417,6 +424,7 @@ export default function BottomPlayer() {
     if (sleepTimer === null) return;
     if (sleepTimer <= 0) {
       if (player && isPlaying) {
+        logBgDiag("call-pauseVideo", { source: "BottomPlayer:sleepTimer" });
         markIntentionalUserPause();
         pauseAudioAnchor();
         player.pauseVideo();
