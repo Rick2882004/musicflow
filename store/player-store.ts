@@ -6,6 +6,8 @@ import { saveSongToPlaylist, removeSongFromPlaylistDB } from "@/lib/supabase-pla
 import { saveLikedSong, removeLikedSong } from "@/lib/supabase-liked";
 import { Track, Playlist, ListeningHistoryEntry, FollowedArtist, SavedAlbum } from "@/types/music";
 import { getCachedArtwork, resolveTrackMetadata } from "@/lib/metadata-resolver";
+import { playAudioAnchor } from "@/lib/audio-anchor";
+import { clearIntentionalUserPause } from "@/lib/playback-intent";
 
 interface PlayerState {
   videoId: string;
@@ -214,6 +216,8 @@ export const usePlayerStore = create<PlayerState>()(
       },
 
       setTrack: (videoId, title, artist, thumbnail, index = 0) => {
+        clearIntentionalUserPause();
+        playAudioAnchor();
         const cachedArt = getCachedArtwork(title, artist, videoId) || thumbnail;
         const track: Track = { videoId, title, artist, thumbnail: cachedArt };
         get().addRecentSong(track);
@@ -435,6 +439,8 @@ export const usePlayerStore = create<PlayerState>()(
       },
 
       nextTrack: () => {
+        clearIntentionalUserPause();
+        playAudioAnchor();
         const { queue, currentIndex, isShuffle } = get();
         if (queue.length === 0) return;
 
@@ -453,6 +459,8 @@ export const usePlayerStore = create<PlayerState>()(
       },
 
       prevTrack: () => {
+        clearIntentionalUserPause();
+        playAudioAnchor();
         const { queue, currentIndex } = get();
         if (queue.length === 0) return;
 

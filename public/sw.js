@@ -1,4 +1,4 @@
-// MusicFlow Service Worker — v4
+// MusicFlow Service Worker — v5
 // Strategy: App Shell (offline-first for navigation) + Network-first for API
 // 
 // CRITICAL: We do NOT cache:
@@ -8,7 +8,7 @@
 //   - Supabase auth tokens (security)
 //   - API responses that must be fresh (/api/*)
 
-const CACHE_VERSION = "v4";
+const CACHE_VERSION = "v5";
 const STATIC_CACHE = `musicflow-static-${CACHE_VERSION}`;
 const SHELL_ASSETS = [
   "/",
@@ -17,6 +17,7 @@ const SHELL_ASSETS = [
   "/favicon.ico",
   "/icon-192.png",
   "/icon-512.png",
+  "/silence.wav",
 ];
 
 // ── Install: Pre-cache the app shell ─────────────────────────────────────────
@@ -67,11 +68,13 @@ function shouldBypass(url, request) {
   // Skip non-HTTP protocols
   if (!url.protocol.startsWith("http")) return true;
   // NEVER cache or intercept live audio/video streams or range requests
+  // (Exception: allow local static /silence.wav)
   if (
     request.destination === "audio" ||
     request.destination === "video" ||
     request.headers.has("range")
   ) {
+    if (url.pathname === "/silence.wav") return false;
     return true;
   }
   return false;

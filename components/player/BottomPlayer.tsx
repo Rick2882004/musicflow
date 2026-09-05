@@ -2,7 +2,7 @@
 
 import { usePlayerStore } from "@/store/player-store";
 import { useShallow } from "zustand/react/shallow";
-import { useState, useEffect, memo } from "react";
+import { useState, useEffect, useRef, memo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useHasMounted } from "@/hooks/useHasMounted";
 import {
@@ -28,6 +28,8 @@ import QueueDrawer from "./QueueDrawer";
 import { SafeImage } from "@/components/ui/SafeImage";
 import { useSmartQueue } from "@/hooks/useSmartQueue";
 import { useMediaSession, safeSetPositionState } from "@/hooks/useMediaSession";
+import { playAudioAnchor, pauseAudioAnchor } from "@/lib/audio-anchor";
+import { markIntentionalUserPause, clearIntentionalUserPause } from "@/lib/playback-intent";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
@@ -244,13 +246,24 @@ export default function BottomPlayer() {
   const [lyrics, setLyrics] = useState<string[] | null>(null);
   const [lyricsLoading, setLyricsLoading] = useState(false);
 
+  const lastPositionReportRef = useRef<{ time: number; wallTime: number }>({ time: 0, wallTime: 0 });
+
+  // Reset position report tracker when track changes
+  useEffect(() => {
+    lastPositionReportRef.current = { time: 0, wallTime: 0 };
+  }, [videoId]);
+
   // Controls
   const togglePlay = () => {
     if (!player) return;
     if (isPlaying) {
+      markIntentionalUserPause();
+      pauseAudioAnchor();
       player.pauseVideo();
       setIsPlaying(false);
     } else {
+      clearIntentionalUserPause();
+      playAudioAnchor();
       player.playVideo();
       setIsPlaying(true);
     }
@@ -333,9 +346,13 @@ export default function BottomPlayer() {
           e.preventDefault();
           if (store.player) {
             if (store.isPlaying) {
+              markIntentionalUserPause();
+              pauseAudioAnchor();
               store.player.pauseVideo();
               store.setIsPlaying(false);
             } else {
+              clearIntentionalUserPause();
+              playAudioAnchor();
               store.player.playVideo();
               store.setIsPlaying(true);
             }
@@ -390,6 +407,8 @@ export default function BottomPlayer() {
     if (sleepTimer === null) return;
     if (sleepTimer <= 0) {
       if (player && isPlaying) {
+        markIntentionalUserPause();
+        pauseAudioAnchor();
         player.pauseVideo();
         setIsPlaying(false);
       }
@@ -415,8 +434,18 @@ export default function BottomPlayer() {
         if (typeof time === "number") setCurrentTime(time);
         if (typeof dur === "number" && dur > 0) {
           setDuration(dur);
-          // Keep MediaSession position state in sync for lock-screen seek bar
-          safeSetPositionState(dur, time, player.getPlaybackRate?.() || 1);
+          // Keep MediaSession position state in sync with throttling to prevent Samsung/OneUI scrubber jitter
+          const now = Date.now();
+          const rate = player.getPlaybackRate?.() || 1;
+          const lastReport = lastPositionReportRef.current;
+          const elapsedSec = (now - lastReport.wallTime) / 1000;
+          const expectedPos = lastReport.time + elapsedSec * rate;
+          const drift = Math.abs(time - expectedPos);
+
+          if (lastReport.wallTime === 0 || drift >= 2 || elapsedSec >= 5) {
+            safeSetPositionState(dur, time, rate);
+            lastPositionReportRef.current = { time, wallTime: now };
+          }
         }
       } catch {
         // Ignored if player is transitioning

@@ -6,6 +6,11 @@ import { usePlayerStore } from "@/store/player-store";
 import { useShallow } from "zustand/react/shallow";
 import { safeSetPositionState } from "@/hooks/useMediaSession";
 import { logBgDiag } from "@/lib/bg-diagnostics";
+import {
+  canAttemptBgResume,
+  incrementBgResumeAttempts,
+  clearIntentionalUserPause,
+} from "@/lib/playback-intent";
 
 // YouTube player state codes
 const YT_UNSTARTED = -1;
@@ -39,6 +44,7 @@ export default function YoutubePlayer({ videoId }: Props) {
     const dur = event.target.getDuration();
     if (dur > 0) setDuration(dur);
     logBgDiag("yt-ready", { videoId, duration: dur });
+    clearIntentionalUserPause();
 
     // Always autoplay on ready — tracks are only loaded when user initiates playback
     event.target.playVideo();
@@ -50,6 +56,7 @@ export default function YoutubePlayer({ videoId }: Props) {
 
     // Sync actual YouTube playback state → Zustand store
     if (state === YT_PLAYING) {
+      clearIntentionalUserPause();
       setIsPlaying(true);
       if (typeof navigator !== "undefined" && "mediaSession" in navigator) {
         navigator.mediaSession.playbackState = "playing";
@@ -66,13 +73,16 @@ export default function YoutubePlayer({ videoId }: Props) {
       }
     } else if (state === YT_PAUSED) {
       const store = usePlayerStore.getState();
+      const isHidden = typeof document !== "undefined" && document.visibilityState === "hidden";
 
       // Chrome Android background pause recovery:
       // When Chrome Android is backgrounded or screen locks, YouTube's iframe receives
       // visibilitychange and pauses itself. If the user did not click pause (store.isPlaying is still true),
       // we immediately re-issue playVideo() to keep audio streaming in the background.
-      if (typeof document !== "undefined" && document.visibilityState === "hidden" && store.isPlaying) {
-        logBgDiag("chrome-bg-auto-resume", { reason: "visibility_hidden_while_playing" });
+      // We check canAttemptBgResume() to strictly prevent any infinite loops.
+      if (isHidden && store.isPlaying && canAttemptBgResume()) {
+        const attempt = incrementBgResumeAttempts();
+        logBgDiag("chrome-bg-auto-resume", { attempt, videoId });
         if (typeof navigator !== "undefined" && "mediaSession" in navigator) {
           navigator.mediaSession.playbackState = "playing";
         }
@@ -89,12 +99,19 @@ export default function YoutubePlayer({ videoId }: Props) {
         navigator.mediaSession.playbackState = "paused";
       }
     } else if (state === YT_ENDED) {
-      setIsPlaying(false);
-      const { isRepeat } = usePlayerStore.getState();
+      logBgDiag("yt-ended", { videoId });
+      const { isRepeat, queue, currentIndex } = usePlayerStore.getState();
       if (isRepeat) {
         event.target.playVideo();
-      } else {
+      } else if (queue.length > 0 && currentIndex < queue.length - 1) {
+        // Autoplay next track: Keep isPlaying true so Chrome Android does NOT drop audio focus!
+        clearIntentionalUserPause();
         nextTrack();
+      } else {
+        setIsPlaying(false);
+        if (typeof navigator !== "undefined" && "mediaSession" in navigator) {
+          navigator.mediaSession.playbackState = "paused";
+        }
       }
     } else if (state === YT_BUFFERING) {
       // Keep isPlaying true during buffering — do not mark as paused
