@@ -96,65 +96,44 @@ export default function YoutubePlayer({ videoId }: Props) {
         resumeAllowed: canAttemptBgResume(),
       });
 
-      // Chrome Android background & app-switching pause recovery:
-      // When Chrome Android is backgrounded, screen locks, or user switches to another app (e.g. WhatsApp),
-      // YouTube's iframe receives blur / visibilitychange and pauses itself.
-      // If the user did NOT click pause (store.isPlaying is still true and !intentional),
-      // we immediately re-issue playVideo() to keep audio streaming.
-      if (!intentional && store.isPlaying) {
+      // Chrome Android background pause recovery:
+      // When Chrome Android is backgrounded or screen locks, YouTube's iframe receives
+      // visibilitychange and pauses itself. If the user did not click pause (store.isPlaying is still true),
+      // we immediately re-issue playVideo() to keep audio streaming in the background.
+      // We check canAttemptBgResume() to strictly prevent any infinite loops.
+      if (isHidden && store.isPlaying && canAttemptBgResume()) {
+        const attempt = incrementBgResumeAttempts();
+        logBgDiag("chrome-bg-auto-resume", { attempt, videoId, isHidden });
         if (typeof navigator !== "undefined" && "mediaSession" in navigator) {
           navigator.mediaSession.playbackState = "playing";
         }
-
-        if (canAttemptBgResume()) {
-          const attempt = incrementBgResumeAttempts();
-          logBgDiag("chrome-bg-auto-resume", { attempt, videoId, isHidden });
-          try {
-            const ret = event.target.playVideo();
-            logBgDiag("chrome-bg-auto-resume-called", { attempt, videoId, retType: typeof ret });
-            setTimeout(() => {
-              try {
-                const postState = event.target.getPlayerState?.();
-                logBgDiag("chrome-bg-auto-resume-check", {
-                  attempt,
-                  videoId,
-                  postState,
-                  postStateName: getYTStateName(postState),
-                  isHidden: typeof document !== "undefined" && document.visibilityState === "hidden",
-                });
-              } catch (err) {
-                logBgDiag("chrome-bg-auto-resume-check-error", { error: String(err) });
-              }
-            }, 250);
-          } catch (err) {
-            logBgDiag("chrome-bg-resume-error", { error: String(err) });
-          }
-        } else {
-          // Throttled: schedule a delayed retry so if pause occurred during app switch transition, it catches up
+        try {
+          const ret = event.target.playVideo();
+          logBgDiag("chrome-bg-auto-resume-called", { attempt, videoId, retType: typeof ret });
           setTimeout(() => {
-            const s = usePlayerStore.getState();
-            if (!isIntentionalUserPause() && s.isPlaying && event.target) {
-              try {
-                const curState = event.target.getPlayerState?.();
-                if (curState === YT_PAUSED) {
-                  event.target.playVideo();
-                  logBgDiag("chrome-bg-delayed-resume-called", { videoId });
-                }
-              } catch { /* ignore */ }
+            try {
+              const postState = event.target.getPlayerState?.();
+              logBgDiag("chrome-bg-auto-resume-check", {
+                attempt,
+                videoId,
+                postState,
+                postStateName: getYTStateName(postState),
+                isHidden: typeof document !== "undefined" && document.visibilityState === "hidden",
+              });
+            } catch (err) {
+              logBgDiag("chrome-bg-auto-resume-check-error", { error: String(err) });
             }
-          }, 350);
+          }, 250);
+        } catch (err) {
+          logBgDiag("chrome-bg-resume-error", { error: String(err) });
         }
-
-        // CRITICAL: Return here! Do NOT call setIsPlaying(false) and do NOT pause audio anchor.
-        // The user never clicked pause; the audio session must stay active.
         return;
       }
 
-      // Only reached if intentionalUserPause is true (user explicitly paused)
       logBgDiag("yt-paused-finalized", {
         videoId,
         isHidden,
-        reason: "user_intentional",
+        reason: intentional ? "user_intentional" : "auto_resume_exhausted_or_not_allowed",
       });
 
       setIsPlaying(false);

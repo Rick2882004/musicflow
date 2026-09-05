@@ -29,7 +29,7 @@ export default function PlayerEngine() {
         right: "0px",
         width: "200px",
         height: "200px",
-        opacity: 0.01,
+        opacity: 0.001,
         pointerEvents: "none",
         overflow: "hidden",
         zIndex: -9999,

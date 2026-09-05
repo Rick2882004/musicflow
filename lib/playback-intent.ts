@@ -6,8 +6,7 @@
 
 let intentionalUserPause = false;
 let bgResumeAttempts = 0;
-let lastResumeTime = 0;
-const RESUME_THROTTLE_MS = 300;
+const MAX_BG_RESUME_ATTEMPTS = 2;
 
 export function markIntentionalUserPause() {
   intentionalUserPause = true;
@@ -29,12 +28,9 @@ export function getBgResumeAttempts(): number {
 
 export function incrementBgResumeAttempts(): number {
   bgResumeAttempts++;
-  lastResumeTime = Date.now();
   return bgResumeAttempts;
 }
 
 export function canAttemptBgResume(): boolean {
-  if (intentionalUserPause) return false;
-  const now = Date.now();
-  return now - lastResumeTime >= RESUME_THROTTLE_MS;
+  return !intentionalUserPause && bgResumeAttempts < MAX_BG_RESUME_ATTEMPTS;
 }
