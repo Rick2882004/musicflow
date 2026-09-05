@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import DatabaseLoader from "@/components/DatabaseLoader";
@@ -19,14 +19,27 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+export const viewport: Viewport = {
+  themeColor: "#07070A",
+  width: "device-width",
+  initialScale: 1,
+};
+
 export const metadata: Metadata = {
-  title: "MusicFlow - Premium Music Streaming",
-  description: "Your personal music universe — deep space cinematic listening experience.",
+  title: "MusicFlow",
+  description: "Your personal music universe — stream millions of songs, artists, and albums.",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
     title: "MusicFlow",
+  },
+  icons: {
+    icon: [
+      { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icon-512.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: "/icon-512.png",
   },
 };
 
@@ -41,10 +54,18 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <head>
-        <link rel="manifest" href="/manifest.json" />
-        <meta name="theme-color" content="#050508" />
+        {/* theme-color matches manifest.json background_color for consistent chrome UI */}
+        <meta name="theme-color" content="#07070A" />
+        {/* PWA / mobile web app capabilities */}
         <meta name="mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        <meta name="apple-mobile-web-app-title" content="MusicFlow" />
+        {/* Microsoft Tiles */}
+        <meta name="msapplication-TileColor" content="#07070A" />
+        <meta name="msapplication-TileImage" content="/icon-512.png" />
+        {/* Apple touch icon */}
+        <link rel="apple-touch-icon" href="/icon-512.png" />
       </head>
       <body className="min-h-screen bg-[#07070a] text-white">
         <ReactQueryProvider>
