@@ -267,15 +267,14 @@ export default function BottomPlayer() {
   // Visibility change & Network recovery for background playback
   useEffect(() => {
     function handleVisibilityChange() {
-      if (document.visibilityState === "visible" && isPlaying) {
-        // Re-read player from store in case it was set after this effect ran
-        const currentPlayer = usePlayerStore.getState().player;
-        if (!currentPlayer) return;
+      if (document.visibilityState === "visible") {
+        const store = usePlayerStore.getState();
+        if (!store.isPlaying || !store.player) return;
         try {
-          const state = currentPlayer.getPlayerState();
-          // Resume if paused (2) or ended (0), not if already playing (1) or buffering (3)
+          const state = store.player.getPlayerState();
+          // Resume if paused (2) or ended (0) or unstarted (-1)
           if (state === 2 || state === 0 || state === -1) {
-            currentPlayer.playVideo();
+            store.player.playVideo();
           }
         } catch {
           // Ignore iframe access restrictions on page background

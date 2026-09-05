@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 /**
  * useMediaSession — Single canonical MediaSession integration for MusicFlow.
@@ -23,6 +23,7 @@
 import { useEffect, useRef } from "react";
 import { usePlayerStore } from "@/store/player-store";
 import { useShallow } from "zustand/react/shallow";
+import { logBgDiag } from "@/lib/bg-diagnostics";
 
 const IS_DEV = process.env.NODE_ENV === "development";
 
@@ -98,28 +99,32 @@ function registerAllHandlers() {
 
   // PLAY
   tryRegisterAction("play", () => {
+    logBgDiag("mediasession-action", { action: "play" });
     const { player } = usePlayerStore.getState();
-    if (player) { try { player.playVideo(); } catch { /* ignore */ } }
     usePlayerStore.getState().setIsPlaying(true);
     navigator.mediaSession.playbackState = "playing";
+    if (player) { try { player.playVideo(); } catch { /* ignore */ } }
   });
 
   // PAUSE
   tryRegisterAction("pause", () => {
+    logBgDiag("mediasession-action", { action: "pause" });
     const { player } = usePlayerStore.getState();
-    if (player) { try { player.pauseVideo(); } catch { /* ignore */ } }
     usePlayerStore.getState().setIsPlaying(false);
     navigator.mediaSession.playbackState = "paused";
+    if (player) { try { player.pauseVideo(); } catch { /* ignore */ } }
   });
 
   // NEXT TRACK — calls canonical nextTrack() which advances queue & loads new video
   tryRegisterAction("nexttrack", () => {
+    logBgDiag("mediasession-action", { action: "nexttrack" });
     if (IS_DEV) console.debug("[MediaSession] nexttrack triggered");
     usePlayerStore.getState().nextTrack();
   });
 
   // PREVIOUS TRACK — restart if > 3s in, else go to prev queue item
   tryRegisterAction("previoustrack", () => {
+    logBgDiag("mediasession-action", { action: "previoustrack" });
     if (IS_DEV) console.debug("[MediaSession] previoustrack triggered");
     const store = usePlayerStore.getState();
     const { player, currentTime, prevTrack, duration, playbackSpeed } = store;

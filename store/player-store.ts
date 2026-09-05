@@ -520,3 +520,7 @@ export const usePlayerStore = create<PlayerState>()(
     }
   )
 );
+
+if (typeof window !== "undefined") {
+  (window as unknown as { __musicflowStore: typeof usePlayerStore }).__musicflowStore = usePlayerStore;
+}
