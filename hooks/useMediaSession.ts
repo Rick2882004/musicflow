@@ -23,7 +23,7 @@
 import { useEffect, useRef } from "react";
 import { usePlayerStore } from "@/store/player-store";
 import { useShallow } from "zustand/react/shallow";
-import { logBgDiag, recordMediaActionRegistration } from "@/lib/bg-diagnostics";
+import { logBgDiag, recordMediaActionRegistration, getYTStateName } from "@/lib/bg-diagnostics";
 import { playAudioAnchor, pauseAudioAnchor } from "@/lib/audio-anchor";
 import { markIntentionalUserPause, clearIntentionalUserPause } from "@/lib/playback-intent";
 
@@ -189,7 +189,24 @@ function registerAllHandlers() {
     store.setIsPlaying(true);
     navigator.mediaSession.playbackState = "playing";
     updateMediaSessionPosition(currentTime, duration, playbackSpeed, true);
-    if (player) { try { player.playVideo(); } catch { /* ignore */ } }
+    if (player) {
+      try {
+        const ret = player.playVideo();
+        logBgDiag("mediasession-play-dispatched", { retType: typeof ret });
+        setTimeout(() => {
+          try {
+            const postState = player.getPlayerState?.();
+            logBgDiag("mediasession-play-post-state", {
+              postState,
+              postStateName: getYTStateName(postState),
+              isHidden: typeof document !== "undefined" && document.visibilityState === "hidden",
+            });
+          } catch { /* ignore */ }
+        }, 250);
+      } catch (err) {
+        logBgDiag("mediasession-play-error", { error: String(err) });
+      }
+    }
   });
 
   // PAUSE

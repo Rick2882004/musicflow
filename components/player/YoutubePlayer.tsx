@@ -5,11 +5,12 @@ import { useRef } from "react";
 import { usePlayerStore } from "@/store/player-store";
 import { useShallow } from "zustand/react/shallow";
 import { updateMediaSessionPosition } from "@/hooks/useMediaSession";
-import { logBgDiag } from "@/lib/bg-diagnostics";
+import { logBgDiag, getYTStateName } from "@/lib/bg-diagnostics";
 import {
   canAttemptBgResume,
   incrementBgResumeAttempts,
   clearIntentionalUserPause,
+  isIntentionalUserPause,
 } from "@/lib/playback-intent";
 
 // YouTube player state codes
@@ -85,6 +86,15 @@ export default function YoutubePlayer({ videoId }: Props) {
       }
     } else if (state === YT_PAUSED) {
       const store = usePlayerStore.getState();
+      const intentional = isIntentionalUserPause();
+
+      logBgDiag("yt-paused-event", {
+        videoId,
+        isHidden,
+        intentional,
+        storePlaying: store.isPlaying,
+        resumeAllowed: canAttemptBgResume(),
+      });
 
       // Chrome Android background pause recovery:
       // When Chrome Android is backgrounded or screen locks, YouTube's iframe receives
@@ -98,13 +108,33 @@ export default function YoutubePlayer({ videoId }: Props) {
           navigator.mediaSession.playbackState = "playing";
         }
         try {
-          event.target.playVideo();
-          logBgDiag("chrome-bg-auto-resume-called", { attempt, videoId });
+          const ret = event.target.playVideo();
+          logBgDiag("chrome-bg-auto-resume-called", { attempt, videoId, retType: typeof ret });
+          setTimeout(() => {
+            try {
+              const postState = event.target.getPlayerState?.();
+              logBgDiag("chrome-bg-auto-resume-check", {
+                attempt,
+                videoId,
+                postState,
+                postStateName: getYTStateName(postState),
+                isHidden: typeof document !== "undefined" && document.visibilityState === "hidden",
+              });
+            } catch (err) {
+              logBgDiag("chrome-bg-auto-resume-check-error", { error: String(err) });
+            }
+          }, 250);
         } catch (err) {
           logBgDiag("chrome-bg-resume-error", { error: String(err) });
         }
         return;
       }
+
+      logBgDiag("yt-paused-finalized", {
+        videoId,
+        isHidden,
+        reason: intentional ? "user_intentional" : "auto_resume_exhausted_or_not_allowed",
+      });
 
       setIsPlaying(false);
       if (typeof navigator !== "undefined" && "mediaSession" in navigator) {

@@ -4,7 +4,13 @@
  * visibility, YouTube player, and MediaSession state changes.
  */
 
-import { getAudioAnchorState, AudioAnchorState } from "./audio-anchor";
+import {
+  getAudioAnchorState,
+  AudioAnchorState,
+  setAudioAnchorMode,
+  getAudioAnchorMode,
+  playAudioAnchor,
+} from "./audio-anchor";
 
 export interface BgDiagEvent {
   time: string;
@@ -18,6 +24,7 @@ export interface BgDiagEvent {
   currentTrack?: { videoId: string; title: string };
   isPlaying: boolean;
   audioAnchor?: AudioAnchorState;
+  userActivation?: { isActive: boolean; hasBeenActive: boolean };
   iframe?: {
     exists: boolean;
     offsetWidth?: number;
@@ -152,6 +159,13 @@ export function logBgDiag(
     currentTrack,
     isPlaying,
     audioAnchor: getAudioAnchorState(),
+    userActivation:
+      typeof navigator !== "undefined" && "userActivation" in navigator
+        ? {
+            isActive: (navigator as unknown as { userActivation?: { isActive: boolean; hasBeenActive: boolean } }).userActivation?.isActive ?? false,
+            hasBeenActive: (navigator as unknown as { userActivation?: { isActive: boolean; hasBeenActive: boolean } }).userActivation?.hasBeenActive ?? false,
+          }
+        : undefined,
     iframe: getIframeInfo(),
     extra,
   };
@@ -190,6 +204,15 @@ export function initBgDiagnostics() {
         audioAnchor: getAudioAnchorState(),
         iframe: getIframeInfo(),
       });
+
+      setTimeout(() => {
+        logBgDiag("bg-check-100ms", {
+          visibilityState: document.visibilityState,
+          ytPlayer: getYTPlayerInfo(),
+          audioAnchor: getAudioAnchorState(),
+          iframe: getIframeInfo(),
+        });
+      }, 100);
 
       setTimeout(() => {
         logBgDiag("bg-check-1s", {
@@ -278,6 +301,23 @@ export function initBgDiagnostics() {
       try { sessionStorage.removeItem("__musicflow_bg_logs"); } catch {}
     },
     log: logBgDiag,
+    setAnchorMode: (mode: "silent" | "audible") => {
+      setAudioAnchorMode(mode);
+      return `Anchor mode set to: ${mode}`;
+    },
+    get anchorMode() {
+      return getAudioAnchorMode();
+    },
+    testAudibleAnchor: () => {
+      setAudioAnchorMode("audible");
+      playAudioAnchor();
+      return "Testing audible anchor (40Hz sub-bass PCM wave)... check window.__musicflowBgDiag.status";
+    },
+    testSilentAnchor: () => {
+      setAudioAnchorMode("silent");
+      playAudioAnchor();
+      return "Testing silent anchor (/silence.wav)... check window.__musicflowBgDiag.status";
+    },
     get status() {
       const yt = getYTPlayerInfo();
       const anchor = getAudioAnchorState();
