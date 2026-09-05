@@ -43,16 +43,28 @@ export default function YoutubePlayer({ videoId }: Props) {
     setPlayer(event.target);
     const dur = event.target.getDuration();
     if (dur > 0) setDuration(dur);
-    logBgDiag("yt-ready", { videoId, duration: dur });
+    const isHidden = typeof document !== "undefined" && document.visibilityState === "hidden";
+    logBgDiag("yt-ready", {
+      videoId,
+      duration: dur,
+      isHidden,
+      playerState: event.target.getPlayerState?.(),
+    });
     clearIntentionalUserPause();
 
     // Always autoplay on ready — tracks are only loaded when user initiates playback
-    event.target.playVideo();
+    logBgDiag("yt-ready-playVideo", { videoId, isHidden });
+    try {
+      event.target.playVideo();
+    } catch (err) {
+      logBgDiag("yt-ready-playVideo-error", { error: String(err) });
+    }
   };
 
   const onStateChange = (event: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
     const state = event.data;
-    logBgDiag("yt-state-change", { ytState: state, videoId });
+    const isHidden = typeof document !== "undefined" && document.visibilityState === "hidden";
+    logBgDiag("yt-state-change", { ytState: state, videoId, isHidden });
 
     // Sync actual YouTube playback state → Zustand store
     if (state === YT_PLAYING) {
@@ -73,7 +85,6 @@ export default function YoutubePlayer({ videoId }: Props) {
       }
     } else if (state === YT_PAUSED) {
       const store = usePlayerStore.getState();
-      const isHidden = typeof document !== "undefined" && document.visibilityState === "hidden";
 
       // Chrome Android background pause recovery:
       // When Chrome Android is backgrounded or screen locks, YouTube's iframe receives
@@ -82,12 +93,13 @@ export default function YoutubePlayer({ videoId }: Props) {
       // We check canAttemptBgResume() to strictly prevent any infinite loops.
       if (isHidden && store.isPlaying && canAttemptBgResume()) {
         const attempt = incrementBgResumeAttempts();
-        logBgDiag("chrome-bg-auto-resume", { attempt, videoId });
+        logBgDiag("chrome-bg-auto-resume", { attempt, videoId, isHidden });
         if (typeof navigator !== "undefined" && "mediaSession" in navigator) {
           navigator.mediaSession.playbackState = "playing";
         }
         try {
           event.target.playVideo();
+          logBgDiag("chrome-bg-auto-resume-called", { attempt, videoId });
         } catch (err) {
           logBgDiag("chrome-bg-resume-error", { error: String(err) });
         }
@@ -99,15 +111,30 @@ export default function YoutubePlayer({ videoId }: Props) {
         navigator.mediaSession.playbackState = "paused";
       }
     } else if (state === YT_ENDED) {
-      logBgDiag("yt-ended", { videoId });
+      logBgDiag("yt-ended-step1", { videoId, isHidden });
       const { isRepeat, queue, currentIndex } = usePlayerStore.getState();
       if (isRepeat) {
+        logBgDiag("yt-ended-repeat", { videoId });
         event.target.playVideo();
       } else if (queue.length > 0 && currentIndex < queue.length - 1) {
-        // Autoplay next track: Keep isPlaying true so Chrome Android does NOT drop audio focus!
+        const nextIndex = currentIndex + 1;
+        const nextTrackItem = queue[nextIndex];
+        logBgDiag("yt-ended-step2-calling-nextTrack", {
+          currentIndex,
+          nextIndex,
+          nextVideoId: nextTrackItem?.videoId,
+          nextTitle: nextTrackItem?.title,
+          isHidden,
+        });
         clearIntentionalUserPause();
         nextTrack();
+        logBgDiag("yt-ended-step3-nextTrack-called", {
+          newVideoId: usePlayerStore.getState().videoId,
+          isPlaying: usePlayerStore.getState().isPlaying,
+          isHidden,
+        });
       } else {
+        logBgDiag("yt-ended-queue-exhausted", { queueLength: queue.length, currentIndex, isHidden });
         setIsPlaying(false);
         if (typeof navigator !== "undefined" && "mediaSession" in navigator) {
           navigator.mediaSession.playbackState = "paused";
@@ -120,7 +147,12 @@ export default function YoutubePlayer({ videoId }: Props) {
       }
     } else if (state === YT_UNSTARTED) {
       // A new video was loaded but hasn't started — attempt to play
-      event.target.playVideo();
+      logBgDiag("yt-unstarted-calling-playVideo", { videoId, isHidden });
+      try {
+        event.target.playVideo();
+      } catch (err) {
+        logBgDiag("yt-unstarted-playVideo-error", { error: String(err) });
+      }
     }
   };
 
@@ -133,9 +165,14 @@ export default function YoutubePlayer({ videoId }: Props) {
       onStateChange={onStateChange}
       onError={(e) => {
         console.warn("YouTube player notice:", e.data);
-        logBgDiag("yt-error", { error: e.data, videoId });
+        logBgDiag("yt-error", {
+          error: e.data,
+          videoId,
+          isHidden: typeof document !== "undefined" && document.visibilityState === "hidden",
+        });
         // On error (e.g., video unavailable), attempt to skip to next
         if (e.data === 100 || e.data === 101 || e.data === 150) {
+          logBgDiag("yt-error-skipping-nextTrack", { error: e.data });
           nextTrack();
         }
       }}

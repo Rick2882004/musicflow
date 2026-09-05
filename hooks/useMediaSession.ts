@@ -23,7 +23,7 @@
 import { useEffect, useRef } from "react";
 import { usePlayerStore } from "@/store/player-store";
 import { useShallow } from "zustand/react/shallow";
-import { logBgDiag } from "@/lib/bg-diagnostics";
+import { logBgDiag, recordMediaActionRegistration } from "@/lib/bg-diagnostics";
 import { playAudioAnchor, pauseAudioAnchor } from "@/lib/audio-anchor";
 import { markIntentionalUserPause, clearIntentionalUserPause } from "@/lib/playback-intent";
 
@@ -91,16 +91,20 @@ export function safeSetPositionState(
   }
 }
 
-// Log registration result — visible in dev, silent in prod
+// Log registration result and record to diagnostics
 function tryRegisterAction(
   action: MediaSessionAction,
   handler: MediaSessionActionHandler | null
 ): boolean {
   try {
     navigator.mediaSession.setActionHandler(action, handler);
+    recordMediaActionRegistration(action, true);
+    logBgDiag("mediasession-handler-registered", { action, success: true });
     if (IS_DEV) console.debug(`[MediaSession] ✓ Registered: ${action}`);
     return true;
   } catch (err) {
+    recordMediaActionRegistration(action, false);
+    logBgDiag("mediasession-handler-failed", { action, error: String(err) });
     console.warn(`[MediaSession] ✗ Registration failed: ${action}`, err);
     return false;
   }
@@ -274,11 +278,19 @@ export function useMediaSession() {
     if (!videoId || !title) return;
 
     // 1. Set metadata for the new track
+    const artworkList = buildArtworkList(thumbnail);
     navigator.mediaSession.metadata = new MediaMetadata({
       title,
       artist: artist || "MusicFlow",
       album: "MusicFlow",
-      artwork: buildArtworkList(thumbnail),
+      artwork: artworkList,
+    });
+
+    logBgDiag("mediasession-metadata-set", {
+      title,
+      artist: artist || "MusicFlow",
+      artworkCount: artworkList.length,
+      videoId,
     });
 
     // 2. Set initial position state for new track
@@ -299,7 +311,12 @@ export function useMediaSession() {
 
     const unsub = usePlayerStore.subscribe((state, prev) => {
       if (state.isPlaying !== prev.isPlaying) {
-        navigator.mediaSession.playbackState = state.isPlaying ? "playing" : "paused";
+        const nextState = state.isPlaying ? "playing" : "paused";
+        navigator.mediaSession.playbackState = nextState;
+        logBgDiag("mediasession-playbackstate-synced", {
+          playbackState: nextState,
+          isPlaying: state.isPlaying,
+        });
 
         if (state.isPlaying) {
           playAudioAnchor();

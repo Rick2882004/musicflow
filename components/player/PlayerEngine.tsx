@@ -22,6 +22,7 @@ export default function PlayerEngine() {
     // with near-zero opacity (0.001) and zIndex -9999 ensures Chromium considers it an
     // active, in-viewport composited layer and maintains the media pipeline in the background.
     <div
+      id="musicflow-yt-container"
       style={{
         position: "fixed",
         bottom: "0px",
