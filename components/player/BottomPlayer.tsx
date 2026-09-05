@@ -310,9 +310,11 @@ export default function BottomPlayer() {
     }
 
     document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("focus", handleVisibilityChange);
     window.addEventListener("online", handleOnline);
     return () => {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("focus", handleVisibilityChange);
       window.removeEventListener("online", handleOnline);
     };
   }, [isPlaying]);
