@@ -229,6 +229,8 @@ export const usePlayerStore = create<PlayerState>()(
           thumbnail: cachedArt,
           currentIndex: index,
           isPlaying: true,
+          currentTime: 0,
+          duration: 0,
         });
 
         // Asynchronously resolve official iTunes high-res artwork & metadata

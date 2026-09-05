@@ -54,6 +54,71 @@ function buildArtworkList(thumbnail: string): MediaImage[] {
   ];
 }
 
+// ── MediaSession Position Coordinator ────────────────────────────────────────
+let lastReportedTime = 0;
+let lastReportedWallTime = 0;
+let seekLockUntil = 0;
+
+export function resetMediaSessionPositionTracker() {
+  lastReportedTime = 0;
+  lastReportedWallTime = 0;
+  seekLockUntil = 0;
+}
+
+export function notifyMediaSessionSeek(
+  targetTime: number,
+  duration?: number,
+  playbackRate: number = 1
+) {
+  const dur = duration ?? usePlayerStore.getState().duration;
+  if (dur <= 0 || targetTime < 0) return;
+
+  const safeTarget = Math.min(Math.max(targetTime, 0), Math.max(dur - 0.1, 0));
+  seekLockUntil = Date.now() + 1500; // 1.5s lock to prevent asynchronous YouTube buffering from overwriting seek
+  lastReportedTime = safeTarget;
+  lastReportedWallTime = Date.now();
+
+  safeSetPositionState(dur, safeTarget, playbackRate);
+  logBgDiag("mediasession-seek-notified", { target: safeTarget, duration: dur, playbackRate });
+}
+
+export function updateMediaSessionPosition(
+  currentTime: number,
+  duration?: number,
+  playbackRate: number = 1,
+  force: boolean = false
+) {
+  const dur = duration ?? usePlayerStore.getState().duration;
+  if (dur <= 0 || currentTime < 0) return;
+
+  const now = Date.now();
+
+  // If a seek occurred recently, ignore stale player.getCurrentTime() while YouTube buffers
+  if (!force && now < seekLockUntil) {
+    // If player caught up to within 1.0s of the seek target, release early
+    if (Math.abs(currentTime - lastReportedTime) < 1.0) {
+      seekLockUntil = 0;
+    } else {
+      return;
+    }
+  }
+
+  const elapsedSec = (now - lastReportedWallTime) / 1000;
+  const expectedPos = lastReportedTime + elapsedSec * playbackRate;
+  const drift = Math.abs(currentTime - expectedPos);
+
+  // Sync when:
+  // 1. Force requested (play/pause/duration change)
+  // 2. First report for current track (lastReportedWallTime === 0)
+  // 3. Drift exceeds 1.0s (e.g. YouTube buffering catch-up)
+  // 4. Elapsed time exceeds 2.0s (smooth 2-second heartbeat, eliminates 5s jumps and avoids 500ms floods)
+  if (force || lastReportedWallTime === 0 || drift >= 1.0 || elapsedSec >= 2.0) {
+    safeSetPositionState(dur, currentTime, playbackRate);
+    lastReportedTime = currentTime;
+    lastReportedWallTime = now;
+  }
+}
+
 export function safeSetPositionState(
   duration: number,
   position: number,
@@ -119,9 +184,11 @@ function registerAllHandlers() {
     logBgDiag("mediasession-action", { action: "play" });
     clearIntentionalUserPause();
     playAudioAnchor();
-    const { player } = usePlayerStore.getState();
-    usePlayerStore.getState().setIsPlaying(true);
+    const store = usePlayerStore.getState();
+    const { player, currentTime, duration, playbackSpeed } = store;
+    store.setIsPlaying(true);
     navigator.mediaSession.playbackState = "playing";
+    updateMediaSessionPosition(currentTime, duration, playbackSpeed, true);
     if (player) { try { player.playVideo(); } catch { /* ignore */ } }
   });
 
@@ -130,9 +197,11 @@ function registerAllHandlers() {
     logBgDiag("mediasession-action", { action: "pause" });
     markIntentionalUserPause();
     pauseAudioAnchor();
-    const { player } = usePlayerStore.getState();
-    usePlayerStore.getState().setIsPlaying(false);
+    const store = usePlayerStore.getState();
+    const { player, currentTime, duration, playbackSpeed } = store;
+    store.setIsPlaying(false);
     navigator.mediaSession.playbackState = "paused";
+    updateMediaSessionPosition(currentTime, duration, playbackSpeed, true);
     if (player) { try { player.pauseVideo(); } catch { /* ignore */ } }
   });
 
@@ -158,7 +227,7 @@ function registerAllHandlers() {
       try {
         player.seekTo(0, true);
         store.setCurrentTime(0);
-        safeSetPositionState(duration, 0, playbackSpeed);
+        notifyMediaSessionSeek(0, duration, playbackSpeed);
         navigator.mediaSession.playbackState = "playing";
       } catch { /* ignore */ }
       return;
@@ -171,13 +240,13 @@ function registerAllHandlers() {
   tryRegisterAction("seekbackward", (details) => {
     const store = usePlayerStore.getState();
     const { player, currentTime, duration, playbackSpeed } = store;
-    if (!player) return;
+    if (!player || duration <= 0) return;
     const skipTime = details?.seekOffset ?? 10;
     const target = Math.max(currentTime - skipTime, 0);
     try {
       player.seekTo(target, true);
       store.setCurrentTime(target);
-      safeSetPositionState(duration, target, playbackSpeed);
+      notifyMediaSessionSeek(target, duration, playbackSpeed);
     } catch { /* ignore */ }
   });
 
@@ -185,13 +254,13 @@ function registerAllHandlers() {
   tryRegisterAction("seekforward", (details) => {
     const store = usePlayerStore.getState();
     const { player, currentTime, duration, playbackSpeed } = store;
-    if (!player) return;
+    if (!player || duration <= 0) return;
     const skipTime = details?.seekOffset ?? 10;
-    const target = Math.min(currentTime + skipTime, duration);
+    const target = Math.min(currentTime + skipTime, Math.max(duration - 0.1, 0));
     try {
       player.seekTo(target, true);
       store.setCurrentTime(target);
-      safeSetPositionState(duration, target, playbackSpeed);
+      notifyMediaSessionSeek(target, duration, playbackSpeed);
     } catch { /* ignore */ }
   });
 
@@ -200,12 +269,12 @@ function registerAllHandlers() {
     if (IS_DEV) console.debug("[MediaSession] seekto triggered:", details?.seekTime);
     const store = usePlayerStore.getState();
     const { player, duration, playbackSpeed } = store;
-    if (!player || details?.seekTime == null) return;
+    if (!player || details?.seekTime == null || duration <= 0) return;
     const target = Math.min(Math.max(details.seekTime, 0), Math.max(duration - 0.1, 0));
     try {
       player.seekTo(target, true);
       store.setCurrentTime(target);
-      safeSetPositionState(duration, target, playbackSpeed);
+      notifyMediaSessionSeek(target, duration, playbackSpeed);
     } catch { /* ignore */ }
   });
 
@@ -213,10 +282,12 @@ function registerAllHandlers() {
   tryRegisterAction("stop", () => {
     markIntentionalUserPause();
     pauseAudioAnchor();
-    const { player } = usePlayerStore.getState();
+    const store = usePlayerStore.getState();
+    const { player, currentTime, duration, playbackSpeed } = store;
     if (player) { try { player.pauseVideo(); } catch { /* ignore */ } }
-    usePlayerStore.getState().setIsPlaying(false);
+    store.setIsPlaying(false);
     navigator.mediaSession.playbackState = "paused";
+    updateMediaSessionPosition(currentTime, duration, playbackSpeed, true);
   });
 }
 
@@ -277,6 +348,8 @@ export function useMediaSession() {
     if (typeof window === "undefined" || !("mediaSession" in navigator)) return;
     if (!videoId || !title) return;
 
+    resetMediaSessionPositionTracker();
+
     // 1. Set metadata for the new track
     const artworkList = buildArtworkList(thumbnail);
     navigator.mediaSession.metadata = new MediaMetadata({
@@ -293,10 +366,10 @@ export function useMediaSession() {
       videoId,
     });
 
-    // 2. Set initial position state for new track
+    // 2. If valid duration is already known for this track, anchor it
     const { duration, playbackSpeed } = usePlayerStore.getState();
     if (duration > 0) {
-      safeSetPositionState(duration, 0, playbackSpeed);
+      updateMediaSessionPosition(0, duration, playbackSpeed, true);
     }
 
     if (IS_DEV) {

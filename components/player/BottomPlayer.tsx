@@ -2,7 +2,7 @@
 
 import { usePlayerStore } from "@/store/player-store";
 import { useShallow } from "zustand/react/shallow";
-import { useState, useEffect, useRef, memo } from "react";
+import { useState, useEffect, memo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useHasMounted } from "@/hooks/useHasMounted";
 import {
@@ -27,7 +27,7 @@ import { cn } from "@/lib/utils";
 import QueueDrawer from "./QueueDrawer";
 import { SafeImage } from "@/components/ui/SafeImage";
 import { useSmartQueue } from "@/hooks/useSmartQueue";
-import { useMediaSession, safeSetPositionState } from "@/hooks/useMediaSession";
+import { useMediaSession, notifyMediaSessionSeek, updateMediaSessionPosition } from "@/hooks/useMediaSession";
 import { playAudioAnchor, pauseAudioAnchor } from "@/lib/audio-anchor";
 import { markIntentionalUserPause, clearIntentionalUserPause } from "@/lib/playback-intent";
 import Link from "next/link";
@@ -62,8 +62,11 @@ const DesktopProgressBar = memo(function DesktopProgressBar() {
         max={100}
         value={progress}
         onChange={(e) => {
-          if (!player) return;
-          player.seekTo((Number(e.target.value) / 100) * duration, true);
+          if (!player || duration <= 0) return;
+          const target = (Number(e.target.value) / 100) * duration;
+          player.seekTo(target, true);
+          usePlayerStore.getState().setCurrentTime(target);
+          notifyMediaSessionSeek(target, duration, usePlayerStore.getState().playbackSpeed);
         }}
         className="flex-1 h-1 rounded-full cursor-pointer outline-none transition-all"
         style={{ background: progressStyle, appearance: "none" }}
@@ -120,8 +123,11 @@ const MobileProgressBar = memo(function MobileProgressBar() {
         max={100}
         value={progress}
         onChange={(e) => {
-          if (!player) return;
-          player.seekTo((Number(e.target.value) / 100) * duration, true);
+          if (!player || duration <= 0) return;
+          const target = (Number(e.target.value) / 100) * duration;
+          player.seekTo(target, true);
+          usePlayerStore.getState().setCurrentTime(target);
+          notifyMediaSessionSeek(target, duration, usePlayerStore.getState().playbackSpeed);
         }}
         className="w-full h-1 rounded-full cursor-pointer outline-none"
         style={{ background: progressStyle, appearance: "none" }}
@@ -246,26 +252,22 @@ export default function BottomPlayer() {
   const [lyrics, setLyrics] = useState<string[] | null>(null);
   const [lyricsLoading, setLyricsLoading] = useState(false);
 
-  const lastPositionReportRef = useRef<{ time: number; wallTime: number }>({ time: 0, wallTime: 0 });
-
-  // Reset position report tracker when track changes
-  useEffect(() => {
-    lastPositionReportRef.current = { time: 0, wallTime: 0 };
-  }, [videoId]);
-
   // Controls
   const togglePlay = () => {
     if (!player) return;
+    const store = usePlayerStore.getState();
     if (isPlaying) {
       markIntentionalUserPause();
       pauseAudioAnchor();
       player.pauseVideo();
       setIsPlaying(false);
+      updateMediaSessionPosition(store.currentTime, store.duration, store.playbackSpeed, true);
     } else {
       clearIntentionalUserPause();
       playAudioAnchor();
       player.playVideo();
       setIsPlaying(true);
+      updateMediaSessionPosition(store.currentTime, store.duration, store.playbackSpeed, true);
     }
   };
 
@@ -350,11 +352,13 @@ export default function BottomPlayer() {
               pauseAudioAnchor();
               store.player.pauseVideo();
               store.setIsPlaying(false);
+              updateMediaSessionPosition(store.currentTime, store.duration, store.playbackSpeed, true);
             } else {
               clearIntentionalUserPause();
               playAudioAnchor();
               store.player.playVideo();
               store.setIsPlaying(true);
+              updateMediaSessionPosition(store.currentTime, store.duration, store.playbackSpeed, true);
             }
           }
           break;
@@ -363,14 +367,20 @@ export default function BottomPlayer() {
           break;
         case "ArrowLeft":
           e.preventDefault();
-          if (store.player) {
-            store.player.seekTo(Math.max(store.player.getCurrentTime() - 5, 0), true);
+          if (store.player && store.duration > 0) {
+            const target = Math.max(store.player.getCurrentTime() - 5, 0);
+            store.player.seekTo(target, true);
+            store.setCurrentTime(target);
+            notifyMediaSessionSeek(target, store.duration, store.playbackSpeed);
           }
           break;
         case "ArrowRight":
           e.preventDefault();
-          if (store.player) {
-            store.player.seekTo(Math.min(store.player.getCurrentTime() + 5, store.duration), true);
+          if (store.player && store.duration > 0) {
+            const target = Math.min(store.player.getCurrentTime() + 5, Math.max(store.duration - 0.1, 0));
+            store.player.seekTo(target, true);
+            store.setCurrentTime(target);
+            notifyMediaSessionSeek(target, store.duration, store.playbackSpeed);
           }
           break;
         case "ArrowUp":
@@ -434,18 +444,8 @@ export default function BottomPlayer() {
         if (typeof time === "number") setCurrentTime(time);
         if (typeof dur === "number" && dur > 0) {
           setDuration(dur);
-          // Keep MediaSession position state in sync with throttling to prevent Samsung/OneUI scrubber jitter
-          const now = Date.now();
           const rate = player.getPlaybackRate?.() || 1;
-          const lastReport = lastPositionReportRef.current;
-          const elapsedSec = (now - lastReport.wallTime) / 1000;
-          const expectedPos = lastReport.time + elapsedSec * rate;
-          const drift = Math.abs(time - expectedPos);
-
-          if (lastReport.wallTime === 0 || drift >= 2 || elapsedSec >= 5) {
-            safeSetPositionState(dur, time, rate);
-            lastPositionReportRef.current = { time, wallTime: now };
-          }
+          updateMediaSessionPosition(time, dur, rate, false);
         }
       } catch {
         // Ignored if player is transitioning

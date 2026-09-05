@@ -4,7 +4,7 @@ import YouTube from "react-youtube";
 import { useRef } from "react";
 import { usePlayerStore } from "@/store/player-store";
 import { useShallow } from "zustand/react/shallow";
-import { safeSetPositionState } from "@/hooks/useMediaSession";
+import { updateMediaSessionPosition } from "@/hooks/useMediaSession";
 import { logBgDiag } from "@/lib/bg-diagnostics";
 import {
   canAttemptBgResume,
@@ -79,7 +79,7 @@ export default function YoutubePlayer({ videoId }: Props) {
           const rate = event.target.getPlaybackRate() || 1;
           if (dur > 0) {
             setDuration(dur);
-            safeSetPositionState(dur, pos, rate);
+            updateMediaSessionPosition(pos, dur, rate, true);
           }
         } catch { /* ignore */ }
       }
