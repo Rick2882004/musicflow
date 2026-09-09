@@ -12,7 +12,7 @@ export default function PlayerEngine() {
     initBgDiagnostics();
   }, []);
 
-  if (!videoId) return null;
+  if (!videoId || videoId.startsWith("itunes-")) return null;
 
   return (
     // IMPORTANT: Do NOT use display:none or off-screen 1x1 coords here.

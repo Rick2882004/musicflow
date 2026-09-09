@@ -32,19 +32,42 @@ export function useSmartQueue() {
 
       async function fetchSmartRecommendations() {
         try {
-          const query = `${artist} Similar Hit Songs`;
-          const res = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
+          const state = usePlayerStore.getState();
+          const currentTrack: Track = {
+            videoId,
+            title,
+            artist,
+            thumbnail: state.thumbnail,
+          };
+
+          // Primary: Call AI Smart Queue Engine
+          const res = await fetch("/api/ai/smart-queue", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              currentTrack,
+              queue: state.queue,
+              recentVideoIds: (state.history || []).slice(0, 20).map((h) => h.track.videoId),
+              skips: state.skips || [],
+              likedSongs: state.likedSongs || [],
+              recentSongs: state.recentSongs || [],
+              history: state.history || [],
+              limit: 6,
+            }),
+          });
+
           if (res.ok) {
             const data = await res.json();
-            const results: Track[] = data.results || [];
-            
-            // Filter out tracks already in the current queue
-            const existingIds = new Set(usePlayerStore.getState().queue.map((t) => t.videoId));
-            const newTracks = results.filter((t) => !existingIds.has(t.videoId)).slice(0, 6);
-
-            if (newTracks.length > 0) {
-              const currentQueue = usePlayerStore.getState().queue;
-              usePlayerStore.getState().setQueue([...currentQueue, ...newTracks]);
+            const rankedTracks: Track[] = data.nextTracks || [];
+            if (rankedTracks.length > 0) {
+              const currentQ = usePlayerStore.getState().queue;
+              const existingIds = new Set(currentQ.map((t) => t.videoId));
+              const deduplicated = rankedTracks.filter((t) => !existingIds.has(t.videoId));
+              if (deduplicated.length > 0) {
+                const baseQueue = currentQ.length === 0 ? [currentTrack] : currentQ;
+                usePlayerStore.getState().setQueue([...baseQueue, ...deduplicated]);
+                return;
+              }
             }
           }
         } catch (err) {

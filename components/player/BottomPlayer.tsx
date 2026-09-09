@@ -320,7 +320,7 @@ export default function BottomPlayer() {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       window.removeEventListener("online", handleOnline);
     };
-  }, [isPlaying]);
+  }, []);
 
 
   // Consolidated Global Keyboard Shortcuts
@@ -498,7 +498,8 @@ export default function BottomPlayer() {
 
   if (!mounted || !title) return null;
 
-  const art = thumbnail || "https://placehold.co/100x100/111/fff?text=♪";
+  const SVG_TRACK_FALLBACK = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100'><rect width='100' height='100' fill='%23121216'/><path d='M44 34 v24 a7 7 0 1 1 -6 -6.9 v-17.1 l18 -5 v19 a7 7 0 1 1 -6 -6.9 v-13.1 z' fill='%23a855f7'/></svg>";
+  const art = thumbnail || SVG_TRACK_FALLBACK;
   const volumeStyle = `linear-gradient(to right, rgba(255,255,255,0.7) ${isMuted ? 0 : volume}%, rgba(255,255,255,0.06) ${isMuted ? 0 : volume}%)`;
 
   const dropdownStyle: React.CSSProperties = {

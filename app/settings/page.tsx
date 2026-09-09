@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import ProtectedRoute from "../../src/components/auth/ProtectedRoute";
 import { useAuth } from "../../src/context/AuthContext";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -78,8 +77,7 @@ export default function SettingsPage() {
   const selectStyle = "bg-[#0c0c0e]/95 border border-white/[0.06] rounded-xl px-3 py-1.5 text-xs text-white outline-none cursor-pointer focus:border-purple-550 transition-colors";
 
   return (
-    <ProtectedRoute>
-      <main className="max-w-3xl mx-auto space-y-6 select-none pb-36">
+    <main className="max-w-3xl mx-auto space-y-6 select-none pb-36">
         
         {/* Save confirmation toast */}
         <AnimatePresence>
@@ -380,6 +378,5 @@ export default function SettingsPage() {
 
         </div>
       </main>
-    </ProtectedRoute>
   );
 }

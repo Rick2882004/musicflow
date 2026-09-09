@@ -9,6 +9,7 @@ import { getCachedArtwork, resolveTrackMetadata } from "@/lib/metadata-resolver"
 import { playAudioAnchor } from "@/lib/audio-anchor";
 import { clearIntentionalUserPause } from "@/lib/playback-intent";
 import { logBgDiag } from "@/lib/bg-diagnostics";
+import { isFakeAlbumId } from "@/lib/canonical-music";
 
 interface PlayerState {
   videoId: string;
@@ -36,6 +37,7 @@ interface PlayerState {
   isMuted: boolean;
   smartQueueEnabled: boolean;
   autoPlaySimilar: boolean;
+  skips: string[];
 
   setCurrentTime: (time: number) => void;
   setDuration: (duration: number) => void;
@@ -94,6 +96,8 @@ interface PlayerState {
   setSleepTimer: (minutes: number | null) => void;
   setVolume: (volume: number) => void;
   setIsMuted: (isMuted: boolean) => void;
+  trackSkip: (videoId: string) => void;
+  resetUserLibrary: () => void;
 }
 
 export const usePlayerStore = create<PlayerState>()(
@@ -124,6 +128,7 @@ export const usePlayerStore = create<PlayerState>()(
       isMuted: false,
       smartQueueEnabled: true,
       autoPlaySimilar: true,
+      skips: [],
 
 
       setCurrentTime: (time) => set({ currentTime: time }),
@@ -178,7 +183,30 @@ export const usePlayerStore = create<PlayerState>()(
       clearHistory: () => set({ history: [] }),
       setPlaylists: (playlists) => set({ playlists }),
       setFollowedArtists: (artists) => set({ followedArtists: artists }),
-      setSavedAlbums: (albums) => set({ savedAlbums: albums }),
+      setSavedAlbums: (albums) =>
+        set({
+          savedAlbums: (albums || []).filter(
+            (a) => a && a.albumId && a.name && !isFakeAlbumId(a.albumId)
+          ),
+        }),
+
+      resetUserLibrary: () =>
+        set({
+          likedSongs: [],
+          recentSongs: [],
+          history: [],
+          playlists: [],
+          followedArtists: [],
+          savedAlbums: [],
+          skips: [],
+        }),
+
+      trackSkip: (videoId: string) => {
+        if (!videoId) return;
+        const { skips } = get();
+        const updated = [videoId, ...skips.filter((id) => id !== videoId)].slice(0, 50);
+        set({ skips: updated });
+      },
 
       toggleFollowArtist: (artist) => {
         const { followedArtists } = get();
@@ -204,6 +232,9 @@ export const usePlayerStore = create<PlayerState>()(
       },
 
       toggleSaveAlbum: (album) => {
+        if (!album || !album.albumId || !album.name || isFakeAlbumId(album.albumId)) {
+          return;
+        }
         const { savedAlbums } = get();
         const exists = savedAlbums.some((a) => a.albumId === album.albumId);
         if (exists) {
@@ -227,8 +258,11 @@ export const usePlayerStore = create<PlayerState>()(
         const track: Track = { videoId, title, artist, thumbnail: cachedArt };
         get().addRecentSong(track);
         get().addHistoryEntry(track, 0, 0);
+
+        const isUnresolved = !videoId || videoId.startsWith("itunes-");
+
         set({
-          videoId,
+          videoId: isUnresolved ? "" : videoId,
           title,
           artist,
           thumbnail: cachedArt,
@@ -238,14 +272,51 @@ export const usePlayerStore = create<PlayerState>()(
           duration: 0,
         });
 
+        // If the track ID is unresolved (e.g. from iTunes catalog), resolve a playable stream on-demand
+        if (isUnresolved) {
+          fetch(`/api/resolve-track?title=${encodeURIComponent(title)}&artist=${encodeURIComponent(artist)}`)
+            .then((res) => res.json())
+            .then((data) => {
+              if (data && data.videoId && get().title === title && get().artist === artist) {
+                const resolvedId = data.videoId;
+                set({ videoId: resolvedId });
+
+                // Update track in queue with the resolved playable videoId
+                const currentQueue = get().queue;
+                const updatedQueue = currentQueue.map((q, idx) =>
+                  idx === index || (q.title === title && q.artist === artist)
+                    ? { ...q, videoId: resolvedId }
+                    : q
+                );
+                set({ queue: updatedQueue });
+
+                // Update recents
+                const currentRecents = get().recentSongs;
+                const updatedRecents = currentRecents.map((s) =>
+                  s.title === title && s.artist === artist ? { ...s, videoId: resolvedId } : s
+                );
+                set({ recentSongs: updatedRecents });
+              } else if (!data?.videoId && get().title === title && get().artist === artist) {
+                console.warn(`Could not resolve playable stream for "${title}" by "${artist}". Skipping to next track.`);
+                get().nextTrack();
+              }
+            })
+            .catch((err) => {
+              console.error("Track resolution error:", err);
+              if (get().title === title && get().artist === artist) {
+                get().nextTrack();
+              }
+            });
+        }
+
         // Asynchronously resolve official iTunes high-res artwork & metadata
         if (title) {
           void resolveTrackMetadata({ videoId, title, artist, thumbnail }).then((res) => {
-            if (res && res.artworkUrl && get().videoId === videoId) {
+            if (res && res.artworkUrl && get().title === title) {
               set({ thumbnail: res.artworkUrl });
               const currentRecents = get().recentSongs;
               const updatedRecents = currentRecents.map((s) =>
-                s.videoId === videoId ? { ...s, thumbnail: res.artworkUrl } : s
+                s.title === title ? { ...s, thumbnail: res.artworkUrl } : s
               );
               set({ recentSongs: updatedRecents });
             }
@@ -448,7 +519,13 @@ export const usePlayerStore = create<PlayerState>()(
       nextTrack: () => {
         clearIntentionalUserPause();
         playAudioAnchor();
-        const { queue, currentIndex, isShuffle } = get();
+        const { queue, currentIndex, isShuffle, videoId, currentTime, duration } = get();
+
+        // AI Signal: Detect premature skip (< 30s into a track with normal duration > 60s)
+        if (videoId && currentTime > 0 && currentTime < 30 && duration > 60) {
+          get().trackSkip(videoId);
+        }
+
         if (queue.length === 0) return;
 
         if (isShuffle) {
@@ -510,13 +587,25 @@ export const usePlayerStore = create<PlayerState>()(
     }),
     {
       name: "musicflow-player",
+      onRehydrateStorage: () => (state) => {
+        if (state && Array.isArray(state.savedAlbums)) {
+          const validAlbums = state.savedAlbums.filter(
+            (a) => a && a.albumId && a.name && !isFakeAlbumId(a.albumId)
+          );
+          if (validAlbums.length !== state.savedAlbums.length) {
+            state.savedAlbums = validAlbums;
+          }
+        }
+      },
       partialize: (state) => ({
         likedSongs: state.likedSongs,
         recentSongs: state.recentSongs,
         history: state.history,
         playlists: state.playlists,
         followedArtists: state.followedArtists,
-        savedAlbums: state.savedAlbums,
+        savedAlbums: (state.savedAlbums || []).filter(
+          (a) => a && a.albumId && a.name && !isFakeAlbumId(a.albumId)
+        ),
         isShuffle: state.isShuffle,
         isRepeat: state.isRepeat,
         playbackSpeed: state.playbackSpeed,
@@ -531,6 +620,7 @@ export const usePlayerStore = create<PlayerState>()(
         isMuted: state.isMuted,
         smartQueueEnabled: state.smartQueueEnabled,
         autoPlaySimilar: state.autoPlaySimilar,
+        skips: state.skips,
       }),
     }
   )

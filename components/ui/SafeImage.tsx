@@ -56,8 +56,9 @@ export const SafeImage = memo(function SafeImage({
 
     const activeSource = resolvedSrc || src;
 
-    let resolved = videoId || "";
-    if (!resolved && activeSource) {
+    const isSong = fallbackType === "song";
+    let resolved = isSong && videoId && !videoId.startsWith("itunes-") && videoId.length === 11 ? videoId : "";
+    if (isSong && !resolved && activeSource) {
       const ytMatch = activeSource.match(/\/vi\/([a-zA-Z0-9_-]{11})/);
       if (ytMatch) {
         resolved = ytMatch[1];

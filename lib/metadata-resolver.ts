@@ -440,6 +440,7 @@ export function useResolvedArtwork({
       isSubscribed = false;
       subscribers.delete(handleUpdate);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [title, artist, album, videoId, initialSrc, fallbackType]);
 
   return { artworkUrl, isITunes, metadata };

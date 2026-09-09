@@ -20,9 +20,11 @@ import {
   ChevronUp,
   ChevronDown,
   ArrowUpDown,
+  Plus,
+  Sparkles,
 } from "lucide-react";
 import { Playlist, Track } from "@/types/music";
-import ProtectedRoute from "../../../src/components/auth/ProtectedRoute";
+import { GuestSyncBanner } from "@/components/ui/GuestSyncBanner";
 import { useHasMounted } from "@/hooks/useHasMounted";
 import { SafeImage } from "@/components/ui/SafeImage";
 import { ShareModal } from "@/components/social/ShareModal";
@@ -43,6 +45,7 @@ export default function PlaylistPage() {
     recentSongs,
     setTrack,
     setQueue,
+    addSongToPlaylist,
     removeSongFromPlaylist,
     deletePlaylist,
     updatePlaylist,
@@ -55,6 +58,7 @@ export default function PlaylistPage() {
     recentSongs: s.recentSongs,
     setTrack: s.setTrack,
     setQueue: s.setQueue,
+    addSongToPlaylist: s.addSongToPlaylist,
     removeSongFromPlaylist: s.removeSongFromPlaylist,
     deletePlaylist: s.deletePlaylist,
     updatePlaylist: s.updatePlaylist,
@@ -75,6 +79,7 @@ export default function PlaylistPage() {
   const [isCollab, setIsCollab] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [sortBy, setSortBy] = useState<"custom" | "title" | "artist" | "recent">("custom");
+  const [continuationTracks, setContinuationTracks] = useState<Track[]>([]);
 
   useEffect(() => {
     if (playlist) {
@@ -83,30 +88,63 @@ export default function PlaylistPage() {
         setPlaylistDesc(playlist.description || "");
         setIsCollab(playlist.isCollaborative || false);
       }, 0);
+
+      // Fetch intelligent continuation recommendations grounded in this playlist
+      let isMounted = true;
+      fetch("/api/ai/discovery", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          page: "playlist",
+          pageEntity: {
+            id: playlist.id.toString(),
+            name: playlist.name,
+            type: "playlist",
+            tracks: playlist.songs,
+          },
+          signals: {
+            likedSongs,
+            recentSongs,
+          },
+          limit: 8,
+        }),
+      })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => {
+          if (isMounted && d?.sections && d.sections[0]?.tracks) {
+            const existingIds = new Set((playlist.songs || []).map((s: Track) => s.videoId));
+            const filtered = d.sections[0].tracks.filter(
+              (t: Track) => !existingIds.has(t.videoId)
+            );
+            setContinuationTracks(filtered.slice(0, 5));
+          }
+        })
+        .catch(() => null);
+
+      return () => {
+        isMounted = false;
+      };
     }
-  }, [playlist]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [playlist?.id]);
 
   if (!mounted) {
     return (
-      <ProtectedRoute>
-        <main className="min-h-screen text-zinc-400 select-none text-left flex flex-col items-center justify-center p-8">
-          <div className="text-zinc-450 text-xl font-bold animate-pulse">Loading Playlist...</div>
-        </main>
-      </ProtectedRoute>
+      <main className="min-h-screen text-zinc-400 select-none text-left flex flex-col items-center justify-center p-8">
+        <div className="text-zinc-450 text-xl font-bold animate-pulse">Loading Playlist...</div>
+      </main>
     );
   }
 
   if (!playlist) {
     return (
-      <ProtectedRoute>
-        <main className="min-h-screen text-zinc-400 select-none text-left flex flex-col items-center justify-center p-8">
-          <ShieldAlert className="w-12 h-12 text-zinc-650 mb-3 animate-pulse" />
-          <p className="text-sm font-semibold">Playlist not found.</p>
-          <button onClick={() => router.push("/playlists")} className="mt-4 px-6 py-2.5 bg-white text-black font-bold rounded-full text-xs transition hover:bg-zinc-150">
-            Back to Playlists
-          </button>
-        </main>
-      </ProtectedRoute>
+      <main className="min-h-screen text-zinc-400 select-none text-left flex flex-col items-center justify-center p-8">
+        <ShieldAlert className="w-12 h-12 text-zinc-650 mb-3 animate-pulse" />
+        <p className="text-sm font-semibold">Playlist not found.</p>
+        <button onClick={() => router.push("/playlists")} className="mt-4 px-6 py-2.5 bg-white text-black font-bold rounded-full text-xs transition hover:bg-zinc-150">
+          Back to Playlists
+        </button>
+      </main>
     );
   }
 
@@ -201,10 +239,10 @@ export default function PlaylistPage() {
   };
 
   return (
-    <ProtectedRoute>
-      <main className="min-h-screen pb-36 text-white text-left space-y-6 px-4 md:px-8 pt-4">
+    <main className="min-h-screen pb-36 text-white text-left space-y-6 px-4 md:px-8 pt-4">
+      <GuestSyncBanner />
 
-        {/* 1. Clean Music Header */}
+      {/* 1. Clean Music Header */}
         <section className="relative pb-2">
           <div className="flex flex-col md:flex-row items-start md:items-end gap-6 pt-2">
             {renderCoverImage()}
@@ -534,19 +572,27 @@ export default function PlaylistPage() {
                 </div>
               </div>
 
-              {/* Suggested Tracks */}
-              {(likedSongs.length > 0 || recentSongs.length > 0) && (
+              {/* Suggested Tracks / Continue This Playlist */}
+              {(continuationTracks.length > 0 || likedSongs.length > 0 || recentSongs.length > 0) && (
                 <div className="space-y-4">
                   <div>
-                    <p className="text-[8px] font-black uppercase tracking-[0.16em] text-zinc-600 mb-0.5">Recommended</p>
-                    <h4 className="font-display text-xs font-black text-white uppercase tracking-wider">Suggested Songs</h4>
+                    <p className="text-[8px] font-black uppercase tracking-[0.16em] text-purple-400 mb-0.5">
+                      Intelligent Continuation
+                    </p>
+                    <h4 className="font-display text-xs font-black text-white uppercase tracking-wider flex items-center gap-1.5">
+                      <Sparkles size={12} className="text-purple-400" />
+                      Continue This Playlist
+                    </h4>
                   </div>
                   <div className="space-y-2.5">
-                    {(likedSongs.length > 0 ? likedSongs : recentSongs).slice(0, 3).map((song) => (
+                    {(continuationTracks.length > 0
+                      ? continuationTracks
+                      : (likedSongs.length > 0 ? likedSongs : recentSongs).slice(0, 4)
+                    ).map((song) => (
                       <div
                         key={`suggest-${song.videoId}`}
                         onClick={() => setTrack(song.videoId, song.title, song.artist, song.thumbnail, 0)}
-                        className="flex items-center justify-between p-2 rounded-xl bg-white/[0.01] border border-white/[0.04] hover:bg-white/[0.025] hover:border-purple-500/20 transition duration-200 cursor-pointer group"
+                        className="flex items-center justify-between p-2 rounded-xl bg-white/[0.015] border border-white/[0.04] hover:bg-white/[0.03] hover:border-purple-500/25 transition duration-200 cursor-pointer group"
                       >
                         <div className="flex items-center gap-2.5 min-w-0">
                           <div className="w-9 h-9 rounded-lg overflow-hidden shrink-0 border border-white/5">
@@ -558,12 +604,33 @@ export default function PlaylistPage() {
                             />
                           </div>
                           <div className="min-w-0 text-left">
-                            <p className="text-[11px] font-bold text-zinc-300 truncate leading-snug group-hover:text-purple-300 transition-colors">{song.title}</p>
-                            <p className="text-[9px] text-zinc-555 truncate">{song.artist}</p>
+                            <p className="text-[11px] font-bold text-zinc-200 truncate leading-snug group-hover:text-purple-300 transition-colors">
+                              {song.title}
+                            </p>
+                            <p className="text-[9px] text-zinc-500 truncate">{song.artist}</p>
+                            {song.recommendationReason && (
+                              <span className="text-[8px] font-bold uppercase tracking-wider text-purple-400 truncate block">
+                                ✨ {song.recommendationReason}
+                              </span>
+                            )}
                           </div>
                         </div>
-                        <div className="w-6 h-6 rounded-full bg-white opacity-0 group-hover:opacity-100 flex items-center justify-center text-black shadow transition-opacity shrink-0">
-                          <Play size={8} fill="black" className="text-black ml-0.5" />
+
+                        <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
+                          <button
+                            type="button"
+                            title="Add to Playlist"
+                            onClick={() => addSongToPlaylist(playlist.id, song)}
+                            className="p-1.5 rounded-lg bg-white/[0.03] hover:bg-white/[0.1] text-zinc-400 hover:text-white border border-white/[0.05] transition flex items-center gap-1 text-[10px] font-bold cursor-pointer"
+                          >
+                            <Plus size={11} /> Add
+                          </button>
+                          <div
+                            onClick={() => setTrack(song.videoId, song.title, song.artist, song.thumbnail, 0)}
+                            className="w-6 h-6 rounded-full bg-white opacity-0 group-hover:opacity-100 flex items-center justify-center text-black shadow transition-opacity shrink-0 cursor-pointer"
+                          >
+                            <Play size={8} fill="black" className="text-black ml-0.5" />
+                          </div>
                         </div>
                       </div>
                     ))}
@@ -587,6 +654,5 @@ export default function PlaylistPage() {
           />
         )}
       </main>
-    </ProtectedRoute>
   );
 }

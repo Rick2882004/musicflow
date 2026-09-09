@@ -7,7 +7,6 @@ import Link from "next/link";
 import { Track } from "@/types/music";
 import { useState, memo, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import ProtectedRoute from "../../src/components/auth/ProtectedRoute";
 import { useHasMounted } from "@/hooks/useHasMounted";
 import { SafeImage } from "@/components/ui/SafeImage";
 
@@ -150,17 +149,14 @@ export default function QueuePage() {
 
   if (!mounted) {
     return (
-      <ProtectedRoute>
-        <div className="h-screen flex items-center justify-center">
-          <div className="text-zinc-450 text-xl font-bold animate-pulse">Loading Play Queue...</div>
-        </div>
-      </ProtectedRoute>
+      <div className="h-screen flex items-center justify-center">
+        <div className="text-zinc-450 text-xl font-bold animate-pulse">Loading Play Queue...</div>
+      </div>
     );
   }
 
   return (
-    <ProtectedRoute>
-      <main className="min-h-screen pb-36 text-white text-left space-y-8 px-4 md:px-8 pt-4">
+    <main className="min-h-screen pb-36 text-white text-left space-y-8 px-4 md:px-8 pt-4">
         
         {/* Notif */}
         <AnimatePresence>
@@ -465,6 +461,5 @@ export default function QueuePage() {
         )}
 
       </main>
-    </ProtectedRoute>
   );
 }

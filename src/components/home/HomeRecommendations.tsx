@@ -4,13 +4,14 @@ import { useEffect, useState, memo } from "react";
 import { usePlayerStore } from "@/store/player-store";
 import { SongCard } from "@/components/ui/SongCard";
 import { TrackRow } from "@/components/ui/TrackRow";
-import { Track } from "@/types/music";
+import { Track, ChartAlbum } from "@/types/music";
 import { motion } from "framer-motion";
 import { useShallow } from "zustand/react/shallow";
 import Link from "next/link";
 import { Play } from "lucide-react";
 import { SafeImage } from "@/components/ui/SafeImage";
 import PopularArtists from "./PopularArtists";
+import { isFakeAlbumId } from "@/lib/canonical-music";
 
 // ── Skeleton Loader ──
 const SectionSkeleton = memo(function SectionSkeleton() {
@@ -33,24 +34,26 @@ const SectionSkeleton = memo(function SectionSkeleton() {
   );
 });
 
-// ── Horizontal Scroll Section ──
-const HScrollSection = memo(function HScrollSection({
-  title,
-  subtitle,
-  songs,
-  onPlay,
-  seeAllHref,
-}: {
+// ── Horizontal Scroll Row Section ──
+interface HScrollSectionProps {
   title: string;
   subtitle?: string;
   songs: Track[];
-  onPlay: (song: Track, idx: number, queue: Track[]) => void;
+  onPlay?: (song: Track, index: number, songQueue: Track[]) => void;
   seeAllHref?: string;
-}) {
+}
+
+const HScrollSection = memo(function HScrollSection({
+  title,
+  subtitle = "Section",
+  songs,
+  seeAllHref = "/explore",
+}: HScrollSectionProps) {
   if (songs.length === 0) return null;
+
   return (
     <motion.section
-      initial={{ opacity: 0, y: 12 }}
+      initial={{ opacity: 0, y: 14 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
       className="mf-section px-4 md:px-8 text-left"
@@ -67,38 +70,23 @@ const HScrollSection = memo(function HScrollSection({
           )}
           <h2 className="mf-section-title">{title}</h2>
         </div>
-        {seeAllHref && (
-          <Link href={seeAllHref} className="mf-see-all">
-            See All
-          </Link>
-        )}
+        <Link href={seeAllHref} className="mf-see-all">
+          See All
+        </Link>
       </div>
 
       <div className="mf-rail -mx-4 md:-mx-8 px-4 md:px-8">
-        {songs.map((song, index) => (
-          <div
-            key={`${song.videoId}-${index}`}
-            className="shrink-0 w-[150px] md:w-[170px] text-left cursor-pointer"
-            onClick={() => onPlay(song, index, songs)}
-          >
+        {songs.map((song, idx) => (
+          <div key={`${song.videoId}-${idx}`} className="shrink-0 w-[148px] md:w-[168px]">
             <SongCard
               song={{
                 id: song.videoId,
                 title: song.title,
                 artist: song.artist,
                 thumbnail: song.thumbnail,
-                duration: song.duration || 180,
+                duration: song.duration,
               }}
             />
-            {/* Dynamic AI Scoring Explanation Badge */}
-            {(song as { recommendationReason?: string }).recommendationReason && (
-              <span
-                className="text-[9px] font-bold uppercase tracking-wider block mt-1.5 px-0.5 truncate select-none"
-                style={{ color: "var(--mf-accent-light)" }}
-              >
-                ✨ {(song as { recommendationReason?: string }).recommendationReason}
-              </span>
-            )}
           </div>
         ))}
       </div>
@@ -133,7 +121,7 @@ const AlbumTile = memo(function AlbumTile({
           style={{
             background: "var(--mf-bg-card)",
             border: "1px solid var(--mf-border)",
-            boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
+            boxShadow: "0 6px 20px rgba(0,0,0,0.45)",
           }}
         >
           <SafeImage
@@ -141,28 +129,32 @@ const AlbumTile = memo(function AlbumTile({
             title={title}
             artist={artist}
             alt={title}
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
             fallbackType="album"
           />
-          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+          <div
+            className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center"
+            style={{ background: "rgba(0,0,0,0.38)" }}
+          >
             <div
-              className="w-9 h-9 rounded-full flex items-center justify-center shadow-md"
-              style={{ background: "var(--mf-accent)", color: "#fff" }}
+              className="w-10 h-10 rounded-full flex items-center justify-center shadow-lg transition-transform duration-200 group-hover:scale-105"
+              style={{ background: "#ffffff", color: "#000000" }}
             >
-              <Play size={14} fill="currentColor" className="ml-0.5" />
+              <Play size={14} fill="black" className="ml-0.5" />
             </div>
           </div>
         </div>
-        <div className="px-0.5">
+        <div className="px-0.5 space-y-0.5">
           <p
-            className="text-[12px] font-bold leading-tight truncate transition-colors duration-150"
-            style={{ color: "var(--mf-text-primary)" }}
+            className="font-display text-[13px] font-bold text-white transition-colors truncate tracking-tight group-hover:text-purple-300"
+            title={title}
           >
             {title}
           </p>
           <p
-            className="text-[10px] font-medium truncate mt-0.5"
+            className="text-[11px] font-medium truncate"
             style={{ color: "var(--mf-text-muted)" }}
+            title={artist}
           >
             {artist}
           </p>
@@ -172,21 +164,24 @@ const AlbumTile = memo(function AlbumTile({
   );
 });
 
-
 // Module-level cache to prevent repeated home page fetches on navigation
 let homeCache: {
   trending: Track[];
   releases: Track[];
-  recommended: Track[];
-  likedFallback: Track[];
+  albums: ChartAlbum[];
+  discoverySections: import("@/lib/ai/discovery/types").DiscoverySection[];
   timestamp: number;
 } | null = null;
-const HOME_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+const HOME_CACHE_TTL = 3 * 60 * 1000; // 3 minutes
 
 export default function HomeRecommendations() {
-  const { likedSongs, setTrack, setQueue } = usePlayerStore(
+  const { likedSongs, recentSongs, history, followedArtists, skips, setTrack, setQueue } = usePlayerStore(
     useShallow((s) => ({
       likedSongs: s.likedSongs,
+      recentSongs: s.recentSongs,
+      history: s.history,
+      followedArtists: s.followedArtists,
+      skips: s.skips,
       setTrack: s.setTrack,
       setQueue: s.setQueue,
     }))
@@ -194,8 +189,8 @@ export default function HomeRecommendations() {
 
   const [trendingSongs, setTrendingSongs] = useState<Track[]>(() => homeCache?.trending || []);
   const [newReleases, setNewReleases] = useState<Track[]>(() => homeCache?.releases || []);
-  const [recommendedSongs, setRecommendedSongs] = useState<Track[]>(() => homeCache?.recommended || []);
-  const [likedFallbackSongs, setLikedFallbackSongs] = useState<Track[]>(() => homeCache?.likedFallback || []);
+  const [trendingAlbums, setTrendingAlbums] = useState<ChartAlbum[]>(() => homeCache?.albums || []);
+  const [discoverySections, setDiscoverySections] = useState<import("@/lib/ai/discovery/types").DiscoverySection[]>(() => homeCache?.discoverySections || []);
   const [loading, setLoading] = useState<boolean>(() => !homeCache || Date.now() - homeCache.timestamp > HOME_CACHE_TTL);
 
   useEffect(() => {
@@ -206,45 +201,59 @@ export default function HomeRecommendations() {
       if (homeCache && Date.now() - homeCache.timestamp < HOME_CACHE_TTL) {
         setTrendingSongs(homeCache.trending);
         setNewReleases(homeCache.releases);
-        setRecommendedSongs(homeCache.recommended);
-        setLikedFallbackSongs(homeCache.likedFallback);
+        setTrendingAlbums(homeCache.albums);
+        setDiscoverySections(homeCache.discoverySections);
         setLoading(false);
         return;
       }
 
       setLoading(true);
       try {
-        const [trendingRes, releasesRes, recRes] = await Promise.all([
-          fetch("/api/search?q=Trending Songs").then((r) => r.ok ? r.json() : { results: [] }).catch(() => ({ results: [] })),
-          fetch("/api/search?q=Latest Hits").then((r) => r.ok ? r.json() : { results: [] }).catch(() => ({ results: [] })),
-          fetch(`/api/search?q=${encodeURIComponent(likedSongs.length > 0 ? `${likedSongs[0].artist} radio` : "Chill Lofi Beats")}`)
-            .then((r) => r.ok ? r.json() : { results: [] }).catch(() => ({ results: [] })),
+        const [trendingRes, releasesRes, discoveryRes, chartsRes] = await Promise.all([
+          fetch("/api/search?q=Trending Songs").then((r) => (r.ok ? r.json() : { results: [] })).catch(() => ({ results: [] })),
+          fetch("/api/search?q=Latest Hits").then((r) => (r.ok ? r.json() : { results: [] })).catch(() => ({ results: [] })),
+          fetch("/api/ai/discovery", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              page: "home",
+              signals: {
+                likedSongs,
+                recentSongs,
+                history,
+                followedArtists,
+                skips,
+              },
+              limit: 12,
+            }),
+          })
+            .then((r) => (r.ok ? r.json() : null))
+            .catch(() => null),
+          fetch("/api/charts?type=albums")
+            .then((r) => (r.ok ? r.json() : { albums: [] }))
+            .catch(() => ({ albums: [] })),
         ]);
 
         const trending = trendingRes.results?.slice(0, 10) || [];
         const releases = releasesRes.results?.slice(0, 8) || [];
-        const recommended = recRes.results?.slice(0, 8) || [];
-
-        let likedFallback: Track[] = [];
-        if (likedSongs.length > 0) {
-          const randomLiked = likedSongs[Math.floor(Math.random() * likedSongs.length)];
-          const fbRes = await fetch(`/api/search?q=${encodeURIComponent(randomLiked.title)}`)
-            .then((r) => r.ok ? r.json() : { results: [] }).catch(() => ({ results: [] }));
-          likedFallback = (fbRes.results || []).filter((s: Track) => s.videoId !== randomLiked.videoId).slice(0, 8);
-        }
+        const sections = discoveryRes?.sections || [];
+        const rawAlbums: ChartAlbum[] = chartsRes?.albums || [];
+        const validAlbums = rawAlbums
+          .filter((a) => a.albumId && a.name && !isFakeAlbumId(a.albumId))
+          .slice(0, 8);
 
         if (isMounted) {
           setTrendingSongs(trending);
           setNewReleases(releases);
-          setRecommendedSongs(recommended);
-          setLikedFallbackSongs(likedFallback);
+          setTrendingAlbums(validAlbums);
+          setDiscoverySections(sections);
           setLoading(false);
 
           homeCache = {
             trending,
             releases,
-            recommended,
-            likedFallback,
+            albums: validAlbums,
+            discoverySections: sections,
             timestamp: Date.now(),
           };
         }
@@ -269,48 +278,6 @@ export default function HomeRecommendations() {
     setQueue(uniqueQueue);
     setTrack(song.videoId, song.title, song.artist, song.thumbnail, index);
   };
-
-  const trendingAlbums = [
-    {
-      id: "MPREb_HtIOxExZ0cj",
-      title: "Arijit Singh Hits",
-      artist: "Arijit Singh",
-      image: "https://img.youtube.com/vi/JFcgOboQZ08/hqdefault.jpg",
-    },
-    {
-      id: "MPREb_FCKWeH9GnWF",
-      title: "Jigra Collection",
-      artist: "Achint",
-      image:
-        "https://yt3.googleusercontent.com/F8s9lSInfQQu6PvEl23by6_KPoazHLcjk4226uEZqcabT7w_QQP4IX8nxutH5pLJOtwAi32VfMhRJPo=w226-h226-l90-rj",
-    },
-    {
-      id: "MPREb_aak6B9FGA6U",
-      title: "Bollywood Essentials",
-      artist: "Various Artists",
-      image:
-        "https://yt3.googleusercontent.com/FPXzFBDqz2viDjL-yyPFSVLyzc8dv9uLHBVyJIfSc1hTQiGe6Lie2fbVRhMjpYtMD1NLcNo_l3T9Mg=w226-h226-l90-rj",
-    },
-    {
-      id: "MPREb_HtIOxExZ0ck",
-      title: "Kabir Singh",
-      artist: "Sachet Tandon",
-      image: "https://img.youtube.com/vi/V0KD0nDkbpM/hqdefault.jpg",
-    },
-    {
-      id: "MPREb_HtIOxExZ0cl",
-      title: "Kesariya & Romantic Hits",
-      artist: "Pritam, Arijit Singh",
-      image: "https://img.youtube.com/vi/k4yXQkG2s1E/hqdefault.jpg",
-    },
-    {
-      id: "MPREb_HtIOxExZ0cm",
-      title: "Global Pop 2026",
-      artist: "Top Charts",
-      image: "https://img.youtube.com/vi/kJQP7kiw5Fk/hqdefault.jpg",
-    },
-  ];
-
 
   if (loading) {
     return (
@@ -365,59 +332,60 @@ export default function HomeRecommendations() {
         onPlay={playSong}
       />
 
-      {/* Recommended Albums */}
-      {/* Trending Albums */}
-      <section className="mf-section px-4 md:px-8 text-left">
-        <div className="mf-section-header">
-          <div>
-            <p
-              className="text-[9px] font-black uppercase mb-1"
-              style={{ letterSpacing: "0.18em", color: "var(--mf-text-dim)" }}
-            >
-              Curated
-            </p>
-            <h2 className="mf-section-title">Trending Albums</h2>
+      {/* Trending Albums (Real Catalog Only) */}
+      {trendingAlbums.length > 0 && (
+        <section className="mf-section px-4 md:px-8 text-left">
+          <div className="mf-section-header">
+            <div>
+              <p
+                className="text-[9px] font-black uppercase mb-1"
+                style={{ letterSpacing: "0.18em", color: "var(--mf-text-dim)" }}
+              >
+                Curated
+              </p>
+              <h2 className="mf-section-title">Trending Albums</h2>
+            </div>
+            <Link href="/explore" className="mf-see-all">
+              See All
+            </Link>
           </div>
-          <Link href="/explore" className="mf-see-all">
-            See All
-          </Link>
-        </div>
-        <div className="mf-rail -mx-4 md:-mx-8 px-4 md:px-8">
-          {trendingAlbums.map((album, idx) => (
-            <AlbumTile key={`${album.id}-${idx}`} {...album} idx={idx} />
-          ))}
-        </div>
-      </section>
+          <div className="mf-rail -mx-4 md:-mx-8 px-4 md:px-8">
+            {trendingAlbums.map((album, idx) => (
+              <AlbumTile
+                key={`${album.albumId}-${idx}`}
+                id={album.albumId}
+                title={album.name}
+                artist={album.artist || "Various Artists"}
+                image={album.thumbnail || ""}
+                idx={idx}
+              />
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* Popular Artists */}
       <PopularArtists />
 
-      {/* New Releases */}
-      <HScrollSection
-        title="New Releases"
-        subtitle="Fresh"
-        songs={newReleases}
-        onPlay={playSong}
-      />
-
-      {/* Made For You */}
-      {recommendedSongs.length > 0 && (
+      {/* Dynamic Central Discovery Engine Sections */}
+      {discoverySections.map((section) => (
         <HScrollSection
-          title="Made For You"
-          subtitle="Personal"
-          songs={recommendedSongs}
+          key={section.sectionId}
+          title={section.title}
+          subtitle={section.subtitle}
+          songs={section.tracks}
           onPlay={playSong}
+          seeAllHref={section.seeAllHref}
         />
-      )}
+      ))}
 
-      {/* Because You Liked */}
-      {likedSongs.length > 0 && likedFallbackSongs.length > 0 && (
+      {/* New Releases */}
+      {newReleases.length > 0 && (
         <HScrollSection
-          title="Because You Liked"
-          subtitle={likedSongs[0]?.title}
-          songs={likedFallbackSongs}
+          title="New Releases"
+          subtitle="Fresh"
+          songs={newReleases}
           onPlay={playSong}
-          seeAllHref="/liked"
         />
       )}
     </div>

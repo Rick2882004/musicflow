@@ -10,7 +10,7 @@ export async function GET(request: NextRequest) {
 
   try {
     const details = await getCanonicalAlbumDetails(id);
-    if (!details) {
+    if (!details || !details.name || !details.songs || details.songs.length === 0) {
       return NextResponse.json({ error: "Album not found" }, { status: 404 });
     }
     return NextResponse.json(details);

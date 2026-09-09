@@ -49,7 +49,10 @@ export async function GET(request: Request) {
     if (type === "all" || type === "albums") {
       const albumQuery = genre ? `${genre} Albums` : "Top Trending Albums";
       const rawAlbums = await searchAlbums(albumQuery);
-      topAlbums = rawAlbums.slice(0, 10).map((al, idx) => ({
+      const validAlbums = rawAlbums.filter(
+        (al) => al.albumId && al.name && al.thumbnail
+      );
+      topAlbums = validAlbums.slice(0, 10).map((al, idx) => ({
         rank: idx + 1,
         albumId: al.albumId,
         name: al.name,

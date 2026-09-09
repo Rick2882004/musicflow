@@ -18,8 +18,9 @@ import {
 import { signOut } from "firebase/auth";
 import { auth } from "../../src/lib/firebase";
 import { useAuth } from "../../src/context/AuthContext";
-import { motion, AnimatePresence } from "framer-motion";
 import { SafeImage } from "@/components/ui/SafeImage";
+import { usePlayerStore } from "@/store/player-store";
+import { motion, AnimatePresence } from "framer-motion";
 import dynamic from "next/dynamic";
 
 const AIDJModal = dynamic(
@@ -77,6 +78,7 @@ export default function Navbar() {
   }, []);
 
   const logout = async () => {
+    usePlayerStore.getState().resetUserLibrary();
     await signOut(auth);
     setAvatarOpen(false);
     router.push("/login");

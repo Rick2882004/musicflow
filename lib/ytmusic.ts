@@ -42,17 +42,25 @@ export async function searchArtists(query: string) {
 export async function searchAlbums(query: string) {
   await initializeYTMusic();
   const results = await ytmusic.searchAlbums(query);
-  return results.map((album: any) => ({ // eslint-disable-line @typescript-eslint/no-explicit-any
-    albumId: album.albumId || album.browseId || "",
-    browseId: album.albumId || album.browseId || "",
-    playlistId: album.playlistId || "",
-    name: album.name,
-    artist: album.artist?.name || album.artist || "Unknown Artist",
-    year: album.year || null,
-    thumbnail:
-      album.thumbnails?.[album.thumbnails.length - 1]?.url ||
-      "",
-  }));
+  return results
+    .filter(
+      (album: any) => // eslint-disable-line @typescript-eslint/no-explicit-any
+        (album.albumId || album.browseId) &&
+        album.name &&
+        typeof album.name === "string" &&
+        album.name.trim() !== ""
+    )
+    .map((album: any) => ({ // eslint-disable-line @typescript-eslint/no-explicit-any
+      albumId: album.albumId || album.browseId || "",
+      browseId: album.albumId || album.browseId || "",
+      playlistId: album.playlistId || "",
+      name: album.name,
+      artist: album.artist?.name || album.artist || "Unknown Artist",
+      year: album.year || null,
+      thumbnail:
+        album.thumbnails?.[album.thumbnails.length - 1]?.url ||
+        "",
+    }));
 }
 
 export async function getArtistDetails(artistId: string) {

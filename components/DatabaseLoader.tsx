@@ -28,9 +28,9 @@ export default function DatabaseLoader() {
           loadPlaylists(),
         ]);
 
-        if (likes.length > 0) setLikedSongs(likes);
-        if (recents.length > 0) setRecentSongs(recents);
-        if (playlists.length > 0) setPlaylists(playlists);
+        setLikedSongs(likes || []);
+        setRecentSongs(recents || []);
+        setPlaylists(playlists || []);
       } catch {
         // Keep local store data intact on cloud error/offline
       }

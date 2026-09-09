@@ -44,13 +44,18 @@ export default function ArtistPage() {
   const [showAllAlbums, setShowAllAlbums] = useState(false);
   const [showAllSingles, setShowAllSingles] = useState(false);
   const [showAllCompilations, setShowAllCompilations] = useState(false);
+  const [discoverySections, setDiscoverySections] = useState<import("@/lib/ai/discovery/types").DiscoverySection[]>([]);
 
-  const { setQueue, setTrack, followedArtists, toggleFollowArtist } = usePlayerStore(
+  const { setQueue, setTrack, followedArtists, toggleFollowArtist, likedSongs, recentSongs, history, skips } = usePlayerStore(
     useShallow((s) => ({
       setQueue: s.setQueue,
       setTrack: s.setTrack,
       followedArtists: s.followedArtists,
       toggleFollowArtist: s.toggleFollowArtist,
+      likedSongs: s.likedSongs,
+      recentSongs: s.recentSongs,
+      history: s.history,
+      skips: s.skips,
     }))
   );
 
@@ -87,6 +92,34 @@ export default function ArtistPage() {
             artistProfileCache.set(`artist:${data.artistId}`, { data, timestamp: Date.now() });
           }
         }
+
+        // Load intelligent discovery sections for this artist
+        fetch("/api/ai/discovery", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            page: "artist",
+            pageEntity: {
+              name: artistName,
+              type: "artist",
+            },
+            signals: {
+              likedSongs,
+              recentSongs,
+              history,
+              followedArtists,
+              skips,
+            },
+            limit: 15,
+          }),
+        })
+          .then((r) => (r.ok ? r.json() : null))
+          .then((d) => {
+            if (isMounted && d?.sections) {
+              setDiscoverySections(d.sections);
+            }
+          })
+          .catch(() => null);
       } catch (err) {
         console.error("Artist profile fetch error:", err);
       } finally {
@@ -99,6 +132,7 @@ export default function ArtistPage() {
     return () => {
       isMounted = false;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [artistName, artistId, cacheKey]);
 
   const toggleFollow = () => {
@@ -761,6 +795,76 @@ export default function ArtistPage() {
           </div>
         </section>
       )}
+
+      {/* Dynamic AI Discovery Sections for Artist */}
+      {discoverySections.map((section) => (
+        <section key={section.sectionId} className="mf-section">
+          <div className="mf-section-header">
+            <div>
+              {section.subtitle && (
+                <p
+                  className="text-[9px] font-black uppercase mb-1"
+                  style={{ letterSpacing: "0.18em", color: "var(--mf-text-dim)" }}
+                >
+                  {section.subtitle}
+                </p>
+              )}
+              <h2 className="mf-section-title">{section.title}</h2>
+            </div>
+            {section.reason && (
+              <span className="text-[10px] font-bold text-purple-400">
+                ✨ {section.reason}
+              </span>
+            )}
+          </div>
+          <div className="mf-rail -mx-4 md:-mx-8 px-4 md:px-8">
+            {section.tracks.map((track, idx) => (
+              <motion.div
+                key={`${track.videoId}-${idx}`}
+                whileHover={{ y: -5 }}
+                onClick={() => playSong(track, idx)}
+                className="group shrink-0 w-[150px] md:w-[170px] flex flex-col gap-2.5 cursor-pointer text-left focus:outline-none"
+              >
+                <div
+                  className="relative rounded-[16px] overflow-hidden aspect-square transition-all duration-300"
+                  style={{
+                    background: "var(--mf-bg-card)",
+                    border: "1px solid var(--mf-border)",
+                    boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
+                  }}
+                >
+                  <SafeImage
+                    src={track.thumbnail}
+                    videoId={track.videoId}
+                    alt={track.title}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                    fallbackType="song"
+                  />
+                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                    <div
+                      className="w-9 h-9 rounded-full flex items-center justify-center shadow-md"
+                      style={{ background: "var(--mf-accent)", color: "#fff" }}
+                    >
+                      <Play size={12} fill="currentColor" className="ml-0.5" />
+                    </div>
+                  </div>
+                </div>
+                <div className="px-0.5">
+                  <p
+                    className="text-[12px] font-bold truncate leading-tight transition-colors"
+                    style={{ color: "var(--mf-text-primary)" }}
+                  >
+                    {track.title}
+                  </p>
+                  <p className="text-[10px] font-medium truncate mt-0.5" style={{ color: "var(--mf-text-muted)" }}>
+                    {track.artist}
+                  </p>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        </section>
+      ))}
 
       {artist && (
         <ShareModal

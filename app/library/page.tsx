@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePlayerStore } from "@/store/player-store";
 import { useShallow } from "zustand/react/shallow";
-import ProtectedRoute from "../../src/components/auth/ProtectedRoute";
+import { GuestSyncBanner } from "@/components/ui/GuestSyncBanner";
 import { motion } from "framer-motion";
 import {
   ListMusic,
@@ -65,11 +65,9 @@ export default function LibraryPage() {
 
   if (!mounted) {
     return (
-      <ProtectedRoute>
-        <div className="h-screen flex items-center justify-center">
-          <div className="text-zinc-500 text-sm font-bold animate-pulse">Loading Your Library...</div>
-        </div>
-      </ProtectedRoute>
+      <div className="h-screen flex items-center justify-center">
+        <div className="text-zinc-500 text-sm font-bold animate-pulse">Loading Your Library...</div>
+      </div>
     );
   }
 
@@ -100,11 +98,11 @@ export default function LibraryPage() {
   );
 
   return (
-    <ProtectedRoute>
-      <main className="min-h-screen pb-36 text-white text-left space-y-8 select-none">
-        {/* 1. Clean Music Header */}
-        <section className="px-4 md:px-8 pt-4 pb-1">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-white/[0.06]">
+    <main className="min-h-screen pb-36 text-white text-left space-y-8 select-none">
+      {/* 1. Clean Music Header */}
+      <section className="px-4 md:px-8 pt-4 pb-1">
+        <GuestSyncBanner />
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-white/[0.06]">
             <div>
               <h1 className="text-2xl md:text-3xl font-black text-white tracking-tight">
                 Your Library
@@ -578,6 +576,5 @@ export default function LibraryPage() {
           )}
         </section>
       </main>
-    </ProtectedRoute>
   );
 }

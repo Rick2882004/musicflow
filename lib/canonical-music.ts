@@ -18,6 +18,7 @@ import {
 } from "@/lib/itunes";
 import {
   searchSongs,
+  searchAlbums as ytSearchAlbums,
   searchArtists as ytSearchArtists,
   getArtistDetails as ytGetArtistDetails,
   getAlbumDetails as ytGetAlbumDetails,
@@ -51,6 +52,16 @@ const pendingArtistSearches = new Map<string, Promise<CanonicalArtistSummary[]>>
 const pendingArtistLookups = new Map<string, Promise<Artist | null>>();
 const pendingAlbumLookups = new Map<string, Promise<Album | null>>();
 const pendingVideoResolutions = new Map<string, Promise<string>>();
+
+async function runInBatches<T, R>(items: T[], batchSize: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+  const results: R[] = [];
+  for (let i = 0; i < items.length; i += batchSize) {
+    const batch = items.slice(i, i + batchSize);
+    const batchResults = await Promise.all(batch.map(fn));
+    results.push(...batchResults);
+  }
+  return results;
+}
 
 // ── Playback Bridge: Resolve YouTube Music videoId with Candidate Scoring ──
 export async function resolvePlayableYouTubeId(
@@ -534,9 +545,11 @@ export async function getCanonicalArtistDetails(params: { artistId?: string; nam
           if (candidateSongs.length >= 25) break;
         }
 
-        // Concurrently resolve playable YouTube videoIds for top songs with duration matching
-        const songs: Track[] = await Promise.all(
-          candidateSongs.map(async (s) => {
+        // Resolve playable YouTube videoIds in chunks of 5 to avoid rate limits
+        const songs: Track[] = await runInBatches(
+          candidateSongs,
+          5,
+          async (s) => {
             const cleanT = cleanTrackTitle(s.trackName || "");
             const songArtist = s.artistName || artistName;
             const artwork = toHighResArtwork(s.artworkUrl100, 600) || s.artworkUrl100 || "";
@@ -553,7 +566,7 @@ export async function getCanonicalArtistDetails(params: { artistId?: string; nam
               duration: durationSec || 0,
               thumbnail: artwork,
             };
-          })
+          }
         );
 
         const artistPortrait = deezerInfo.image || albums[0]?.thumbnail || singles[0]?.thumbnail || "";
@@ -619,8 +632,35 @@ export async function getCanonicalArtistDetails(params: { artistId?: string; nam
   return promise;
 }
 
+// ── Fake / Synthetic Album ID Guard ──
+const KNOWN_FAKE_ALBUM_IDS = new Set([
+  "mpreb_htioxexz0cj",
+  "mpreb_fckweh9gnwf",
+  "mpreb_aak6b9fga6u",
+  "mpreb_htioxexz0ck",
+  "mpreb_htioxexz0cl",
+  "mpreb_htioxexz0cm",
+]);
+
+export function isFakeAlbumId(id: string): boolean {
+  if (!id) return true;
+  const clean = id.replace(/^itunes-/, "").trim().toLowerCase();
+  if (KNOWN_FAKE_ALBUM_IDS.has(clean)) return true;
+  if (
+    clean.startsWith("fake-") ||
+    clean.startsWith("mock-") ||
+    clean.startsWith("dummy-") ||
+    clean.startsWith("sample-")
+  ) {
+    return true;
+  }
+  return false;
+}
+
 // ── Canonical Album Details Lookup (Generic Worldwide) ──
 export async function getCanonicalAlbumDetails(albumId: string): Promise<Album | null> {
+  if (!albumId || isFakeAlbumId(albumId)) return null;
+
   const cleanId = albumId.replace(/^itunes-/, "").trim();
   const isNumeric = /^\d+$/.test(cleanId);
 
@@ -647,13 +687,16 @@ export async function getCanonicalAlbumDetails(albumId: string): Promise<Album |
 
         const albumMeta = results[0];
         const rawTracks = results.slice(1);
+        if (rawTracks.length === 0) return null;
 
         const artwork = toHighResArtwork(albumMeta.artworkUrl100, 1000) || albumMeta.artworkUrl100 || "";
         const releaseYear = albumMeta.releaseDate ? new Date(albumMeta.releaseDate).getFullYear() : undefined;
 
-        // Concurrently resolve playable videoIds for album tracks with duration
-        const songs: Track[] = await Promise.all(
-          rawTracks.map(async (t) => {
+        // Resolve playable videoIds for album tracks in chunks of 5 with duration
+        const songs: Track[] = await runInBatches(
+          rawTracks,
+          5,
+          async (t) => {
             const cleanT = cleanTrackTitle(t.trackName || "");
             const artistName = t.artistName || albumMeta.artistName || "Unknown Artist";
             const durationSec = t.trackTimeMillis ? Math.round(t.trackTimeMillis / 1000) : undefined;
@@ -670,8 +713,10 @@ export async function getCanonicalAlbumDetails(albumId: string): Promise<Album |
               duration: durationSec || 0,
               thumbnail: trackArt || artwork,
             };
-          })
+          }
         );
+
+        if (songs.length === 0) return null;
 
         const albumRecord: Album = {
           albumId: String(cleanId),
@@ -695,7 +740,14 @@ export async function getCanonicalAlbumDetails(albumId: string): Promise<Album |
 
       // ── 2. Fallback: YouTube Music Album Lookup ──
       const ytAlbum = await ytGetAlbumDetails(cleanId);
-      if (ytAlbum) {
+      // Strictly verify that the album actually exists in YouTube Music and has songs
+      if (
+        ytAlbum &&
+        ytAlbum.name &&
+        ytAlbum.name.trim() !== "" &&
+        ytAlbum.songs &&
+        ytAlbum.songs.length > 0
+      ) {
         albumDetailCache.set(cacheKey, { data: ytAlbum, timestamp: Date.now() });
         return ytAlbum;
       }
@@ -712,3 +764,95 @@ export async function getCanonicalAlbumDetails(albumId: string): Promise<Album |
   pendingAlbumLookups.set(cacheKey, promise);
   return promise;
 }
+
+// ── Search Real Canonical Albums (iTunes + YouTube Music Merged) ──
+export async function searchCanonicalAlbums(query: string): Promise<Album[]> {
+  if (!query || !query.trim()) return [];
+
+  try {
+    const itunesPromise = (async () => {
+      try {
+        const url = `https://itunes.apple.com/search?term=${encodeURIComponent(query)}&entity=album&limit=15`;
+        const res = await fetch(url, { next: { revalidate: 86400 } });
+        if (!res.ok) return [];
+        const data = await res.json();
+        interface ItunesAlbumItem {
+          collectionId?: number | string;
+          collectionName?: string;
+          artistName?: string;
+          artistId?: number | string;
+          artworkUrl100?: string;
+          releaseDate?: string;
+          trackCount?: number;
+          primaryGenreName?: string;
+          copyright?: string;
+        }
+        const results: ItunesAlbumItem[] = (data.results || []) as ItunesAlbumItem[];
+        return results
+          .filter((item) => item.collectionId && item.collectionName && !isFakeAlbumId(String(item.collectionId)))
+          .map((item) => {
+            const rawArt = item.artworkUrl100 || "";
+            const artwork = toHighResArtwork(rawArt, 1000) || rawArt;
+            return {
+              albumId: String(item.collectionId),
+              browseId: String(item.collectionId),
+              name: item.collectionName,
+              artist: {
+                name: item.artistName || "Unknown Artist",
+                artistId: item.artistId ? String(item.artistId) : null,
+              },
+              year: item.releaseDate ? new Date(item.releaseDate).getFullYear() : undefined,
+              trackCount: item.trackCount,
+              thumbnail: artwork,
+              thumbnails: artwork ? [{ url: artwork }] : [],
+              genre: item.primaryGenreName,
+              copyright: item.copyright,
+            } as Album;
+          });
+      } catch (err) {
+        console.warn("iTunes album search error:", err);
+        return [];
+      }
+    })();
+
+    const ytPromise = ytSearchAlbums(query)
+      .then((ytResults) =>
+        ytResults
+          .filter((a) => a.albumId && a.name && a.thumbnail && !isFakeAlbumId(a.albumId))
+          .map(
+            (a) =>
+              ({
+                albumId: a.albumId,
+                browseId: a.browseId,
+                playlistId: a.playlistId,
+                name: a.name,
+                artist: { name: a.artist },
+                year: a.year,
+                thumbnail: a.thumbnail,
+                thumbnails: a.thumbnail ? [{ url: a.thumbnail }] : [],
+              } as Album)
+          )
+      )
+      .catch(() => []);
+
+    const [itunesAlbums, ytAlbums] = await Promise.all([itunesPromise, ytPromise]);
+
+    // Merge and deduplicate by normalized name + artist
+    const seen = new Set<string>();
+    const combined: Album[] = [];
+
+    for (const alb of [...itunesAlbums, ...ytAlbums]) {
+      if (!alb.albumId || !alb.name || isFakeAlbumId(alb.albumId)) continue;
+      const key = `${normalizeString(alb.name)}:::${normalizeString(alb.artist?.name || "")}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      combined.push(alb);
+    }
+
+    return combined;
+  } catch (error) {
+    console.error("searchCanonicalAlbums error:", error);
+    return [];
+  }
+}
+

@@ -6,6 +6,7 @@ export interface Track {
   duration?: number;
   album?: string;
   albumId?: string;
+  recommendationReason?: string;
 }
 
 export interface Playlist {

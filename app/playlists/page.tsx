@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { usePlayerStore } from "@/store/player-store";
 import { useShallow } from "zustand/react/shallow";
-import ProtectedRoute from "../../src/components/auth/ProtectedRoute";
+import { GuestSyncBanner } from "@/components/ui/GuestSyncBanner";
 import { motion, AnimatePresence, type Variants } from "framer-motion";
 import { ListMusic, Plus, Search, Play, Music, MoreHorizontal, X } from "lucide-react";
 import { Playlist } from "@/types/music";
@@ -59,11 +59,9 @@ export default function PlaylistsPage() {
 
   if (!mounted) {
     return (
-      <ProtectedRoute>
-        <div className="h-screen flex items-center justify-center">
-          <div className="text-zinc-450 text-xl font-bold animate-pulse">Loading Playlists...</div>
-        </div>
-      </ProtectedRoute>
+      <div className="h-screen flex items-center justify-center">
+        <div className="text-zinc-450 text-xl font-bold animate-pulse">Loading Playlists...</div>
+      </div>
     );
   }
 
@@ -82,12 +80,11 @@ export default function PlaylistsPage() {
   };
 
   return (
-    <ProtectedRoute>
-      <main className="min-h-screen pb-36 text-white text-left space-y-6" style={{ background: "#07070A" }}>
-
-        {/* 1. Hero Section */}
-        <section className="relative px-4 md:px-8 pt-4 pb-2 border-b border-white/[0.06]">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <main className="min-h-screen pb-36 text-white text-left space-y-6" style={{ background: "#07070A" }}>
+      {/* 1. Hero Section */}
+      <section className="relative px-4 md:px-8 pt-4 pb-2 border-b border-white/[0.06]">
+        <GuestSyncBanner />
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
               <h1 className="text-2xl md:text-3xl font-black tracking-tight text-white select-none">
                 Your Playlists
@@ -348,6 +345,5 @@ export default function PlaylistsPage() {
         </button>
 
       </main>
-    </ProtectedRoute>
   );
 }

@@ -34,23 +34,12 @@ const GENRES = [
   { name: "Sleep", emoji: "🌙", color: "hover:border-cyan-500/30 hover:bg-cyan-500/5 hover:text-cyan-300" },
 ];
 
-const TRENDING_ALBUMS = [
-  { id: "MPREb_HtIOxExZ0cj", title: "Arijit Singh Hits", artist: "Arijit Singh", image: "https://img.youtube.com/vi/T94PHkuyd8c/hqdefault.jpg" },
-  { id: "MPREb_FCKWeH9GnWF", title: "Jigra Collection", artist: "Achint", image: "https://yt3.googleusercontent.com/F8s9lSInfQQu6PvEl23by6_KPoazHLcjk4226uEZqcabT7w_QQP4IX8nxutH5pLJOtwAi32VfMhRJPo=w226-h226-l90-rj" },
-  { id: "MPREb_aak6B9FGA6U", title: "Bollywood Essentials", artist: "Various Artists", image: "https://yt3.googleusercontent.com/FPXzFBDqz2viDjL-yyPFSVLyzc8dv9uLHBVyJIfSc1hTQiGe6Lie2fbVRhMjpYtMD1NLcNo_l3T9Mg=w226-h226-l90-rj" },
-  { id: "MPREb_HtIOxExZ0ck", title: "Lofi Bollywood", artist: "Lofi Fruit", image: "https://img.youtube.com/vi/JgP0vE3D-g8/hqdefault.jpg" },
-];
+import { isFakeAlbumId } from "@/lib/canonical-music";
 
 const FEATURED_PLAYLISTS = [
   { id: "chill", title: "Late Night Chill", desc: "Soothing lo-fi beats and soft melodies.", count: 28, image: "https://img.youtube.com/vi/JgP0vE3D-g8/hqdefault.jpg" },
   { id: "morning", title: "Morning Energy", desc: "Upbeat tracks to jumpstart your day.", count: 35, image: "https://img.youtube.com/vi/V0KD0nDkbpM/hqdefault.jpg" },
   { id: "focus", title: "Focus Flow", desc: "Ambient noise and clean instrumentals.", count: 42, image: "https://img.youtube.com/vi/T94PHkuyd8c/hqdefault.jpg" },
-];
-
-const NEW_RELEASES = [
-  { id: "MPREb_FCKWeH9GnWF", title: "Jigra Collection", artist: "Achint", image: "https://yt3.googleusercontent.com/F8s9lSInfQQu6PvEl23by6_KPoazHLcjk4226uEZqcabT7w_QQP4IX8nxutH5pLJOtwAi32VfMhRJPo=w226-h226-l90-rj" },
-  { id: "MPREb_aak6B9FGA6U", title: "Bollywood Essentials", artist: "Various Artists", image: "https://yt3.googleusercontent.com/FPXzFBDqz2viDjL-yyPFSVLyzc8dv9uLHBVyJIfSc1hTQiGe6Lie2fbVRhMjpYtMD1NLcNo_l3T9Mg=w226-h226-l90-rj" },
-  { id: "MPREb_HtIOxExZ0ck", title: "Lofi Bollywood", artist: "Lofi Fruit", image: "https://img.youtube.com/vi/JgP0vE3D-g8/hqdefault.jpg" },
 ];
 
 const MOODS = [
@@ -65,24 +54,6 @@ const MOODS = [
 const EDITORS_PICKS = [
   { id: "pick1", title: "Acoustic Sunset", artist: "Various Artists", image: "https://img.youtube.com/vi/V0KD0nDkbpM/hqdefault.jpg" },
   { id: "pick2", title: "Retro Synths", artist: "Synthwave Club", image: "https://img.youtube.com/vi/JgP0vE3D-g8/hqdefault.jpg" },
-];
-
-const MOCK_PODCASTS = [
-  { id: "pod1", title: "The Huberman Lab", host: "Dr. Andrew Huberman", image: "https://images.unsplash.com/photo-1590602847861-f357a9332bbc?w=500&q=80", desc: "Neuroscience and science-based tools for everyday life." },
-  { id: "pod2", title: "Lex Fridman Podcast", host: "Lex Fridman", image: "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&q=80", desc: "Conversations about science, tech, history, and philosophy." },
-  { id: "pod3", title: "The Daily", host: "The New York Times", image: "https://images.unsplash.com/photo-1478737270239-2f02b77fc618?w=500&q=80", desc: "This is what the news should sound like. Twenty minutes a day." },
-];
-
-const MOCK_AUDIOBOOKS = [
-  { id: "ab1", title: "Atomic Habits", author: "James Clear", image: "https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=500&q=80", duration: "5h 35m", desc: "An easy and proven way to build good habits and break bad ones." },
-  { id: "ab2", title: "The Creative Act", author: "Rick Rubin", image: "https://images.unsplash.com/photo-1497633762265-9d179a990aa6?w=500&q=80", duration: "6h 12m", desc: "A beautiful and inspiring book about creativity and art." },
-  { id: "ab3", title: "Greenlights", author: "Matthew McConaughey", image: "https://images.unsplash.com/photo-1512820790803-83ca734da794?w=500&q=80", duration: "7h 04m", desc: "An album of Matthew McConaughey's life, lessons, and stories." },
-];
-
-const MOCK_RADIO = [
-  { id: "rad1", title: "BBC Radio 1", freq: "98.1 FM", image: "https://images.unsplash.com/photo-1516280440614-37939bbacd81?w=500&q=80", desc: "Hot new UK chart hits and music news." },
-  { id: "rad2", title: "Jazz FM", freq: "102.5 FM", image: "https://images.unsplash.com/photo-1511192336575-5a79af67a629?w=500&q=80", desc: "Smooth jazz and classical instrumentals." },
-  { id: "rad3", title: "NPR News Radio", freq: "89.3 FM", image: "https://images.unsplash.com/photo-1598488035139-bdbb2231ce04?w=500&q=80", desc: "National Public Radio news and discussions." },
 ];
 
 function formatDur(s: number = 0) {
@@ -101,14 +72,19 @@ export default function ExplorePage() {
   const [chartTracks, setChartTracks] = useState<ChartTrack[]>([]);
   const [chartArtists, setChartArtists] = useState<ChartArtist[]>([]);
   const [chartAlbums, setChartAlbums] = useState<ChartAlbum[]>([]);
+  const [discoverySections, setDiscoverySections] = useState<import("@/lib/ai/discovery/types").DiscoverySection[]>([]);
   const [chartsLoading, setChartsLoading] = useState(true);
 
-  const { setTrack, setQueue, queue, likedSongs, toggleLike, videoId, isPlaying } = usePlayerStore(
+  const { setTrack, setQueue, queue, likedSongs, recentSongs, history, followedArtists, skips, toggleLike, videoId, isPlaying } = usePlayerStore(
     useShallow((s) => ({
       setTrack: s.setTrack,
       setQueue: s.setQueue,
       queue: s.queue,
       likedSongs: s.likedSongs,
+      recentSongs: s.recentSongs,
+      history: s.history,
+      followedArtists: s.followedArtists,
+      skips: s.skips,
       toggleLike: s.toggleLike,
       videoId: s.videoId,
       isPlaying: s.isPlaying,
@@ -117,28 +93,58 @@ export default function ExplorePage() {
 
   useEffect(() => {
     let isMounted = true;
-    async function loadCharts() {
+    async function loadExploreData() {
       try {
         setChartsLoading(true);
-        const res = await fetch("/api/charts");
-        if (res.ok) {
-          const json = await res.json();
+        const [chartsRes, discRes] = await Promise.all([
+          fetch("/api/charts"),
+          fetch("/api/ai/discovery", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              page: "browse",
+              signals: {
+                likedSongs,
+                recentSongs,
+                history,
+                followedArtists,
+                skips,
+              },
+              limit: 15,
+            }),
+          }).catch(() => null),
+        ]);
+
+        if (chartsRes.ok) {
+          const json = await chartsRes.json();
           if (isMounted) {
             setChartTracks(json.tracks || []);
             setChartArtists(json.artists || []);
-            setChartAlbums(json.albums || []);
+            setChartAlbums(
+              (json.albums || []).filter(
+                (a: ChartAlbum) => a.albumId && a.name && !isFakeAlbumId(a.albumId)
+              )
+            );
+          }
+        }
+
+        if (discRes && discRes.ok) {
+          const discJson = await discRes.json();
+          if (isMounted && discJson?.sections) {
+            setDiscoverySections(discJson.sections);
           }
         }
       } catch (err) {
-        console.error("Charts fetch error:", err);
+        console.error("Explore fetch error:", err);
       } finally {
         if (isMounted) setChartsLoading(false);
       }
     }
-    loadCharts();
+    loadExploreData();
     return () => {
       isMounted = false;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const playSong = (song: Track, index: number) => {
@@ -518,57 +524,124 @@ export default function ExplorePage() {
             </div>
           </section>
 
-          {/* Trending Albums */}
-          <section className="px-4 md:px-10 space-y-6">
-            <div className="flex items-end justify-between">
-              <div>
-                <p className="text-[9px] font-black uppercase tracking-[0.18em] text-zinc-500 mb-1.5">
-                  RELEASES
-                </p>
-                <h2 className="font-display text-[22px] font-black text-white tracking-tight leading-none">
-                  Trending Albums
-                </h2>
+          {/* Dynamic AI Discovery Sections */}
+          {discoverySections.map((section) => (
+            <section key={section.sectionId} className="px-4 md:px-10 space-y-6">
+              <div className="flex items-end justify-between">
+                <div>
+                  {section.subtitle && (
+                    <p className="text-[9px] font-black uppercase tracking-[0.18em] text-zinc-500 mb-1.5">
+                      {section.subtitle}
+                    </p>
+                  )}
+                  <h2 className="font-display text-[22px] font-black text-white tracking-tight leading-none">
+                    {section.title}
+                  </h2>
+                </div>
+                {section.seeAllHref && (
+                  <Link
+                    href={section.seeAllHref}
+                    className="text-[11px] text-zinc-500 hover:text-zinc-350 transition-colors font-bold uppercase tracking-wider"
+                  >
+                    See all
+                  </Link>
+                )}
               </div>
-              <Link
-                href="/search?q=album"
-                className="text-[11px] text-zinc-500 hover:text-zinc-350 transition-colors font-bold uppercase tracking-wider"
-              >
-                See all
-              </Link>
-            </div>
-            <div className="flex gap-5 overflow-x-auto scrollbar-none pb-4 -mx-4 md:-mx-10 px-4 md:px-10">
-              {TRENDING_ALBUMS.map((album) => (
-                <motion.div
-                  key={album.id}
-                  onClick={() => router.push(`/album/${album.id}`)}
-                  whileHover={{ y: -6 }}
-                  className="group shrink-0 w-[160px] md:w-[185px] flex flex-col gap-3 cursor-pointer text-left focus:outline-none"
-                >
-                  <div className="relative rounded-[22px] overflow-hidden bg-zinc-900 aspect-square border border-white/[0.05] group-hover:border-purple-500/30 transition-all duration-300 shadow-[0_8px_28px_rgba(0,0,0,0.6)]">
-                    <SafeImage
-                      src={album.image}
-                      title={album.title}
-                      artist={album.artist}
-                      alt={album.title}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                      fallbackType="album"
-                    />
-                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
-                      <div className="w-11 h-11 rounded-full bg-white flex items-center justify-center text-black shadow-lg">
-                        <Play size={14} fill="black" className="text-black ml-0.5" />
+              <div className="flex gap-4 overflow-x-auto scrollbar-none pb-4 -mx-4 md:-mx-10 px-4 md:px-10">
+                {section.tracks.map((song, idx) => (
+                  <motion.div
+                    key={`${song.videoId}-${idx}`}
+                    whileHover={{ y: -6 }}
+                    onClick={() => {
+                      setQueue(section.tracks);
+                      setTrack(song.videoId, song.title, song.artist, song.thumbnail, idx);
+                    }}
+                    className="group shrink-0 w-[145px] md:w-[165px] p-3 rounded-[20px] bg-white/[0.015] border border-white/[0.04] hover:bg-white/[0.03] hover:border-purple-500/25 transition-all duration-300 cursor-pointer text-left"
+                  >
+                    <div className="relative aspect-square rounded-[14px] overflow-hidden bg-zinc-950 border border-white/5 shadow-sm mb-3">
+                      <SafeImage
+                        src={song.thumbnail}
+                        videoId={song.videoId}
+                        title={song.title}
+                        artist={song.artist}
+                        alt={song.title}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                        fallbackType="song"
+                      />
+                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                        <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center text-black shadow-lg">
+                          <Play size={12} fill="black" className="text-black ml-0.5" />
+                        </div>
                       </div>
                     </div>
-                  </div>
-                  <div className="px-0.5">
-                    <p className="font-display text-[13px] font-bold text-zinc-300 group-hover:text-white transition-colors truncate leading-tight tracking-tight">
-                      {album.title}
+                    <p className="text-[12px] font-bold text-zinc-200 truncate leading-tight group-hover:text-white transition-colors">
+                      {song.title}
                     </p>
-                    <p className="text-[11px] text-zinc-550 font-medium truncate mt-0.5">{album.artist}</p>
-                  </div>
-                </motion.div>
-              ))}
-            </div>
-          </section>
+                    <p className="text-[10px] text-zinc-500 truncate mt-0.5">{song.artist}</p>
+                    {song.recommendationReason && (
+                      <span className="text-[9px] font-bold uppercase tracking-wider text-purple-400 block mt-1.5 truncate">
+                        ✨ {song.recommendationReason}
+                      </span>
+                    )}
+                  </motion.div>
+                ))}
+              </div>
+            </section>
+          ))}
+
+          {/* Trending Albums (Real Catalog Only) */}
+          {chartAlbums.length > 0 && (
+            <section className="px-4 md:px-10 space-y-6">
+              <div className="flex items-end justify-between">
+                <div>
+                  <p className="text-[9px] font-black uppercase tracking-[0.18em] text-zinc-500 mb-1.5">
+                    RELEASES
+                  </p>
+                  <h2 className="font-display text-[22px] font-black text-white tracking-tight leading-none">
+                    Trending Albums
+                  </h2>
+                </div>
+                <Link
+                  href="/search?q=album"
+                  className="text-[11px] text-zinc-500 hover:text-zinc-350 transition-colors font-bold uppercase tracking-wider"
+                >
+                  See all
+                </Link>
+              </div>
+              <div className="flex gap-5 overflow-x-auto scrollbar-none pb-4 -mx-4 md:-mx-10 px-4 md:px-10">
+                {chartAlbums.map((album) => (
+                  <motion.div
+                    key={album.albumId}
+                    onClick={() => router.push(`/album/${album.albumId}`)}
+                    whileHover={{ y: -6 }}
+                    className="group shrink-0 w-[160px] md:w-[185px] flex flex-col gap-3 cursor-pointer text-left focus:outline-none"
+                  >
+                    <div className="relative rounded-[22px] overflow-hidden bg-zinc-900 aspect-square border border-white/[0.05] group-hover:border-purple-500/30 transition-all duration-300 shadow-[0_8px_28px_rgba(0,0,0,0.6)]">
+                      <SafeImage
+                        src={album.thumbnail}
+                        title={album.name}
+                        artist={album.artist}
+                        alt={album.name}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                        fallbackType="album"
+                      />
+                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
+                        <div className="w-11 h-11 rounded-full bg-white flex items-center justify-center text-black shadow-lg">
+                          <Play size={14} fill="black" className="text-black ml-0.5" />
+                        </div>
+                      </div>
+                    </div>
+                    <div className="px-0.5">
+                      <p className="font-display text-[13px] font-bold text-zinc-300 group-hover:text-white transition-colors truncate leading-tight tracking-tight">
+                        {album.name}
+                      </p>
+                      <p className="text-[11px] text-zinc-550 font-medium truncate mt-0.5">{album.artist}</p>
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+            </section>
+          )}
 
           {/* Featured Playlists */}
           <section className="px-4 md:px-10 space-y-6">
@@ -615,52 +688,57 @@ export default function ExplorePage() {
           {/* Popular Artists */}
           <PopularArtists />
 
-          {/* New Releases */}
-          <section className="px-4 md:px-10 space-y-6">
-            <div className="flex items-end justify-between">
-              <div>
-                <p className="text-[9px] font-black uppercase tracking-[0.18em] text-zinc-500 mb-1.5">
-                  FRESH MUSIC
-                </p>
-                <h2 className="font-display text-[22px] font-black text-white tracking-tight leading-none">
-                  New Releases
-                </h2>
-              </div>
-              <Link
-                href="/search?q=hits"
-                className="text-[11px] text-zinc-500 hover:text-zinc-350 transition-colors font-bold uppercase tracking-wider"
-              >
-                See all
-              </Link>
-            </div>
-            <div className="flex gap-5 overflow-x-auto scrollbar-none pb-4 -mx-4 md:-mx-10 px-4 md:px-10">
-              {NEW_RELEASES.map((album) => (
-                <motion.div
-                  key={`new-${album.id}`}
-                  whileHover={{ y: -6 }}
-                  onClick={() => router.push(`/album/${album.id}`)}
-                  className="group shrink-0 w-[140px] md:w-[160px] flex flex-col gap-3 cursor-pointer text-left focus:outline-none"
+          {/* New Releases (Real Music Only) */}
+          {chartTracks.length > 8 && (
+            <section className="px-4 md:px-10 space-y-6">
+              <div className="flex items-end justify-between">
+                <div>
+                  <p className="text-[9px] font-black uppercase tracking-[0.18em] text-zinc-500 mb-1.5">
+                    FRESH MUSIC
+                  </p>
+                  <h2 className="font-display text-[22px] font-black text-white tracking-tight leading-none">
+                    New Releases
+                  </h2>
+                </div>
+                <Link
+                  href="/search?q=hits"
+                  className="text-[11px] text-zinc-500 hover:text-zinc-350 transition-colors font-bold uppercase tracking-wider"
                 >
-                  <div className="relative rounded-[20px] overflow-hidden bg-zinc-900 aspect-square border border-white/[0.05] group-hover:border-purple-500/30 transition-all duration-300 shadow-[0_8px_24px_rgba(0,0,0,0.5)]">
-                    <SafeImage
-                      src={album.image}
-                      title={album.title}
-                      artist={album.artist}
-                      alt={album.title}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                      fallbackType="album"
-                    />
-                  </div>
-                  <div className="px-0.5">
-                    <p className="font-display text-[12px] font-bold text-zinc-300 group-hover:text-white transition-colors truncate leading-tight tracking-tight">
-                      {album.title}
-                    </p>
-                    <p className="text-[10px] text-zinc-550 font-medium truncate mt-0.5">{album.artist}</p>
-                  </div>
-                </motion.div>
-              ))}
-            </div>
-          </section>
+                  See all
+                </Link>
+              </div>
+              <div className="flex gap-5 overflow-x-auto scrollbar-none pb-4 -mx-4 md:-mx-10 px-4 md:px-10">
+                {chartTracks.slice(8, 16).map((song) => (
+                  <motion.div
+                    key={`new-${song.videoId}`}
+                    whileHover={{ y: -6 }}
+                    onClick={() => {
+                      setQueue([song]);
+                      setTrack(song.videoId, song.title, song.artist, song.thumbnail, 0);
+                    }}
+                    className="group shrink-0 w-[140px] md:w-[160px] flex flex-col gap-3 cursor-pointer text-left focus:outline-none"
+                  >
+                    <div className="relative rounded-[20px] overflow-hidden bg-zinc-900 aspect-square border border-white/[0.05] group-hover:border-purple-500/30 transition-all duration-300 shadow-[0_8px_24px_rgba(0,0,0,0.5)]">
+                      <SafeImage
+                        src={song.thumbnail}
+                        title={song.title}
+                        artist={song.artist}
+                        alt={song.title}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                        fallbackType="song"
+                      />
+                    </div>
+                    <div className="px-0.5">
+                      <p className="font-display text-[12px] font-bold text-zinc-300 group-hover:text-white transition-colors truncate leading-tight tracking-tight">
+                        {song.title}
+                      </p>
+                      <p className="text-[10px] text-zinc-550 font-medium truncate mt-0.5">{song.artist}</p>
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+            </section>
+          )}
 
           {/* Mood Collections */}
           <section className="px-4 md:px-10 space-y-6">
@@ -740,30 +818,14 @@ export default function ExplorePage() {
         </>
       ) : (
         /* Podcasts, Audiobooks, Radio category views */
-        <section className="px-4 md:px-10 space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-            {(activeCategory === "podcasts"
-              ? MOCK_PODCASTS
-              : activeCategory === "audiobooks"
-              ? MOCK_AUDIOBOOKS
-              : MOCK_RADIO
-            ).map((item) => (
-              <motion.div
-                key={item.id}
-                whileHover={{ y: -6 }}
-                onClick={() => router.push(`/search?q=${encodeURIComponent(item.title)}`)}
-                className="p-5 rounded-3xl bg-white/[0.015] border border-white/[0.05] hover:border-purple-500/20 transition-all duration-300 cursor-pointer space-y-4"
-              >
-                <div className="w-full aspect-video rounded-2xl bg-zinc-900 overflow-hidden border border-white/5">
-                  <SafeImage src={item.image} alt={item.title} className="w-full h-full object-cover" fallbackType="album" />
-                </div>
-                <div>
-                  <h3 className="font-display text-[14px] font-bold text-zinc-200 leading-snug">{item.title}</h3>
-                  <p className="text-[11px] text-zinc-550 mt-1">{item.desc}</p>
-                </div>
-              </motion.div>
-            ))}
-          </div>
+        <section className="px-4 md:px-10 py-16 text-center space-y-4">
+          <p className="text-zinc-400 text-sm font-medium">Explore live audio streams for {activeCategory}</p>
+          <button
+            onClick={() => router.push(`/search?q=${encodeURIComponent(activeCategory)}`)}
+            className="px-6 py-2.5 rounded-full bg-white text-black text-xs font-bold hover:bg-zinc-200 transition"
+          >
+            Search {activeCategory.charAt(0).toUpperCase() + activeCategory.slice(1)}
+          </button>
         </section>
       )}
     </main>

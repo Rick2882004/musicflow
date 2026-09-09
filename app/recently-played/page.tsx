@@ -2,7 +2,7 @@
 
 import { usePlayerStore } from "@/store/player-store";
 import { useShallow } from "zustand/react/shallow";
-import ProtectedRoute from "../../src/components/auth/ProtectedRoute";
+import { GuestSyncBanner } from "@/components/ui/GuestSyncBanner";
 import { History, Play, Trash2, CheckCircle, Calendar } from "lucide-react";
 import Link from "next/link";
 import { Track, ListeningHistoryEntry } from "@/types/music";
@@ -106,8 +106,7 @@ export default function RecentlyPlayedPage() {
 
   if (displayHistory.length === 0) {
     return (
-      <ProtectedRoute>
-        <main className="min-h-[70vh] flex flex-col items-center justify-center text-center px-4">
+      <main className="min-h-[70vh] flex flex-col items-center justify-center text-center px-4">
           <div className="w-16 h-16 rounded-full bg-white/[0.04] border border-white/5 flex items-center justify-center text-zinc-500 mb-4">
             <History size={26} />
           </div>
@@ -124,7 +123,6 @@ export default function RecentlyPlayedPage() {
             Explore Music
           </Link>
         </main>
-      </ProtectedRoute>
     );
   }
 
@@ -152,8 +150,8 @@ export default function RecentlyPlayedPage() {
   };
 
   return (
-    <ProtectedRoute>
-      <main className="text-white text-left px-4 md:px-8 pt-4 pb-16 space-y-6">
+    <main className="text-white text-left px-4 md:px-8 pt-4 pb-16 space-y-6">
+      <GuestSyncBanner />
         {/* Toast */}
         {notif && (
           <div className="fixed top-8 left-1/2 -translate-x-1/2 z-[100] px-4 py-2 rounded-xl text-white font-bold text-xs flex items-center gap-2 shadow-2xl bg-purple-600">
@@ -200,6 +198,5 @@ export default function RecentlyPlayedPage() {
           )}
         </div>
       </main>
-    </ProtectedRoute>
   );
 }

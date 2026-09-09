@@ -96,12 +96,17 @@ export async function loadPlaylists(): Promise<Playlist[]> {
       .select("*")
       .eq("user_uid", uid);
       
-    const { data: playlistSongs } = await supabase
-      .from("playlist_songs")
-      .select("*");
+    const rows = (playlists as PlaylistRow[]) || [];
+    const playlistIds = rows.map((p) => p.id);
 
-    const rows = playlists as PlaylistRow[];
-    const songRows = playlistSongs as PlaylistSongRow[];
+    let songRows: PlaylistSongRow[] = [];
+    if (playlistIds.length > 0) {
+      const { data: songsData } = await supabase
+        .from("playlist_songs")
+        .select("*")
+        .in("playlist_id", playlistIds);
+      songRows = (songsData as PlaylistSongRow[]) || [];
+    }
 
     return (
       rows?.map((playlist) => ({

@@ -2,7 +2,7 @@
 
 import { usePlayerStore } from "@/store/player-store";
 import { useShallow } from "zustand/react/shallow";
-import ProtectedRoute from "../../src/components/auth/ProtectedRoute";
+import { GuestSyncBanner } from "@/components/ui/GuestSyncBanner";
 import { motion } from "framer-motion";
 import { Play, Shuffle, Heart, Clock, Search, ArrowUpDown, MoreHorizontal, Volume2, X } from "lucide-react";
 import Link from "next/link";
@@ -29,11 +29,9 @@ export default function LikedSongsPage() {
 
   if (!mounted) {
     return (
-      <ProtectedRoute>
-        <div className="h-screen flex items-center justify-center">
-          <div className="text-zinc-450 text-xl font-bold animate-pulse">Loading Liked Songs...</div>
-        </div>
-      </ProtectedRoute>
+      <div className="h-screen flex items-center justify-center">
+        <div className="text-zinc-450 text-xl font-bold animate-pulse">Loading Liked Songs...</div>
+      </div>
     );
   }
 
@@ -78,8 +76,7 @@ export default function LikedSongsPage() {
   // 1. Empty State
   if (likedSongs.length === 0) {
     return (
-      <ProtectedRoute>
-        <main className="min-h-screen pb-36 text-white" style={{ background: "#07070A" }}>
+      <main className="min-h-screen pb-36 text-white" style={{ background: "#07070A" }}>
           <div className="max-w-7xl mx-auto px-6 md:px-10 pt-20 flex flex-col items-center justify-center min-h-[60vh] text-center">
             <motion.div
               initial={{ opacity: 0, scale: 0.94 }}
@@ -108,15 +105,14 @@ export default function LikedSongsPage() {
             </motion.div>
           </div>
         </main>
-      </ProtectedRoute>
     );
   }
 
   return (
-    <ProtectedRoute>
-      <main className="min-h-screen pb-36 text-white text-left space-y-8 px-4 md:px-8 pt-4">
+    <main className="min-h-screen pb-36 text-white text-left space-y-8 px-4 md:px-8 pt-4">
+      <GuestSyncBanner />
 
-        {/* 2. Hero Header */}
+      {/* 2. Hero Header */}
         <section className="relative pb-4 border-b border-white/[0.06]">
           <div className="flex flex-col sm:flex-row items-start sm:items-end gap-6">
             {/* Artwork Block */}
@@ -318,6 +314,5 @@ export default function LikedSongsPage() {
         </section>
 
       </main>
-    </ProtectedRoute>
   );
 }

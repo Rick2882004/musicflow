@@ -10,6 +10,7 @@ import { Track, Album } from "@/types/music";
 import { SafeImage } from "@/components/ui/SafeImage";
 import { ShareModal } from "@/components/social/ShareModal";
 import { AddToPlaylistModal } from "@/components/ui/AddToPlaylistModal";
+import { isFakeAlbumId } from "@/lib/canonical-music";
 
 function formatDur(s: number = 0) {
   if (!s || isNaN(s)) return "--:--";
@@ -35,36 +36,93 @@ export default function AlbumPage() {
   });
   const [shareOpen, setShareOpen] = useState(false);
   const [playlistSong, setPlaylistSong] = useState<Track | null>(null);
+  const [discoverySections, setDiscoverySections] = useState<import("@/lib/ai/discovery/types").DiscoverySection[]>([]);
 
-  const { setTrack, setQueue, savedAlbums, toggleSaveAlbum } = usePlayerStore(useShallow((s) => ({
+  const { setTrack, setQueue, savedAlbums, toggleSaveAlbum, likedSongs, recentSongs, history, followedArtists, skips } = usePlayerStore(useShallow((s) => ({
     setTrack: s.setTrack,
     setQueue: s.setQueue,
     savedAlbums: s.savedAlbums,
     toggleSaveAlbum: s.toggleSaveAlbum,
+    likedSongs: s.likedSongs,
+    recentSongs: s.recentSongs,
+    history: s.history,
+    followedArtists: s.followedArtists,
+    skips: s.skips,
   })));
 
   useEffect(() => {
     let isMounted = true;
 
     async function loadAlbumData() {
+      if (!albumId || isFakeAlbumId(albumId)) {
+        if (isMounted) {
+          setAlbum(null);
+          setLoading(false);
+        }
+        return;
+      }
+
       const cached = albumDetailsCache.get(albumId);
       if (cached && Date.now() - cached.timestamp < ALBUM_CACHE_TTL) {
-        setAlbum(cached.data);
-        setLoading(false);
-        return;
+        if (cached.data && cached.data.name && cached.data.songs && cached.data.songs.length > 0) {
+          setAlbum(cached.data);
+          setLoading(false);
+          return;
+        } else {
+          albumDetailsCache.delete(albumId);
+        }
       }
 
       setLoading(true);
       try {
         const res = await fetch(`/api/album?id=${encodeURIComponent(albumId)}`);
-        if (!res.ok) throw new Error("Failed to load album details");
+        if (!res.ok) {
+          if (isMounted) setAlbum(null);
+          return;
+        }
         const data: Album = await res.json();
         if (isMounted) {
+          if (!data || !data.name || !data.songs || data.songs.length === 0) {
+            setAlbum(null);
+            return;
+          }
           setAlbum(data);
           albumDetailsCache.set(albumId, { data, timestamp: Date.now() });
+
+          // Fetch intelligent discovery sections grounded in this album
+          fetch("/api/ai/discovery", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              page: "album",
+              pageEntity: {
+                id: albumId,
+                name: data.name,
+                artist: data.artist?.name,
+                type: "album",
+                tracks: data.songs,
+              },
+              signals: {
+                likedSongs,
+                recentSongs,
+                history,
+                followedArtists,
+                skips,
+              },
+              limit: 10,
+            }),
+          })
+            .then((r) => (r.ok ? r.json() : null))
+            .then((d) => {
+              if (isMounted && d?.sections) {
+                setDiscoverySections(d.sections);
+              }
+            })
+            .catch(() => null);
         }
       } catch (err) {
         console.error("Album page fetch error:", err);
+        if (isMounted) setAlbum(null);
       } finally {
         if (isMounted) setLoading(false);
       }
@@ -75,6 +133,7 @@ export default function AlbumPage() {
     return () => {
       isMounted = false;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [albumId]);
 
   const playAlbum = () => {
@@ -336,6 +395,75 @@ export default function AlbumPage() {
           <p className="text-[11px] text-zinc-500 max-w-xs mx-auto">No tracks inside this album yet.</p>
         </div>
       )}
+
+      {/* Dynamic AI Discovery Sections: More Like This Album & Similar Releases */}
+      {discoverySections.map((section) => (
+        <section key={section.sectionId} className="mf-section pt-4">
+          <div className="mf-section-header">
+            <div>
+              {section.subtitle && (
+                <p
+                  className="text-[9px] font-black uppercase mb-1"
+                  style={{ letterSpacing: "0.18em", color: "var(--mf-text-dim)" }}
+                >
+                  {section.subtitle}
+                </p>
+              )}
+              <h2 className="mf-section-title">{section.title}</h2>
+            </div>
+            {section.reason && (
+              <span className="text-[10px] font-bold text-purple-400">
+                ✨ {section.reason}
+              </span>
+            )}
+          </div>
+          <div className="mf-rail -mx-4 md:-mx-8 px-4 md:px-8">
+            {section.tracks.map((track, idx) => (
+              <div
+                key={`${track.videoId}-${idx}`}
+                onClick={() => playSong(track, idx)}
+                className="group shrink-0 w-[150px] md:w-[170px] flex flex-col gap-2.5 cursor-pointer text-left focus:outline-none"
+              >
+                <div
+                  className="relative rounded-[16px] overflow-hidden aspect-square transition-all duration-300"
+                  style={{
+                    background: "var(--mf-bg-card)",
+                    border: "1px solid var(--mf-border)",
+                    boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
+                  }}
+                >
+                  <SafeImage
+                    src={track.thumbnail}
+                    videoId={track.videoId}
+                    alt={track.title}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                    fallbackType="song"
+                  />
+                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                    <div
+                      className="w-9 h-9 rounded-full flex items-center justify-center shadow-md"
+                      style={{ background: "var(--mf-accent)", color: "#fff" }}
+                    >
+                      <Play size={12} fill="currentColor" className="ml-0.5" />
+                    </div>
+                  </div>
+                </div>
+                <div className="px-0.5">
+                  <p
+                    className="text-[12px] font-bold truncate leading-tight transition-colors"
+                    style={{ color: "var(--mf-text-primary)" }}
+                  >
+                    {track.title}
+                  </p>
+                  <p className="text-[10px] font-medium truncate mt-0.5" style={{ color: "var(--mf-text-muted)" }}>
+                    {track.artist}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      ))}
     </main>
   );
 }

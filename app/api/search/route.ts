@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { searchSongs, searchAlbums } from "@/lib/ytmusic";
-import { searchCanonicalArtists } from "@/lib/canonical-music";
+import { searchSongs } from "@/lib/ytmusic";
+import { searchCanonicalArtists, searchCanonicalAlbums, isFakeAlbumId } from "@/lib/canonical-music";
 
 function deduplicateArtists<T extends { artistId?: string; browseId?: string; name: string; thumbnail?: string; image?: string }>(artists: T[]): T[] {
   const seenIds = new Set<string>();
@@ -23,23 +23,23 @@ function deduplicateArtists<T extends { artistId?: string; browseId?: string; na
   return result;
 }
 
-function deduplicateAlbums<T extends { albumId?: string; browseId?: string; name: string; artist?: string }>(albums: T[]): T[] {
+function deduplicateAlbums<T extends { albumId?: string; browseId?: string; name: string; artist?: string | { name?: string } | null; thumbnail?: string }>(albums: T[]): T[] {
   const seenIds = new Set<string>();
   const seenFallbacks = new Set<string>();
   const result: T[] = [];
 
   for (const a of albums) {
     const id = a.albumId || a.browseId;
-    if (id) {
-      if (seenIds.has(id)) continue;
-      seenIds.add(id);
-      result.push(a);
-    } else {
-      const fallbackKey = `${a.name.trim().toLowerCase()}::${(a.artist || "").trim().toLowerCase()}`;
-      if (seenFallbacks.has(fallbackKey)) continue;
-      seenFallbacks.add(fallbackKey);
-      result.push(a);
-    }
+    if (!id || isFakeAlbumId(id) || !a.name || typeof a.name !== "string" || !a.name.trim()) continue;
+
+    const artistStr = typeof a.artist === "string" ? a.artist : a.artist?.name || "";
+    if (seenIds.has(id)) continue;
+    seenIds.add(id);
+
+    const fallbackKey = `${a.name.trim().toLowerCase()}::${artistStr.trim().toLowerCase()}`;
+    if (seenFallbacks.has(fallbackKey)) continue;
+    seenFallbacks.add(fallbackKey);
+    result.push(a);
   }
   return result;
 }
@@ -79,7 +79,7 @@ export async function GET(request: NextRequest) {
     }
 
     if (type === "albums") {
-      const rawAlbums = await searchAlbums(query);
+      const rawAlbums = await searchCanonicalAlbums(query);
       const albums = deduplicateAlbums(rawAlbums);
       return NextResponse.json({ results: albums, albums });
     }
@@ -94,7 +94,7 @@ export async function GET(request: NextRequest) {
     const [songsRes, artistsRes, albumsRes] = await Promise.allSettled([
       searchSongs(query),
       searchCanonicalArtists(query),
-      searchAlbums(query),
+      searchCanonicalAlbums(query),
     ]);
 
     const rawSongs = songsRes.status === "fulfilled" ? songsRes.value : [];

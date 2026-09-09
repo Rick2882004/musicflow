@@ -3,13 +3,15 @@
 import { useState, useEffect, useRef, Suspense, useCallback } from "react";
 import { usePlayerStore } from "@/store/player-store";
 import { useShallow } from "zustand/react/shallow";
-import { Search as SearchIcon, X, Clock, Play, HelpCircle, Mic, ListPlus, ListMusic } from "lucide-react";
+import { Search as SearchIcon, X, Clock, Play, HelpCircle, Mic, ListPlus, ListMusic, Sparkles } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { SafeImage } from "@/components/ui/SafeImage";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Track } from "@/types/music";
+import { SearchIntent } from "@/lib/ai/types";
 import Link from "next/link";
 import { AddToPlaylistModal } from "@/components/ui/AddToPlaylistModal";
+import { isFakeAlbumId } from "@/lib/canonical-music";
 
 const CATEGORIES = [
   { title: "Pop",          bg: "rgba(139,92,246,0.15)",  border: "rgba(139,92,246,0.25)",  text: "#c4b5fd" },
@@ -152,17 +154,65 @@ function SearchContent() {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [isFocused,      setIsFocused]      = useState(false);
   const [isListening,    setIsListening]    = useState(false);
+  const [voiceNotice,    setVoiceNotice]    = useState<string | null>(null);
+  const [searchError,    setSearchError]    = useState<string | null>(null);
+  const [searchIntent,   setSearchIntent]   = useState<SearchIntent | null>(null);
+  const [searchExplanation, setSearchExplanation] = useState<string>("");
+  const [moreLikeThis,   setMoreLikeThis]   = useState<Track[]>([]);
   const [playlistSong,   setPlaylistSong]   = useState<Track | null>(null);
 
   const startVoiceSearch = () => {
-    setIsListening(true);
-    setTimeout(() => {
-      const phrases = ["Kabir Singh", "Lo-Fi study beats", "Arijit Singh Romantic", "Punjabi Hits", "KK Melodies", "Diljit Dosanjh"];
-      const randomPhrase = phrases[Math.floor(Math.random() * phrases.length)];
-      setQuery(randomPhrase);
+    setVoiceNotice(null);
+    if (typeof window === "undefined") return;
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const SpeechRec = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRec) {
+      setVoiceNotice("Voice search is not supported by your browser.");
+      setTimeout(() => setVoiceNotice(null), 4000);
+      return;
+    }
+
+    try {
+      const recognition = new SpeechRec();
+      recognition.lang = "en-US";
+      recognition.interimResults = false;
+      recognition.maxAlternatives = 1;
+
+      setIsListening(true);
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      recognition.onresult = (event: any) => {
+        const transcript = event.results?.[0]?.[0]?.transcript;
+        if (transcript) {
+          setQuery(transcript);
+          executeSearch(transcript);
+        }
+        setIsListening(false);
+      };
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      recognition.onerror = (event: any) => {
+        setIsListening(false);
+        if (event.error === "not-allowed" || event.error === "service-not-allowed") {
+          setVoiceNotice("Microphone permission was denied.");
+        } else if (event.error !== "no-speech") {
+          setVoiceNotice("Voice recognition failed. Please try again.");
+        }
+        setTimeout(() => setVoiceNotice(null), 4000);
+      };
+
+      recognition.onend = () => {
+        setIsListening(false);
+      };
+
+      recognition.start();
+    } catch (err) {
+      console.error("Voice search error:", err);
       setIsListening(false);
-      executeSearch(randomPhrase);
-    }, 2500);
+      setVoiceNotice("Could not initialize voice search.");
+      setTimeout(() => setVoiceNotice(null), 4000);
+    }
   };
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -204,10 +254,34 @@ function SearchContent() {
     }
 
     try {
-      const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
-      if (!res.ok) throw new Error("Failed to load search results");
-      const data = await res.json();
+      // 1. Attempt AI Natural Language Search with intent extraction
+      let data: any; // eslint-disable-line @typescript-eslint/no-explicit-any
+      try {
+        const aiRes = await fetch(`/api/ai/search?q=${encodeURIComponent(q)}`);
+        if (aiRes.ok) {
+          data = await aiRes.json();
+          if (data?.intent) setSearchIntent(data.intent);
+          if (data?.explanation) setSearchExplanation(data.explanation);
+        }
+      } catch {
+        // Fall back to standard search on network / AI route failure
+      }
+
+      // 2. Standard Search fallback if AI response missing tracks
+      if (!data || (!data.results && !data.songs)) {
+        const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
+        if (!res.ok) throw new Error("Failed to load search results");
+        data = await res.json();
+        setSearchIntent(null);
+        setSearchExplanation("");
+      }
+
       const rawTracks: Track[] = data.results || data.songs || [];
+      if (data?.moreLikeThis && Array.isArray(data.moreLikeThis)) {
+        setMoreLikeThis(data.moreLikeThis);
+      } else {
+        setMoreLikeThis([]);
+      }
       const seenVideoIds = new Set<string>();
       const resTracks: Track[] = [];
       for (const t of rawTracks) {
@@ -240,13 +314,15 @@ function SearchContent() {
         }
       }
 
-      const rawAlbums: AlbumItem[] = (data.albums || []).map((alb: { albumId?: string; browseId?: string; name?: string; title?: string; artist?: string; thumbnail?: string; thumbnails?: { url: string }[] }) => ({
-        albumId: alb.albumId || alb.browseId || "",
-        browseId: alb.browseId || alb.albumId || "",
-        name: alb.name || alb.title || "Album",
-        artist: alb.artist || "Unknown Artist",
-        thumbnail: alb.thumbnail || alb.thumbnails?.[0]?.url || "",
-      })).filter((alb: AlbumItem) => !!alb.albumId);
+      const rawAlbums: AlbumItem[] = (data.albums || [])
+        .map((alb: { albumId?: string; browseId?: string; name?: string; title?: string; artist?: string; thumbnail?: string; thumbnails?: { url: string }[] }) => ({
+          albumId: alb.albumId || alb.browseId || "",
+          browseId: alb.browseId || alb.albumId || "",
+          name: (alb.name || alb.title || "").trim(),
+          artist: (alb.artist || "").trim() || "Unknown Artist",
+          thumbnail: alb.thumbnail || alb.thumbnails?.[0]?.url || "",
+        }))
+        .filter((alb: AlbumItem) => !!alb.albumId && alb.name.length > 0 && !isFakeAlbumId(alb.albumId));
       const seenAlbumIds = new Set<string>();
       const resAlbums: AlbumItem[] = [];
       for (const alb of rawAlbums) {
@@ -268,8 +344,10 @@ function SearchContent() {
         albums: resAlbums,
         timestamp: Date.now(),
       });
+      setSearchError(null);
     } catch (error) {
       console.error("Search failed:", error);
+      setSearchError("Unable to load search results. Please check your network and try again.");
     } finally {
       setLoading(false);
     }
@@ -282,7 +360,12 @@ function SearchContent() {
     localStorage.setItem("recent-searches", JSON.stringify(updated));
   };
   const handleSelectSuggestion = (q: string) => { setQuery(q); executeSearch(q); };
-  const playSong = (song: Track, index: number) => { setQueue(results); setTrack(song.videoId, song.title, song.artist, song.thumbnail, index); };
+  const playSong = (song: Track) => {
+    // Queue only the chosen song from search. Smart Queue will continue playback
+    // based on the verified song and user taste profile, preventing search query contamination.
+    setQueue([song]);
+    setTrack(song.videoId, song.title, song.artist, song.thumbnail, 0);
+  };
 
   useEffect(() => {
     const history = localStorage.getItem("recent-searches");
@@ -434,6 +517,15 @@ function SearchContent() {
                 </motion.div>
               )}
             </AnimatePresence>
+
+            {voiceNotice && (
+              <div className="mt-2 px-3 py-1.5 rounded-lg bg-red-500/10 border border-red-500/20 text-red-300 text-[11px] font-medium flex items-center justify-between">
+                <span>{voiceNotice}</span>
+                <button type="button" onClick={() => setVoiceNotice(null)} className="text-red-400 hover:text-white ml-2 cursor-pointer">
+                  <X size={12} />
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Trending Searches */}
@@ -612,9 +704,73 @@ function SearchContent() {
           </div>
         )}
 
+        {/* ── Search Error State ──────────────────────────────── */}
+        {searchError && !loading && (
+          <div className="py-12 flex flex-col items-center justify-center text-center max-w-md mx-auto space-y-3">
+            <div className="w-12 h-12 rounded-2xl bg-red-500/10 border border-red-500/20 flex items-center justify-center text-red-400 mb-1">
+              <SearchIcon size={20} />
+            </div>
+            <h3 className="text-sm font-bold text-white">Search Unavailable</h3>
+            <p className="text-xs text-zinc-400 leading-relaxed">{searchError}</p>
+            <button
+              type="button"
+              onClick={() => executeSearch(query)}
+              className="mt-2 px-4 py-1.5 rounded-full bg-white/10 hover:bg-white/20 text-white text-xs font-bold transition-colors cursor-pointer"
+            >
+              Retry
+            </button>
+          </div>
+        )}
+
         {/* ── 4. Results ──────────────────────────────────────── */}
         {!loading && hasResults && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-10">
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-8">
+
+            {/* AI Intent & Vibe Banner */}
+            {searchExplanation && (
+              <motion.div
+                initial={{ opacity: 0, y: -6 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="p-3.5 rounded-2xl bg-gradient-to-r from-purple-950/40 via-indigo-950/20 to-transparent border border-purple-500/20 flex flex-wrap items-center justify-between gap-2.5"
+              >
+                <div className="flex items-center gap-2.5">
+                  <div className="w-7 h-7 rounded-xl bg-purple-500/20 flex items-center justify-center text-purple-400 shrink-0">
+                    <Sparkles size={14} />
+                  </div>
+                  <div>
+                    <p className="text-[12px] font-bold text-white leading-tight">{searchExplanation}</p>
+                    <p className="text-[10px] text-purple-300/80 font-medium">AI Natural Language Search</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {searchIntent?.mood && (
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-purple-500/10 text-purple-300 border border-purple-500/20">
+                      ✨ {searchIntent.mood}
+                    </span>
+                  )}
+                  {searchIntent?.activity && (
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-500/10 text-blue-300 border border-blue-500/20">
+                      🎯 {searchIntent.activity}
+                    </span>
+                  )}
+                  {searchIntent?.language && (
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">
+                      🗣️ {searchIntent.language}
+                    </span>
+                  )}
+                  {searchIntent?.era && (
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-300 border border-amber-500/20">
+                      ⏳ {searchIntent.era}
+                    </span>
+                  )}
+                  {searchIntent?.genre && (
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-pink-500/10 text-pink-300 border border-pink-500/20">
+                      🎵 {searchIntent.genre}
+                    </span>
+                  )}
+                </div>
+              </motion.div>
+            )}
 
             {/* Filter pills */}
             <div className="flex gap-2 flex-wrap">
@@ -652,6 +808,32 @@ function SearchContent() {
                     />
                   ))}
                 </div>
+
+                {/* More Like This (Central AI Discovery) */}
+                {moreLikeThis.length > 0 && (
+                  <div className="pt-6 space-y-4 border-t border-white/[0.04]">
+                    <div>
+                      <p className="text-[9px] font-black uppercase tracking-[0.18em] text-purple-400 mb-1">
+                        Intelligent Continuation
+                      </p>
+                      <h3 className="font-display text-[18px] font-black text-white tracking-tight flex items-center gap-2">
+                        <Sparkles size={14} className="text-purple-400" />
+                        More Like This
+                      </h3>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                      {moreLikeThis.map((song, i) => (
+                        <SongRow
+                          key={`more-like-${song.videoId}-${i}`}
+                          song={song}
+                          index={i}
+                          onPlay={playSong}
+                          onAddToPlaylist={(s) => setPlaylistSong(s)}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
@@ -704,7 +886,6 @@ function SearchContent() {
                       >
                         <SafeImage
                           src={album.thumbnail}
-                          videoId={album.albumId}
                           title={album.name}
                           artist={album.artist}
                           alt={album.name}

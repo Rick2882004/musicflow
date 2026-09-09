@@ -139,14 +139,19 @@ export default function GenresPage() {
   const router = useRouter();
   const [selectedGenre, setSelectedGenre] = useState<GenreDetail>(GENRE_LIST[0]);
   const [genreTracks, setGenreTracks] = useState<Track[]>([]);
+  const [genreSections, setGenreSections] = useState<import("@/lib/ai/discovery/types").DiscoverySection[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchFilter, setSearchFilter] = useState("");
 
-  const { setTrack, setQueue, likedSongs, toggleLike, videoId, isPlaying } = usePlayerStore(
+  const { setTrack, setQueue, likedSongs, recentSongs, history, followedArtists, skips, toggleLike, videoId, isPlaying } = usePlayerStore(
     useShallow((s) => ({
       setTrack: s.setTrack,
       setQueue: s.setQueue,
       likedSongs: s.likedSongs,
+      recentSongs: s.recentSongs,
+      history: s.history,
+      followedArtists: s.followedArtists,
+      skips: s.skips,
       toggleLike: s.toggleLike,
       videoId: s.videoId,
       isPlaying: s.isPlaying,
@@ -158,12 +163,55 @@ export default function GenresPage() {
     async function loadGenreTracks() {
       setLoading(true);
       try {
+        const discRes = await fetch("/api/ai/discovery", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            page: "genres",
+            pageEntity: {
+              name: selectedGenre.name,
+              type: "genre",
+            },
+            signals: {
+              likedSongs,
+              recentSongs,
+              history,
+              followedArtists,
+              skips,
+            },
+            limit: 20,
+          }),
+        });
+
+        if (discRes.ok) {
+          const data = await discRes.json();
+          if (!isCancelled && data.sections && data.sections.length > 0) {
+            setGenreSections(data.sections);
+            const allTracks = data.sections.flatMap((s: import("@/lib/ai/discovery/types").DiscoverySection) => s.tracks);
+            setGenreTracks(allTracks);
+            setLoading(false);
+            return;
+          }
+        }
+
+        // Fallback to standard search if discovery route empty
         const query = `${selectedGenre.name} Songs Hits`;
         const res = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
         if (res.ok) {
           const data = await res.json();
           if (!isCancelled) {
-            setGenreTracks(data.results?.slice(0, 15) || []);
+            const tracks = data.results?.slice(0, 15) || [];
+            setGenreTracks(tracks);
+            setGenreSections([
+              {
+                sectionId: `genre-fallback-${selectedGenre.id}`,
+                title: `Trending in ${selectedGenre.name}`,
+                subtitle: "Top Songs",
+                type: "genre",
+                tracks,
+                reason: `Popular tracks in ${selectedGenre.name}`,
+              },
+            ]);
           }
         }
       } catch (err) {
@@ -177,6 +225,7 @@ export default function GenresPage() {
     return () => {
       isCancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedGenre]);
 
   const startGenreRadio = () => {
@@ -320,83 +369,96 @@ export default function GenresPage() {
             </div>
           </div>
 
-          {/* Track Listing Table */}
-          <div className="border-t border-white/[0.06] pt-6 space-y-2">
-            <div className="flex items-center justify-between pb-2">
-              <h3 className="font-display text-sm font-bold text-zinc-300 uppercase tracking-wider flex items-center gap-2">
-                <Flame size={14} className="text-orange-400" />
-                Trending in {selectedGenre.name}
-              </h3>
-              <span className="text-[11px] font-mono text-zinc-500 font-bold">
-                {genreTracks.length} Top Songs
-              </span>
-            </div>
-
+          {/* Track Listing Subsections */}
+          <div className="border-t border-white/[0.06] pt-6 space-y-8">
             {loading ? (
               <div className="space-y-3 animate-pulse pt-2">
                 {[1, 2, 3, 4, 5].map((i) => (
                   <div key={i} className="h-14 bg-white/[0.02] border border-white/[0.04] rounded-2xl w-full" />
                 ))}
               </div>
-            ) : genreTracks.length > 0 ? (
-              <div className="space-y-1.5">
-                {genreTracks.map((song, idx) => {
-                  const isCurrent = song.videoId === videoId;
-                  const isCurrentPlaying = isCurrent && isPlaying;
-                  const isLiked = likedSongs.some((s) => s.videoId === song.videoId);
-
-                  return (
-                    <div
-                      key={`${song.videoId}-${idx}`}
-                      onClick={() => playSong(song, idx)}
-                      className="flex items-center justify-between px-3.5 py-2.5 rounded-2xl bg-white/[0.015] border border-white/[0.04] hover:bg-white/[0.04] hover:border-purple-500/20 transition-all duration-150 cursor-pointer group select-none"
-                    >
-                      <div className="flex items-center gap-3.5 min-w-0">
-                        <span className="w-5 text-center text-[11px] font-mono text-zinc-500 group-hover:hidden">
-                          {isCurrentPlaying ? (
-                            <Volume2 size={13} className="text-purple-400 animate-pulse mx-auto" />
-                          ) : (
-                            idx + 1
-                          )}
-                        </span>
-                        <Play size={11} fill="white" className="text-white mx-auto hidden group-hover:block" />
-
-                        <div className="w-10 h-10 rounded-xl overflow-hidden bg-zinc-950 shrink-0 border border-white/5 shadow-sm">
-                          <SafeImage
-                            src={song.thumbnail}
-                            videoId={song.videoId}
-                            alt={song.title}
-                            className="w-full h-full object-cover"
-                            fallbackType="song"
-                          />
-                        </div>
-
-                        <div className="min-w-0 text-left">
-                          <p className={`text-xs font-bold truncate ${isCurrent ? "text-purple-300 font-black" : "text-zinc-200 group-hover:text-white"}`}>
-                            {song.title}
-                          </p>
-                          <p className="text-[10px] text-zinc-500 truncate mt-0.5 font-medium">
-                            {song.artist}
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-3 shrink-0" onClick={(e) => e.stopPropagation()}>
-                        <span className="text-[10px] font-mono text-zinc-500 tabular-nums">
-                          {song.duration ? formatDur(song.duration) : "3:30"}
-                        </span>
-                        <button
-                          onClick={() => toggleLike(song)}
-                          className={`p-1.5 rounded-lg transition ${isLiked ? "text-pink-500" : "text-zinc-600 hover:text-white"}`}
-                          aria-label="Like song"
-                        >
-                          <Heart size={13} fill={isLiked ? "currentColor" : "none"} />
-                        </button>
-                      </div>
+            ) : genreSections.length > 0 ? (
+              genreSections.map((section) => (
+                <div key={section.sectionId} className="space-y-3">
+                  <div className="flex items-center justify-between pb-1">
+                    <div>
+                      {section.subtitle && (
+                        <p className="text-[9px] font-black uppercase tracking-[0.16em] text-zinc-500 mb-0.5">
+                          {section.subtitle}
+                        </p>
+                      )}
+                      <h3 className="font-display text-sm font-bold text-zinc-200 uppercase tracking-wider flex items-center gap-2">
+                        <Flame size={14} className="text-orange-400" />
+                        {section.title}
+                      </h3>
                     </div>
-                  );
-                })}
-              </div>
+                    {section.reason && (
+                      <span className="text-[10px] font-bold text-purple-400 hidden sm:inline">
+                        ✨ {section.reason}
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="space-y-1.5">
+                    {section.tracks.map((song, idx) => {
+                      const isCurrent = song.videoId === videoId;
+                      const isCurrentPlaying = isCurrent && isPlaying;
+                      const isLiked = likedSongs.some((s) => s.videoId === song.videoId);
+
+                      return (
+                        <div
+                          key={`${song.videoId}-${idx}`}
+                          onClick={() => playSong(song, idx)}
+                          className="flex items-center justify-between px-3.5 py-2.5 rounded-2xl bg-white/[0.015] border border-white/[0.04] hover:bg-white/[0.04] hover:border-purple-500/20 transition-all duration-150 cursor-pointer group select-none"
+                        >
+                          <div className="flex items-center gap-3.5 min-w-0">
+                            <span className="w-5 text-center text-[11px] font-mono text-zinc-500 group-hover:hidden">
+                              {isCurrentPlaying ? (
+                                <Volume2 size={13} className="text-purple-400 animate-pulse mx-auto" />
+                              ) : (
+                                idx + 1
+                              )}
+                            </span>
+                            <Play size={11} fill="white" className="text-white mx-auto hidden group-hover:block" />
+
+                            <div className="w-10 h-10 rounded-xl overflow-hidden bg-zinc-950 shrink-0 border border-white/5 shadow-sm">
+                              <SafeImage
+                                src={song.thumbnail}
+                                videoId={song.videoId}
+                                alt={song.title}
+                                className="w-full h-full object-cover"
+                                fallbackType="song"
+                              />
+                            </div>
+
+                            <div className="min-w-0 text-left">
+                              <p className={`text-xs font-bold truncate ${isCurrent ? "text-purple-300 font-black" : "text-zinc-200 group-hover:text-white"}`}>
+                                {song.title}
+                              </p>
+                              <p className="text-[10px] text-zinc-500 truncate mt-0.5 font-medium">
+                                {song.artist}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-3 shrink-0" onClick={(e) => e.stopPropagation()}>
+                            <span className="text-[10px] font-mono text-zinc-500 tabular-nums">
+                              {song.duration ? formatDur(song.duration) : "3:30"}
+                            </span>
+                            <button
+                              onClick={() => toggleLike(song)}
+                              className={`p-1.5 rounded-lg transition ${isLiked ? "text-pink-500" : "text-zinc-600 hover:text-white"}`}
+                              aria-label="Like song"
+                            >
+                              <Heart size={13} fill={isLiked ? "currentColor" : "none"} />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))
             ) : (
               <div className="text-center py-12 text-zinc-500 text-xs font-semibold">
                 No tracks loaded for this genre.

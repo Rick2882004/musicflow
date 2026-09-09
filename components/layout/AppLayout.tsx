@@ -5,25 +5,10 @@ import { Sidebar } from "./Sidebar";
 import BottomPlayer from "../player/BottomPlayer";
 import Navbar from "./Navbar";
 import MobileBottomNav from "./MobileBottomNav";
-import { useEffect } from "react";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const isAuthPage = pathname === "/login" || pathname === "/signup";
-
-  // Register service worker on mount
-  useEffect(() => {
-    if (
-      process.env.NODE_ENV === "production" &&
-      typeof window !== "undefined" &&
-      "serviceWorker" in navigator
-    ) {
-      navigator.serviceWorker
-        .register("/sw.js")
-        .then((reg) => console.log("Service Worker registered:", reg.scope))
-        .catch(console.error);
-    }
-  }, []);
 
   if (isAuthPage) {
     return (
