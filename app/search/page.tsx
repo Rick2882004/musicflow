@@ -132,7 +132,7 @@ function SearchContent() {
     albumId: string;
     browseId?: string;
     name: string;
-    artist: string;
+    artist: string | { name?: string; artistId?: string | null };
     thumbnail: string;
   }
   interface ArtistItem {
@@ -236,13 +236,20 @@ function SearchContent() {
   }, []);
 
   const searchCache = useRef<Map<string, { results: Track[]; artists: ArtistItem[]; albums: AlbumItem[]; timestamp: number }>>(new Map());
+  const activeSearchQueryRef = useRef<string>("");
 
   const executeSearch = useCallback(async (searchQuery: string) => {
     const q = searchQuery.trim();
     if (!q) return;
+    activeSearchQueryRef.current = q.toLowerCase();
     setLoading(true);
     setShowSuggestions(false);
     saveSearchQuery(q);
+
+    // Reset AI intent and continuation for fresh search
+    setSearchIntent(null);
+    setSearchExplanation("");
+    setMoreLikeThis([]);
 
     const cached = searchCache.current.get(q.toLowerCase());
     if (cached && Date.now() - cached.timestamp < 3 * 60 * 1000) {
@@ -250,38 +257,46 @@ function SearchContent() {
       setArtists(cached.artists);
       setAlbums(cached.albums);
       setLoading(false);
+
+      // Refresh AI metadata in background for cached query
+      fetch(`/api/ai/search?q=${encodeURIComponent(q)}`)
+        .then(async (aiRes) => {
+          if (!aiRes.ok) return;
+          const aiData = await aiRes.json();
+          if (activeSearchQueryRef.current !== q.toLowerCase()) return;
+          if (aiData?.intent) setSearchIntent(aiData.intent);
+          if (aiData?.explanation) setSearchExplanation(aiData.explanation);
+          if (aiData?.moreLikeThis && Array.isArray(aiData.moreLikeThis)) {
+            setMoreLikeThis(aiData.moreLikeThis);
+          }
+        })
+        .catch(() => {});
       return;
     }
 
     try {
-      // 1. Attempt AI Natural Language Search with intent extraction
-      let data: any; // eslint-disable-line @typescript-eslint/no-explicit-any
-      try {
-        const aiRes = await fetch(`/api/ai/search?q=${encodeURIComponent(q)}`);
-        if (aiRes.ok) {
-          data = await aiRes.json();
-          if (data?.intent) setSearchIntent(data.intent);
-          if (data?.explanation) setSearchExplanation(data.explanation);
-        }
-      } catch {
-        // Fall back to standard search on network / AI route failure
-      }
+      // 1. PRIMARY: Query real catalog search directly as the absolute source of truth
+      const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
+      if (!res.ok) throw new Error("Failed to load search results");
+      const data = await res.json();
 
-      // 2. Standard Search fallback if AI response missing tracks
-      if (!data || (!data.results && !data.songs)) {
-        const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
-        if (!res.ok) throw new Error("Failed to load search results");
-        data = await res.json();
-        setSearchIntent(null);
-        setSearchExplanation("");
-      }
+      // 2. ENHANCEMENT: Non-blocking parallel / background AI enrichment (Vibe, Intent, More Like This)
+      fetch(`/api/ai/search?q=${encodeURIComponent(q)}`)
+        .then(async (aiRes) => {
+          if (!aiRes.ok) return;
+          const aiData = await aiRes.json();
+          if (activeSearchQueryRef.current !== q.toLowerCase()) return;
+          if (aiData?.intent) setSearchIntent(aiData.intent);
+          if (aiData?.explanation) setSearchExplanation(aiData.explanation);
+          if (aiData?.moreLikeThis && Array.isArray(aiData.moreLikeThis)) {
+            setMoreLikeThis(aiData.moreLikeThis);
+          }
+        })
+        .catch(() => {
+          // AI enhancement failure is completely non-fatal and does not affect catalog results
+        });
 
       const rawTracks: Track[] = data.results || data.songs || [];
-      if (data?.moreLikeThis && Array.isArray(data.moreLikeThis)) {
-        setMoreLikeThis(data.moreLikeThis);
-      } else {
-        setMoreLikeThis([]);
-      }
       const seenVideoIds = new Set<string>();
       const resTracks: Track[] = [];
       for (const t of rawTracks) {
@@ -315,13 +330,18 @@ function SearchContent() {
       }
 
       const rawAlbums: AlbumItem[] = (data.albums || [])
-        .map((alb: { albumId?: string; browseId?: string; name?: string; title?: string; artist?: string; thumbnail?: string; thumbnails?: { url: string }[] }) => ({
-          albumId: alb.albumId || alb.browseId || "",
-          browseId: alb.browseId || alb.albumId || "",
-          name: (alb.name || alb.title || "").trim(),
-          artist: (alb.artist || "").trim() || "Unknown Artist",
-          thumbnail: alb.thumbnail || alb.thumbnails?.[0]?.url || "",
-        }))
+        .map((alb: { albumId?: string; browseId?: string; name?: string; title?: string; artist?: string | { name?: string; artistId?: string | null }; thumbnail?: string; thumbnails?: { url: string }[] }) => {
+          const rawArtistName = typeof alb.artist === "string"
+            ? alb.artist
+            : (alb.artist && typeof alb.artist === "object" ? alb.artist.name : "") || "";
+          return {
+            albumId: alb.albumId || alb.browseId || "",
+            browseId: alb.browseId || alb.albumId || "",
+            name: (alb.name || alb.title || "").trim(),
+            artist: rawArtistName.trim() || "Unknown Artist",
+            thumbnail: alb.thumbnail || alb.thumbnails?.[0]?.url || "",
+          };
+        })
         .filter((alb: AlbumItem) => !!alb.albumId && alb.name.length > 0 && !isFakeAlbumId(alb.albumId));
       const seenAlbumIds = new Set<string>();
       const resAlbums: AlbumItem[] = [];
@@ -874,48 +894,55 @@ function SearchContent() {
                   <h2 className="font-display text-[22px] font-black text-white tracking-tight leading-none">Albums</h2>
                 </div>
                 <div className="flex gap-5 overflow-x-auto scrollbar-none pb-4 -mx-4 md:-mx-10 px-4 md:px-10">
-                  {albums.map((album, idx) => (
-                    <motion.div
-                      key={album.albumId || album.browseId || `album-${album.name.toLowerCase().trim()}-${idx}`}
-                      whileHover={{ y: -6 }}
-                      className="group flex flex-col gap-2.5 text-left shrink-0 w-[140px] md:w-[155px]"
-                    >
-                      <div
-                        onClick={() => router.push(`/album/${album.albumId}`)}
-                        className="relative aspect-square rounded-[20px] overflow-hidden bg-zinc-900 border border-white/[0.05] group-hover:border-purple-500/35 transition-all duration-300 shadow-md cursor-pointer"
+                  {albums.map((album, idx) => {
+                    const albumArtistName =
+                      typeof album.artist === "string"
+                        ? album.artist
+                        : album.artist?.name || "Unknown Artist";
+
+                    return (
+                      <motion.div
+                        key={album.albumId || album.browseId || `album-${album.name.toLowerCase().trim()}-${idx}`}
+                        whileHover={{ y: -6 }}
+                        className="group flex flex-col gap-2.5 text-left shrink-0 w-[140px] md:w-[155px]"
                       >
-                        <SafeImage
-                          src={album.thumbnail}
-                          title={album.name}
-                          artist={album.artist}
-                          alt={album.name}
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                          fallbackType="album"
-                        />
-                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                          <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center text-black shadow-lg">
-                            <Play size={12} fill="black" className="text-black ml-0.5" />
+                        <div
+                          onClick={() => router.push(`/album/${album.albumId}`)}
+                          className="relative aspect-square rounded-[20px] overflow-hidden bg-zinc-900 border border-white/[0.05] group-hover:border-purple-500/35 transition-all duration-300 shadow-md cursor-pointer"
+                        >
+                          <SafeImage
+                            src={album.thumbnail}
+                            title={album.name}
+                            artist={albumArtistName}
+                            alt={album.name}
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                            fallbackType="album"
+                          />
+                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                            <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center text-black shadow-lg">
+                              <Play size={12} fill="black" className="text-black ml-0.5" />
+                            </div>
                           </div>
                         </div>
-                      </div>
-                      <div>
-                        <p
-                          onClick={() => router.push(`/album/${album.albumId}`)}
-                          className="text-[12px] font-bold text-zinc-300 group-hover:text-white transition-colors truncate leading-tight tracking-tight cursor-pointer"
-                        >
-                          {album.name}
-                        </p>
-                        <p className="text-[10px] text-zinc-500 truncate mt-0.5">
-                          <Link
-                            href={`/artist/${encodeURIComponent(album.artist)}`}
-                            className="hover:text-purple-400 hover:underline transition-colors"
+                        <div>
+                          <p
+                            onClick={() => router.push(`/album/${album.albumId}`)}
+                            className="text-[12px] font-bold text-zinc-300 group-hover:text-white transition-colors truncate leading-tight tracking-tight cursor-pointer"
                           >
-                            {album.artist}
-                          </Link>
-                        </p>
-                      </div>
-                    </motion.div>
-                  ))}
+                            {album.name}
+                          </p>
+                          <p className="text-[10px] text-zinc-500 truncate mt-0.5">
+                            <Link
+                              href={`/artist/${encodeURIComponent(albumArtistName)}`}
+                              className="hover:text-purple-400 hover:underline transition-colors"
+                            >
+                              {albumArtistName}
+                            </Link>
+                          </p>
+                        </div>
+                      </motion.div>
+                    );
+                  })}
                 </div>
               </div>
             )}

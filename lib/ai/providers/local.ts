@@ -110,6 +110,11 @@ const KNOWN_ARTISTS: Record<string, string> = {
   "dua lipa": "Dua Lipa",
 };
 
+function matchesWordBoundary(text: string, keyword: string): boolean {
+  const escaped = keyword.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`\\b${escaped}\\b`, "i").test(text);
+}
+
 export class LocalAIProvider implements AIProvider {
   readonly name = "Local-Heuristic-ML";
 
@@ -147,33 +152,33 @@ export class LocalAIProvider implements AIProvider {
       }
     }
 
-    // 2. Detect mood
+    // 2. Detect mood (strict word boundaries)
     for (const [mood, keywords] of Object.entries(MOODS)) {
-      if (keywords.some((k) => clean.includes(k))) {
+      if (keywords.some((k) => matchesWordBoundary(clean, k))) {
         detectedMood = mood;
         break;
       }
     }
 
-    // 3. Detect language
+    // 3. Detect language (strict word boundaries)
     for (const [lang, keywords] of Object.entries(LANGUAGES)) {
-      if (keywords.some((k) => clean.includes(k))) {
+      if (keywords.some((k) => matchesWordBoundary(clean, k))) {
         detectedLanguage = lang.charAt(0).toUpperCase() + lang.slice(1);
         break;
       }
     }
 
-    // 4. Detect era
+    // 4. Detect era (strict word boundaries)
     for (const [era, keywords] of Object.entries(ERAS)) {
-      if (keywords.some((k) => clean.includes(k))) {
+      if (keywords.some((k) => matchesWordBoundary(clean, k))) {
         detectedEra = era;
         break;
       }
     }
 
-    // 5. Detect activity
+    // 5. Detect activity (strict word boundaries)
     for (const [act, keywords] of Object.entries(ACTIVITIES)) {
-      if (keywords.some((k) => clean.includes(k))) {
+      if (keywords.some((k) => matchesWordBoundary(clean, k))) {
         detectedActivity = act;
         break;
       }
@@ -197,20 +202,20 @@ export class LocalAIProvider implements AIProvider {
       isSimilarIntent = true;
     }
 
-    // Infer genre
-    if (clean.includes("bollywood") || (detectedLanguage === "Hindi" && !detectedGenre)) {
+    // Infer genre with strict word boundaries
+    if (matchesWordBoundary(clean, "bollywood") || (detectedLanguage === "Hindi" && !detectedGenre)) {
       detectedGenre = "Bollywood";
-    } else if (clean.includes("rock")) {
+    } else if (matchesWordBoundary(clean, "rock") && !matchesWordBoundary(clean, "rockstar")) {
       detectedGenre = "Rock";
-    } else if (clean.includes("pop")) {
+    } else if (matchesWordBoundary(clean, "pop")) {
       detectedGenre = "Pop";
-    } else if (clean.includes("hip hop") || clean.includes("rap")) {
+    } else if (/\b(hip\s*hop|rap)\b/i.test(clean)) {
       detectedGenre = "Hip-Hop";
-    } else if (clean.includes("edm") || clean.includes("electronic")) {
+    } else if (/\b(edm|electronic)\b/i.test(clean)) {
       detectedGenre = "EDM";
-    } else if (clean.includes("indie")) {
+    } else if (matchesWordBoundary(clean, "indie")) {
       detectedGenre = "Indie";
-    } else if (clean.includes("ghazal") || clean.includes("sufi")) {
+    } else if (matchesWordBoundary(clean, "ghazal") || matchesWordBoundary(clean, "sufi")) {
       detectedGenre = "Sufi & Ghazal";
     }
 
@@ -224,10 +229,15 @@ export class LocalAIProvider implements AIProvider {
       intent = "mood_vibe";
     }
 
-    // Construct targeted search keywords for real catalog resolution
+    // Construct targeted search keywords: ALWAYS preserve the user's explicit query as primary keyword
     const keywords: string[] = [];
-    const searchTerms: string[] = [];
+    const cleanUserQuery = clean.replace(/^(play|search|find|give me|stream|listen to)\s+/i, "").trim() || clean;
+    if (cleanUserQuery) {
+      keywords.push(cleanUserQuery);
+    }
 
+    // Optional secondary terms for AI enrichment
+    const searchTerms: string[] = [];
     if (detectedArtist) searchTerms.push(detectedArtist);
     if (detectedMood) searchTerms.push(detectedMood);
     if (detectedEra) searchTerms.push(detectedEra);
@@ -235,24 +245,23 @@ export class LocalAIProvider implements AIProvider {
     if (detectedGenre && !searchTerms.includes(detectedGenre)) searchTerms.push(detectedGenre);
     if (detectedActivity && !searchTerms.includes(detectedActivity)) searchTerms.push(detectedActivity);
 
-    const primarySearch = searchTerms.join(" ").trim() || clean.replace(/\b(play|find|listen to|songs|music|tracks)\b/gi, "").trim();
-    if (primarySearch) keywords.push(primarySearch);
+    const combinedTerms = searchTerms.join(" ").trim();
+    if (combinedTerms && !keywords.includes(combinedTerms) && combinedTerms.toLowerCase() !== cleanUserQuery.toLowerCase()) {
+      keywords.push(combinedTerms);
+    }
 
     // Add secondary search variations
     if (detectedArtist && detectedMood) {
-      keywords.push(`${detectedArtist} ${detectedMood} hits`);
+      const artMood = `${detectedArtist} ${detectedMood} hits`;
+      if (!keywords.includes(artMood)) keywords.push(artMood);
     }
     if (detectedLanguage && detectedActivity) {
-      keywords.push(`${detectedLanguage} ${detectedActivity} songs`);
+      const langAct = `${detectedLanguage} ${detectedActivity} songs`;
+      if (!keywords.includes(langAct)) keywords.push(langAct);
     }
     if (detectedEra && detectedGenre) {
-      keywords.push(`${detectedEra} ${detectedGenre} hits`);
-    }
-
-    // Fallback: raw stripped query
-    const cleanedRaw = clean.replace(/^(play|search|find|give me|stream)\s+/i, "");
-    if (!keywords.includes(cleanedRaw) && cleanedRaw) {
-      keywords.push(cleanedRaw);
+      const eraGenre = `${detectedEra} ${detectedGenre} hits`;
+      if (!keywords.includes(eraGenre)) keywords.push(eraGenre);
     }
 
     // Generate natural explanation

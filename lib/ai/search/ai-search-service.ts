@@ -74,8 +74,12 @@ export async function executeAISearch(
   }
 
   // Resolve results against real MusicFlow catalog
+  // CRITICAL: The user's explicit clean query is ALWAYS the primary catalog search query
+  const primaryQuery = cleanQ;
   const keywords = intent.searchKeywords.length > 0 ? intent.searchKeywords : [cleanQ];
-  const primaryQuery = keywords[0];
+  const secondaryQuery = keywords.find(
+    (k) => k.toLowerCase() !== cleanQ.toLowerCase()
+  );
 
   try {
     // Run targeted queries
@@ -90,7 +94,7 @@ export async function executeAISearch(
         ? searchCanonicalArtists(intent.artist).catch(() => [])
         : searchCanonicalArtists(primaryQuery).catch(() => []),
       searchCanonicalAlbums(primaryQuery).catch(() => []),
-      keywords[1] ? searchSongs(keywords[1]).catch(() => []) : Promise.resolve([]),
+      secondaryQuery ? searchSongs(secondaryQuery).catch(() => []) : Promise.resolve([]),
     ];
 
     const [songs1, artistsRes, albumsRes, songs2] = await Promise.all(promises);
@@ -98,31 +102,32 @@ export async function executeAISearch(
     // Merge and deduplicate real song tracks
     const allSongs = deduplicateTracks([...songs1, ...songs2]);
 
-    // Prioritized Search Result Ranking:
-    // 1. Exact title match
-    // 2. Exact artist match
-    // 3. Exact album match
-    // 4. AI intent match (artist, mood, activity, language)
+    // Preserve YouTube Music's natural catalog relevance ranking while honoring exact matches
     const normQ = cleanQ.toLowerCase();
-    const targetArtist = intent.artist?.toLowerCase();
+    const indexedSongs = allSongs.map((song, idx) => ({ song, originalIndex: idx }));
 
-    allSongs.sort((a, b) => {
-      const aTitle = (a.title || "").toLowerCase();
-      const bTitle = (b.title || "").toLowerCase();
-      const aArtist = (a.artist || "").toLowerCase();
-      const bArtist = (b.artist || "").toLowerCase();
+    indexedSongs.sort((a, b) => {
+      const aTitle = (a.song.title || "").toLowerCase().trim();
+      const bTitle = (b.song.title || "").toLowerCase().trim();
+      const aArtist = (a.song.artist || "").toLowerCase().trim();
+      const bArtist = (b.song.artist || "").toLowerCase().trim();
 
-      // 1. Exact title match beats everything
       const aExactTitle = aTitle === normQ;
       const bExactTitle = bTitle === normQ;
+
+      // 1. Exact title match prioritizes over non-exact title
       if (aExactTitle && !bExactTitle) return -1;
       if (!aExactTitle && bExactTitle) return 1;
 
-      // Title starts with query
-      const aStartsTitle = aTitle.startsWith(normQ);
-      const bStartsTitle = bTitle.startsWith(normQ);
-      if (aStartsTitle && !bStartsTitle) return -1;
-      if (!aStartsTitle && bStartsTitle) return 1;
+      // If both have exact title matches (e.g. "Blinding Lights"):
+      // Deprioritize self-named uploaders (where artist name is the song name) over authentic artists
+      if (aExactTitle && bExactTitle) {
+        const aArtistIsSong = aArtist === aTitle;
+        const bArtistIsSong = bArtist === bTitle;
+        if (!aArtistIsSong && bArtistIsSong) return -1;
+        if (aArtistIsSong && !bArtistIsSong) return 1;
+        return a.originalIndex - b.originalIndex;
+      }
 
       // 2. Exact artist match
       const aExactArtist = aArtist === normQ;
@@ -130,30 +135,29 @@ export async function executeAISearch(
       if (aExactArtist && !bExactArtist) return -1;
       if (!aExactArtist && bExactArtist) return 1;
 
-      // 3. Target artist from AI intent match
-      if (targetArtist) {
-        const aTarget = aArtist.includes(targetArtist);
-        const bTarget = bArtist.includes(targetArtist);
-        if (aTarget && !bTarget) return -1;
-        if (!aTarget && bTarget) return 1;
-      }
-
-      return 0;
+      // 3. Fall back strictly to original catalog ranking order
+      return a.originalIndex - b.originalIndex;
     });
 
-    // Generate "More Like This" recommendations from central discovery engine
+    const rankedSongs = indexedSongs.map((item) => item.song);
+
+    // Generate "More Like This" recommendations from central discovery engine (with safety timeout)
     let moreLikeThis: Track[] = [];
-    if (allSongs.length > 0) {
+    if (rankedSongs.length > 0) {
       try {
         const { getDiscoveryFeed } = await import("@/lib/ai/discovery/discovery-engine");
-        const disc = await getDiscoveryFeed({
+        const discPromise = getDiscoveryFeed({
           currentPage: "queue",
-          currentTrack: allSongs[0],
+          currentTrack: rankedSongs[0],
           searchIntent: intent,
           limit: 6,
         });
+        const timeoutPromise = new Promise<{ sections: { tracks: Track[] }[] }>((resolve) =>
+          setTimeout(() => resolve({ sections: [] }), 1200)
+        );
+        const disc = await Promise.race([discPromise, timeoutPromise]);
         moreLikeThis = (disc.sections[0]?.tracks || []).filter(
-          (t) => t.videoId !== allSongs[0].videoId
+          (t) => t.videoId !== rankedSongs[0].videoId
         ).slice(0, 6);
       } catch {
         // Non-blocking
@@ -162,7 +166,7 @@ export async function executeAISearch(
 
     return {
       intent,
-      results: allSongs,
+      results: rankedSongs,
       artists: (artistsRes as unknown as Artist[]) || [],
       albums: (albumsRes as unknown as Album[]) || [],
       explanation: intent.explanation || `Curated results for "${cleanQ}"`,
