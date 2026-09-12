@@ -2,7 +2,7 @@
   "id": "/",
   "name": "MusicFlow",
   "short_name": "MusicFlow",
-  "description": "Stream millions of songs, playlists, and custom AI DJ mixes in high fidelity.",
+  "description": "Stream millions of songs, playlists, and personalized music flows in high fidelity.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

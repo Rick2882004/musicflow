@@ -9,7 +9,6 @@ import {
   Settings,
   User as UserIcon,
   LogOut,
-  Sparkles,
   Bell,
   Search,
   Users,
@@ -23,14 +22,6 @@ import { usePlayerStore } from "@/store/player-store";
 import { motion, AnimatePresence } from "framer-motion";
 import dynamic from "next/dynamic";
 
-const AIDJModal = dynamic(
-  () => import("@/components/ui/AIDJModal").then((m) => m.AIDJModal),
-  { ssr: false }
-);
-const AIAssistantModal = dynamic(
-  () => import("@/components/ai/AIAssistantModal").then((m) => m.AIAssistantModal),
-  { ssr: false }
-);
 const NotificationCenter = dynamic(
   () => import("@/components/ui/NotificationCenter").then((m) => m.NotificationCenter),
   { ssr: false }
@@ -60,8 +51,6 @@ export default function Navbar() {
   const pathname = usePathname();
   const { user } = useAuth();
   const [avatarOpen, setAvatarOpen] = useState(false);
-  const [djOpen, setDjOpen] = useState(false);
-  const [assistantOpen, setAssistantOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [friendActivityOpen, setFriendActivityOpen] = useState(false);
   const [navSearch, setNavSearch] = useState("");
@@ -192,55 +181,6 @@ export default function Navbar() {
               </button>
             )}
           </form>
-
-          {/* AI Assistant button */}
-          {user && (
-            <button
-              onClick={() => setAssistantOpen(true)}
-              className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl transition-all duration-150 active:scale-95"
-              style={{
-                background: "rgba(124,58,237,0.10)",
-                border: "1px solid rgba(124,58,237,0.22)",
-                color: "var(--mf-accent-light)",
-                fontSize: "11px",
-                fontWeight: 600,
-              }}
-              onMouseEnter={(e) => {
-                (e.currentTarget as HTMLElement).style.background = "rgba(124,58,237,0.18)";
-                (e.currentTarget as HTMLElement).style.borderColor = "rgba(124,58,237,0.40)";
-              }}
-              onMouseLeave={(e) => {
-                (e.currentTarget as HTMLElement).style.background = "rgba(124,58,237,0.10)";
-                (e.currentTarget as HTMLElement).style.borderColor = "rgba(124,58,237,0.22)";
-              }}
-              title="AI Music Assistant"
-            >
-              <Sparkles size={11} />
-              <span>AI</span>
-            </button>
-          )}
-
-          {/* AI DJ button */}
-          {user && (
-            <button
-              onClick={() => setDjOpen(true)}
-              className="w-8 h-8 rounded-xl flex items-center justify-center transition-all duration-150 active:scale-90"
-              style={{
-                background: "rgba(124,58,237,0.08)",
-                border: "1px solid rgba(124,58,237,0.18)",
-                color: "var(--mf-accent-light)",
-              }}
-              onMouseEnter={(e) => {
-                (e.currentTarget as HTMLElement).style.background = "rgba(124,58,237,0.16)";
-              }}
-              onMouseLeave={(e) => {
-                (e.currentTarget as HTMLElement).style.background = "rgba(124,58,237,0.08)";
-              }}
-              title="AI DJ"
-            >
-              <Sparkles size={13} />
-            </button>
-          )}
 
           {/* Notifications */}
           {user && (
@@ -405,13 +345,6 @@ export default function Navbar() {
         </div>
       </header>
 
-      {/* Modals */}
-      {assistantOpen && (
-        <AIAssistantModal isOpen={assistantOpen} onClose={() => setAssistantOpen(false)} />
-      )}
-      {djOpen && (
-        <AIDJModal isOpen={djOpen} onClose={() => setDjOpen(false)} />
-      )}
       {notificationsOpen && (
         <NotificationCenter isOpen={notificationsOpen} onClose={() => setNotificationsOpen(false)} />
       )}

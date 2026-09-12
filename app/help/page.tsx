@@ -34,8 +34,8 @@ export default function HelpPage() {
       a: "MusicFlow supports Normal (128kbps), High (256kbps), and Ultra Fidelity (320kbps) audio streams. You can configure your resolution under Settings > Audio & Streaming.",
     },
     {
-      q: "How does the AI DJ Assistant generate recommendations?",
-      a: "The AI DJ analyzes your active listening history, liked tracks, top artists, and playlist affinity to construct real-time YouTube music stream queries tailored to your mood.",
+      q: "How does AI Discovery generate recommendations?",
+      a: "MusicFlow's Central AI Discovery Engine analyzes your listening history, liked tracks, top artists, and playlist affinity to curate real-time music streams tailored to your taste.",
     },
     {
       q: "Are my playlists and listening statistics private?",
