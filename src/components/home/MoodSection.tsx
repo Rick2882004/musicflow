@@ -25,7 +25,7 @@ export default function MoodSection() {
   const router = useRouter();
 
   return (
-    <section className="mf-section px-4 md:px-8 pb-12 text-left select-none">
+    <section className="mf-section px-4 md:px-8 pb-2 text-left select-none">
       {/* Header */}
       <div className="mf-section-header">
         <div>

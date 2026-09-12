@@ -45,22 +45,38 @@ export function generatePageSections(
   };
 
   if (page === "home") {
-    // 1. Made For You
-    const madeForYouTracks = getUniqueTracks((c) => c.score >= 6.0, 10);
+    const isColdStartGuest = userTaste.totalInteractions === 0;
+
+    // 1. Made For You (or Trending Worldwide for cold-start guest)
+    const madeForYouTracks = getUniqueTracks((c) => c.score >= 5.5, 10);
     if (madeForYouTracks.length >= 3) {
-      sections.push({
-        sectionId: "home-made-for-you",
-        title: "Made For You",
-        subtitle: "Personalized",
-        type: "personalized",
-        tracks: madeForYouTracks,
-        reason: "Picked from your listening taste",
-        seeAllHref: "/explore",
-      });
+      if (!isColdStartGuest) {
+        sections.push({
+          sectionId: "home-made-for-you",
+          title: "Made For You",
+          subtitle: "Personalized",
+          type: "personalized",
+          tracks: madeForYouTracks,
+          reason: "Picked from your listening taste",
+          seeAllHref: "/explore",
+        });
+      } else {
+        sections.push({
+          sectionId: "home-trending-worldwide",
+          title: "Trending Worldwide",
+          subtitle: "Charts",
+          type: "trending",
+          tracks: madeForYouTracks,
+          reason: "Top tracks from verified catalog",
+          seeAllHref: "/explore",
+        });
+      }
     }
 
     // 2. Because You Listen To [Top Artist]
-    if (topArtistName) {
+    // Strictly gate on real user listening signals (weight >= 2.0 and at least 1 interaction)
+    const topArtistWeight = userTaste.topArtists[0]?.weight || 0;
+    if (topArtistName && topArtistWeight >= 2.0 && !isColdStartGuest) {
       const becauseYouListenTracks = getUniqueTracks(
         (c) =>
           c.seedType === "artist_affinity" ||
@@ -105,14 +121,18 @@ export function generatePageSections(
     if (mixTracks.length >= 3) {
       const mixTitle = contextAnalysis.recentLanguageMomentum
         ? `Your ${contextAnalysis.recentLanguageMomentum} Mix`
-        : `Your ${topGenre} Mix`;
+        : !isColdStartGuest
+        ? `Your ${topGenre} Mix`
+        : `${topGenre} Mix`;
       sections.push({
         sectionId: "home-daily-mix",
         title: mixTitle,
         subtitle: "Curated Mix",
         type: "daily_mix",
         tracks: mixTracks,
-        reason: "A focused cluster matching your frequent genres",
+        reason: isColdStartGuest
+          ? "Popular hits in this genre"
+          : "A focused cluster matching your frequent genres",
       });
     }
 

@@ -87,7 +87,7 @@ export function buildCandidateSeeds(
         targetArtist: topArtistName,
       });
 
-      // Similar Artists from knowledge graph
+      // Similar Artists from knowledge graph (1 high-value seed to keep Home fast)
       const lower = topArtistName.toLowerCase().trim();
       const similar = SIMILAR_ARTISTS[lower];
       if (similar && similar.length > 0) {
@@ -97,14 +97,6 @@ export function buildCandidateSeeds(
           label: `Fans of ${topArtistName} also like`,
           targetArtist: similar[0],
         });
-        if (similar[1]) {
-          seeds.push({
-            query: `${similar[1]} Melodies`,
-            seedType: "similar_artist",
-            label: `Because you enjoy ${topArtistName}`,
-            targetArtist: similar[1],
-          });
-        }
       }
     }
 

@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { usePlayerStore } from "@/store/player-store";
 import { useShallow } from "zustand/react/shallow";
 import { Play, Pause } from "lucide-react";
@@ -7,51 +8,8 @@ import { SafeImage } from "@/components/ui/SafeImage";
 import Link from "next/link";
 import { Track } from "@/types/music";
 
-const FALLBACK_QUICK_PICKS: Track[] = [
-  {
-    videoId: "JFcgOboQZ08",
-    title: "Tum Hi Ho",
-    artist: "Arijit Singh",
-    thumbnail: "https://img.youtube.com/vi/JFcgOboQZ08/hqdefault.jpg",
-    duration: 262,
-  },
-  {
-    videoId: "V0KD0nDkbpM",
-    title: "Bekhayali",
-    artist: "Sachet Tandon",
-    thumbnail: "https://img.youtube.com/vi/V0KD0nDkbpM/hqdefault.jpg",
-    duration: 371,
-  },
-  {
-    videoId: "k4yXQkG2s1E",
-    title: "Kesariya",
-    artist: "Arijit Singh",
-    thumbnail: "https://img.youtube.com/vi/k4yXQkG2s1E/hqdefault.jpg",
-    duration: 268,
-  },
-  {
-    videoId: "kJQP7kiw5Fk",
-    title: "Despacito",
-    artist: "Luis Fonsi ft. Daddy Yankee",
-    thumbnail: "https://img.youtube.com/vi/kJQP7kiw5Fk/hqdefault.jpg",
-    duration: 282,
-  },
-  {
-    videoId: "JGwWNGJdvx8",
-    title: "Shape of You",
-    artist: "Ed Sheeran",
-    thumbnail: "https://img.youtube.com/vi/JGwWNGJdvx8/hqdefault.jpg",
-    duration: 233,
-  },
-
-  {
-    videoId: "OPf0YbXqDm0",
-    title: "Uptown Funk",
-    artist: "Mark Ronson ft. Bruno Mars",
-    thumbnail: "https://img.youtube.com/vi/OPf0YbXqDm0/hqdefault.jpg",
-    duration: 270,
-  },
-];
+// In-memory cache for cold-start quick picks
+let heroQuickPicksCache: Track[] | null = null;
 
 export default function HomeHero() {
   const { recentSongs, likedSongs, setTrack, setQueue, isPlaying, videoId } =
@@ -66,15 +24,57 @@ export default function HomeHero() {
       }))
     );
 
+  const [fallbackPicks, setFallbackPicks] = useState<Track[]>(() => heroQuickPicksCache || []);
+  const [loadingFallback, setLoadingFallback] = useState<boolean>(
+    () => recentSongs.length === 0 && (!heroQuickPicksCache || heroQuickPicksCache.length === 0)
+  );
+
   const hour = new Date().getHours();
   const greeting =
     hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
 
-  // If recent songs exist, use them; otherwise use verified instant quick picks
   const hasRecents = recentSongs.length > 0;
+
+  // Dynamic catalog fallback for cold-start users with zero recent songs
+  useEffect(() => {
+    let isMounted = true;
+    if (hasRecents || (heroQuickPicksCache && heroQuickPicksCache.length > 0)) {
+      return;
+    }
+
+    async function loadFallbackQuickPicks() {
+      try {
+        setLoadingFallback(true);
+        const res = await fetch("/api/search?q=Top Songs Today");
+        if (res.ok) {
+          const data = await res.json();
+          const validTracks: Track[] = (data.results || [])
+            .filter((t: Track) => t && t.videoId && t.title && t.artist)
+            .slice(0, 6);
+          if (isMounted && validTracks.length > 0) {
+            heroQuickPicksCache = validTracks;
+            setFallbackPicks(validTracks);
+          }
+        }
+      } catch (err) {
+        if (process.env.NODE_ENV !== "production") {
+          console.warn("[HomeHero] Failed to fetch catalog quick picks:", err);
+        }
+      } finally {
+        if (isMounted) setLoadingFallback(false);
+      }
+    }
+
+    loadFallbackQuickPicks();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [hasRecents]);
+
   const displayItems = hasRecents
     ? recentSongs.slice(0, 6)
-    : FALLBACK_QUICK_PICKS;
+    : fallbackPicks;
 
   const handlePlay = (song: Track, idx: number) => {
     setQueue(displayItems);
@@ -90,7 +90,7 @@ export default function HomeHero() {
             className="text-[9px] font-black uppercase mb-0.5"
             style={{ letterSpacing: "0.18em", color: "var(--mf-text-dim)" }}
           >
-            {hasRecents ? "Continue Listening" : "Welcome Back"}
+            {hasRecents ? "Continue Listening" : "Quick Picks"}
           </p>
           <h1
             className="text-lg md:text-xl font-black tracking-tight"
@@ -149,7 +149,18 @@ export default function HomeHero() {
 
       {/* Quick Resume Grid (2 cols on mobile, 3 cols on desktop) */}
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-2.5">
-        {displayItems.map((song, idx) => {
+        {displayItems.length === 0 && loadingFallback
+          ? [0, 1, 2, 3, 4, 5].map((i) => (
+              <div
+                key={`quick-skel-${i}`}
+                className="h-12 sm:h-13 rounded-lg mf-skeleton"
+                style={{
+                  background: "rgba(255,255,255,0.025)",
+                  border: "1px solid var(--mf-border)",
+                }}
+              />
+            ))
+          : displayItems.map((song, idx) => {
           const isCurrent = song.videoId === videoId;
           const isCurrentPlaying = isCurrent && isPlaying;
 

@@ -1,16 +1,18 @@
 "use client";
 
-import { useEffect, useState, memo } from "react";
+import { useEffect, useState, useMemo, memo } from "react";
 import { usePlayerStore } from "@/store/player-store";
 import { SongCard } from "@/components/ui/SongCard";
 import { TrackRow } from "@/components/ui/TrackRow";
 import { Track, ChartAlbum } from "@/types/music";
+import { DiscoverySection } from "@/lib/ai/discovery/types";
 import { motion } from "framer-motion";
 import { useShallow } from "zustand/react/shallow";
 import Link from "next/link";
 import { Play } from "lucide-react";
 import { SafeImage } from "@/components/ui/SafeImage";
 import PopularArtists from "./PopularArtists";
+import MoodSection from "./MoodSection";
 import { isFakeAlbumId } from "@/lib/canonical-music";
 
 // ── Skeleton Loader ──
@@ -164,12 +166,123 @@ const AlbumTile = memo(function AlbumTile({
   );
 });
 
+// ── Cross-Section Track Deduplication Helper ──
+interface DeduplicatedSectionsResult {
+  madeForYou?: DiscoverySection;
+  becauseYouListen?: DiscoverySection;
+  currentVibe?: DiscoverySection;
+  dailyMix?: DiscoverySection;
+  otherDiscovery: DiscoverySection[];
+  topSongs: Track[];
+  discoverNew?: DiscoverySection;
+  newReleases: Track[];
+}
+
+function deduplicateSections(
+  initialRecentSongs: Track[],
+  discoverySections: DiscoverySection[],
+  topSongs: Track[],
+  newReleases: Track[]
+): DeduplicatedSectionsResult {
+  const seenIds = new Set<string>();
+  const seenTitles = new Set<string>();
+
+  function registerTrack(t: Track) {
+    if (t.videoId) seenIds.add(t.videoId);
+    const norm = t.title ? t.title.toLowerCase().replace(/[^a-z0-9]/g, "") : "";
+    if (norm) seenTitles.add(norm);
+  }
+
+  function filterTracks(tracks: Track[], minRetain: number = 3): Track[] {
+    const kept: Track[] = [];
+    for (const t of tracks) {
+      if (!t.videoId) continue;
+      const norm = t.title ? t.title.toLowerCase().replace(/[^a-z0-9]/g, "") : "";
+      const isDuplicate = seenIds.has(t.videoId) || (norm ? seenTitles.has(norm) : false);
+      if (!isDuplicate) {
+        kept.push(t);
+        registerTrack(t);
+      }
+    }
+    // "Do NOT destroy sections just to achieve perfect deduplication if there are too few results."
+    if (kept.length < minRetain && tracks.length >= minRetain) {
+      for (const t of tracks) registerTrack(t);
+      return tracks;
+    }
+    return kept;
+  }
+
+  // 1. Register Continue Listening (Hero picks)
+  for (const t of initialRecentSongs.slice(0, 6)) {
+    registerTrack(t);
+  }
+
+  // 2. Filter Discovery Sections by section priority:
+  // Made For You -> Because You Listen -> Current Vibe -> Daily Mix
+  const priorityOrder = [
+    "home-made-for-you",
+    "home-trending-worldwide",
+    "home-because-you-listen",
+    "home-current-vibe",
+    "home-daily-mix",
+  ];
+
+  const filteredDiscoveryMap = new Map<string, DiscoverySection>();
+  for (const id of priorityOrder) {
+    const sec = discoverySections.find((s) => s.sectionId === id);
+    if (sec) {
+      const filtered = filterTracks(sec.tracks, 3);
+      if (filtered.length >= 3) {
+        filteredDiscoveryMap.set(id, { ...sec, tracks: filtered });
+      }
+    }
+  }
+
+  // 3. Filter Top Songs Today (Charts)
+  const filteredTopSongs = filterTracks(topSongs, 4);
+
+  // 4. Filter Discover Something New
+  const discoverNewSec = discoverySections.find((s) => s.sectionId === "home-discover-new");
+  let filteredDiscoverNew: DiscoverySection | undefined;
+  if (discoverNewSec) {
+    const filtered = filterTracks(discoverNewSec.tracks, 3);
+    if (filtered.length >= 3) {
+      filteredDiscoverNew = { ...discoverNewSec, tracks: filtered };
+    }
+  }
+
+  // Any other discovery sections
+  const otherDiscoverySections: DiscoverySection[] = [];
+  for (const sec of discoverySections) {
+    if (!priorityOrder.includes(sec.sectionId) && sec.sectionId !== "home-discover-new") {
+      const filtered = filterTracks(sec.tracks, 3);
+      if (filtered.length >= 3) {
+        otherDiscoverySections.push({ ...sec, tracks: filtered });
+      }
+    }
+  }
+
+  // 5. Filter New Releases
+  const filteredReleases = filterTracks(newReleases, 3);
+
+  return {
+    madeForYou: filteredDiscoveryMap.get("home-made-for-you") || filteredDiscoveryMap.get("home-trending-worldwide"),
+    becauseYouListen: filteredDiscoveryMap.get("home-because-you-listen"),
+    currentVibe: filteredDiscoveryMap.get("home-current-vibe"),
+    dailyMix: filteredDiscoveryMap.get("home-daily-mix"),
+    otherDiscovery: otherDiscoverySections,
+    topSongs: filteredTopSongs,
+    discoverNew: filteredDiscoverNew,
+    newReleases: filteredReleases,
+  };
+}
+
 // Module-level cache to prevent repeated home page fetches on navigation
 let homeCache: {
-  trending: Track[];
+  topSongs: Track[];
   releases: Track[];
   albums: ChartAlbum[];
-  discoverySections: import("@/lib/ai/discovery/types").DiscoverySection[];
+  discoverySections: DiscoverySection[];
   timestamp: number;
 } | null = null;
 const HOME_CACHE_TTL = 3 * 60 * 1000; // 3 minutes
@@ -187,89 +300,133 @@ export default function HomeRecommendations() {
     }))
   );
 
-  const [trendingSongs, setTrendingSongs] = useState<Track[]>(() => homeCache?.trending || []);
+  const [topSongs, setTopSongs] = useState<Track[]>(() => homeCache?.topSongs || []);
   const [newReleases, setNewReleases] = useState<Track[]>(() => homeCache?.releases || []);
   const [trendingAlbums, setTrendingAlbums] = useState<ChartAlbum[]>(() => homeCache?.albums || []);
-  const [discoverySections, setDiscoverySections] = useState<import("@/lib/ai/discovery/types").DiscoverySection[]>(() => homeCache?.discoverySections || []);
-  const [loading, setLoading] = useState<boolean>(() => !homeCache || Date.now() - homeCache.timestamp > HOME_CACHE_TTL);
+  const [discoverySections, setDiscoverySections] = useState<DiscoverySection[]>(() => homeCache?.discoverySections || []);
+  const [loadingCharts, setLoadingCharts] = useState<boolean>(() => !homeCache || Date.now() - homeCache.timestamp > HOME_CACHE_TTL);
+  const [loadingDiscovery, setLoadingDiscovery] = useState<boolean>(() => !homeCache || Date.now() - homeCache.timestamp > HOME_CACHE_TTL);
 
   useEffect(() => {
     let isMounted = true;
 
-    async function loadHomeContent() {
-      // Use cache if fresh
-      if (homeCache && Date.now() - homeCache.timestamp < HOME_CACHE_TTL) {
-        setTrendingSongs(homeCache.trending);
-        setNewReleases(homeCache.releases);
-        setTrendingAlbums(homeCache.albums);
-        setDiscoverySections(homeCache.discoverySections);
-        setLoading(false);
-        return;
-      }
+    // If cache is fresh, data was already initialized from state initializer
+    if (homeCache && Date.now() - homeCache.timestamp < HOME_CACHE_TTL) {
+      return;
+    }
 
-      setLoading(true);
+    // ── 1. Fast Catalog & Charts Loading (Non-blocking) ──
+    async function loadCatalog() {
       try {
-        const [trendingRes, releasesRes, discoveryRes, chartsRes] = await Promise.all([
-          fetch("/api/search?q=Trending Songs").then((r) => (r.ok ? r.json() : { results: [] })).catch(() => ({ results: [] })),
-          fetch("/api/search?q=Latest Hits").then((r) => (r.ok ? r.json() : { results: [] })).catch(() => ({ results: [] })),
-          fetch("/api/ai/discovery", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              page: "home",
-              signals: {
-                likedSongs,
-                recentSongs,
-                history,
-                followedArtists,
-                skips,
-              },
-              limit: 12,
-            }),
-          })
-            .then((r) => (r.ok ? r.json() : null))
-            .catch(() => null),
+        const [topRes, releasesRes, chartsRes] = await Promise.all([
+          fetch("/api/search?q=Top Songs Today")
+            .then((r) => (r.ok ? r.json() : { results: [] }))
+            .catch(() => ({ results: [] })),
+          fetch("/api/search?q=Latest Hits")
+            .then((r) => (r.ok ? r.json() : { results: [] }))
+            .catch(() => ({ results: [] })),
           fetch("/api/charts?type=albums")
             .then((r) => (r.ok ? r.json() : { albums: [] }))
             .catch(() => ({ albums: [] })),
         ]);
 
-        const trending = trendingRes.results?.slice(0, 10) || [];
-        const releases = releasesRes.results?.slice(0, 8) || [];
-        const sections = discoveryRes?.sections || [];
+        const songs: Track[] = (topRes.results || []).filter((t: Track) => t && t.videoId && t.title && t.artist).slice(0, 10);
+        const rels: Track[] = (releasesRes.results || []).filter((t: Track) => t && t.videoId && t.title && t.artist).slice(0, 8);
         const rawAlbums: ChartAlbum[] = chartsRes?.albums || [];
-        const validAlbums = rawAlbums
+        const albums = rawAlbums
           .filter((a) => a.albumId && a.name && !isFakeAlbumId(a.albumId))
           .slice(0, 8);
 
         if (isMounted) {
-          setTrendingSongs(trending);
-          setNewReleases(releases);
-          setTrendingAlbums(validAlbums);
-          setDiscoverySections(sections);
-          setLoading(false);
+          setTopSongs(songs);
+          setNewReleases(rels);
+          setTrendingAlbums(albums);
+          setLoadingCharts(false);
 
-          homeCache = {
-            trending,
-            releases,
-            albums: validAlbums,
-            discoverySections: sections,
-            timestamp: Date.now(),
-          };
+          if (homeCache) {
+            homeCache.topSongs = songs;
+            homeCache.releases = rels;
+            homeCache.albums = albums;
+          }
         }
       } catch (err) {
-        console.error("Error loading home data:", err);
-        if (isMounted) setLoading(false);
+        if (process.env.NODE_ENV !== "production") {
+          console.warn("[HomeRecommendations] Catalog fetch failed:", err);
+        }
+        if (isMounted) setLoadingCharts(false);
       }
     }
 
-    loadHomeContent();
+    // ── 2. AI Discovery Loading (With trimmed client signals payload) ──
+    async function loadDiscovery() {
+      try {
+        // Trim transmitted signals to a focused recent window (20–30 entries)
+        const trimmedSignals = {
+          likedSongs: likedSongs.slice(0, 25),
+          recentSongs: recentSongs.slice(0, 15),
+          history: history.slice(0, 25),
+          followedArtists: followedArtists.slice(0, 15),
+          skips: skips.slice(0, 20),
+        };
+
+        const res = await fetch("/api/ai/discovery", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            page: "home",
+            signals: trimmedSignals,
+            limit: 12,
+          }),
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          const sections: DiscoverySection[] = data.sections || [];
+          if (isMounted) {
+            setDiscoverySections(sections);
+            setLoadingDiscovery(false);
+
+            if (homeCache) {
+              homeCache.discoverySections = sections;
+            } else {
+              homeCache = {
+                topSongs: [],
+                releases: [],
+                albums: [],
+                discoverySections: sections,
+                timestamp: Date.now(),
+              };
+            }
+          }
+        } else {
+          if (isMounted) setLoadingDiscovery(false);
+        }
+      } catch (err) {
+        if (process.env.NODE_ENV !== "production") {
+          console.warn("[HomeRecommendations] Discovery fetch failed:", err);
+        }
+        if (isMounted) setLoadingDiscovery(false);
+      } finally {
+        if (isMounted) {
+          homeCache = {
+            topSongs: homeCache?.topSongs || [],
+            releases: homeCache?.releases || [],
+            albums: homeCache?.albums || [],
+            discoverySections: homeCache?.discoverySections || [],
+            timestamp: Date.now(),
+          };
+        }
+      }
+    }
+
+    void loadCatalog();
+    void loadDiscovery();
 
     return () => {
       isMounted = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Run once on mount
+  }, []);
 
   const playSong = (song: Track, index: number, songQueue: Track[]) => {
     const uniqueQueue = Array.from(
@@ -279,7 +436,20 @@ export default function HomeRecommendations() {
     setTrack(song.videoId, song.title, song.artist, song.thumbnail, index);
   };
 
-  if (loading) {
+  // Cross-section deduplicated content with strict priority order
+  const deduped = useMemo(() => {
+    return deduplicateSections(recentSongs, discoverySections, topSongs, newReleases);
+  }, [recentSongs, discoverySections, topSongs, newReleases]);
+
+  const hasAnyContent =
+    deduped.madeForYou ||
+    deduped.becauseYouListen ||
+    deduped.currentVibe ||
+    deduped.dailyMix ||
+    deduped.topSongs.length > 0 ||
+    trendingAlbums.length > 0;
+
+  if (loadingCharts && loadingDiscovery && !hasAnyContent) {
     return (
       <div className="space-y-12 pt-10 px-0">
         {[1, 2, 3].map((i) => (
@@ -291,8 +461,71 @@ export default function HomeRecommendations() {
 
   return (
     <div className="space-y-6 md:space-y-7 pt-1">
-      {/* ── Top Songs Today (Ranked Song Rows) ── */}
-      {trendingSongs.length > 0 && (
+      {/* ── 1. Made For You (or Trending Worldwide for cold start) ── */}
+      {deduped.madeForYou && (
+        <HScrollSection
+          key={deduped.madeForYou.sectionId}
+          title={deduped.madeForYou.title}
+          subtitle={deduped.madeForYou.subtitle}
+          songs={deduped.madeForYou.tracks}
+          onPlay={playSong}
+          seeAllHref={deduped.madeForYou.seeAllHref}
+        />
+      )}
+
+      {/* ── 2. Because You Listen To [Top Artist] ── */}
+      {deduped.becauseYouListen && (
+        <HScrollSection
+          key={deduped.becauseYouListen.sectionId}
+          title={deduped.becauseYouListen.title}
+          subtitle={deduped.becauseYouListen.subtitle}
+          songs={deduped.becauseYouListen.tracks}
+          onPlay={playSong}
+          seeAllHref={deduped.becauseYouListen.seeAllHref}
+        />
+      )}
+
+      {/* ── 3. Your Current Vibe ── */}
+      {deduped.currentVibe && (
+        <HScrollSection
+          key={deduped.currentVibe.sectionId}
+          title={deduped.currentVibe.title}
+          subtitle={deduped.currentVibe.subtitle}
+          songs={deduped.currentVibe.tracks}
+          onPlay={playSong}
+        />
+      )}
+
+      {/* ── 4. Your [Genre/Language] Mix ── */}
+      {deduped.dailyMix && (
+        <HScrollSection
+          key={deduped.dailyMix.sectionId}
+          title={deduped.dailyMix.title}
+          subtitle={deduped.dailyMix.subtitle}
+          songs={deduped.dailyMix.tracks}
+          onPlay={playSong}
+        />
+      )}
+
+      {/* ── Extra Discovery Sections ── */}
+      {deduped.otherDiscovery.map((section) => (
+        <HScrollSection
+          key={section.sectionId}
+          title={section.title}
+          subtitle={section.subtitle}
+          songs={section.tracks}
+          onPlay={playSong}
+          seeAllHref={section.seeAllHref}
+        />
+      ))}
+
+      {/* ── Discovery Loading Skeleton (while catalog is visible) ── */}
+      {loadingDiscovery && discoverySections.length === 0 && (
+        <SectionSkeleton />
+      )}
+
+      {/* ── 5. Top Songs Today (Ranked Song Rows) ── */}
+      {deduped.topSongs.length > 0 && (
         <section className="px-4 md:px-8 text-left">
           <div className="flex items-center justify-between mb-3">
             <div>
@@ -312,27 +545,19 @@ export default function HomeRecommendations() {
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-1.5">
-            {trendingSongs.slice(0, 8).map((song, idx) => (
+            {deduped.topSongs.slice(0, 8).map((song, idx) => (
               <TrackRow
                 key={`top-${song.videoId}-${idx}`}
                 song={song}
                 index={idx}
-                onPlay={(s, i) => playSong(s, i, trendingSongs)}
+                onPlay={(s, i) => playSong(s, i, deduped.topSongs)}
               />
             ))}
           </div>
         </section>
       )}
 
-      {/* Trending Now */}
-      <HScrollSection
-        title="Trending Now"
-        subtitle="Charts"
-        songs={trendingSongs}
-        onPlay={playSong}
-      />
-
-      {/* Trending Albums (Real Catalog Only) */}
+      {/* ── 6. Trending Albums (Real Catalog Only) ── */}
       {trendingAlbums.length > 0 && (
         <section className="mf-section px-4 md:px-8 text-left">
           <div className="mf-section-header">
@@ -364,30 +589,32 @@ export default function HomeRecommendations() {
         </section>
       )}
 
-      {/* Popular Artists */}
+      {/* ── 7. Artists You Love / Popular Artists (Dynamic) ── */}
       <PopularArtists />
 
-      {/* Dynamic Central Discovery Engine Sections */}
-      {discoverySections.map((section) => (
+      {/* ── 8. Discover Something New ── */}
+      {deduped.discoverNew && (
         <HScrollSection
-          key={section.sectionId}
-          title={section.title}
-          subtitle={section.subtitle}
-          songs={section.tracks}
+          key={deduped.discoverNew.sectionId}
+          title={deduped.discoverNew.title}
+          subtitle={deduped.discoverNew.subtitle}
+          songs={deduped.discoverNew.tracks}
           onPlay={playSong}
-          seeAllHref={section.seeAllHref}
         />
-      ))}
+      )}
 
-      {/* New Releases */}
-      {newReleases.length > 0 && (
+      {/* ── 9. Explore by Vibe ── */}
+      <MoodSection />
+
+      {/* ── 10. New Releases ── */}
+      {deduped.newReleases.length > 0 && (
         <HScrollSection
           title="New Releases"
           subtitle="Fresh"
-          songs={newReleases}
+          songs={deduped.newReleases}
           onPlay={playSong}
         />
       )}
     </div>
   );
-}
+}
