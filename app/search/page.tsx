@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, Suspense, useCallback } from "react";
 import { usePlayerStore } from "@/store/player-store";
 import { useShallow } from "zustand/react/shallow";
-import { Search as SearchIcon, X, Clock, Play, HelpCircle, Mic, ListPlus, ListMusic, Sparkles } from "lucide-react";
+import { Search as SearchIcon, X, Clock, Play, HelpCircle, Mic, ListPlus, ListMusic, Sparkles, Radio } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { SafeImage } from "@/components/ui/SafeImage";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -12,6 +12,7 @@ import { SearchIntent } from "@/lib/ai/types";
 import Link from "next/link";
 import { AddToPlaylistModal } from "@/components/ui/AddToPlaylistModal";
 import { isFakeAlbumId } from "@/lib/canonical-music";
+import { useRadioStore } from "@/store/radio-store";
 
 const CATEGORIES = [
   { title: "Pop",          bg: "rgba(139,92,246,0.15)",  border: "rgba(139,92,246,0.25)",  text: "#c4b5fd" },
@@ -35,11 +36,13 @@ function SongRow({
   index,
   onPlay,
   onAddToPlaylist,
+  onStartRadio,
 }: {
   song: Track;
   index: number;
   onPlay: (s: Track, i: number) => void;
   onAddToPlaylist?: (s: Track) => void;
+  onStartRadio?: (s: Track) => void;
 }) {
   const [hov, setHov] = useState(false);
   return (
@@ -102,6 +105,19 @@ function SongRow({
       </div>
 
       <div className="flex items-center gap-2.5 shrink-0">
+        {onStartRadio && (
+          <button
+            type="button"
+            title="Start AI Radio"
+            onClick={(e) => {
+              e.stopPropagation();
+              onStartRadio(song);
+            }}
+            className="w-7 h-7 rounded-full opacity-0 group-hover:opacity-100 flex items-center justify-center text-zinc-400 hover:text-purple-300 hover:bg-white/10 transition"
+          >
+            <Radio size={13} />
+          </button>
+        )}
         {onAddToPlaylist && (
           <button
             type="button"
@@ -380,6 +396,11 @@ function SearchContent() {
     localStorage.setItem("recent-searches", JSON.stringify(updated));
   };
   const handleSelectSuggestion = (q: string) => { setQuery(q); executeSearch(q); };
+  const startRadio = useRadioStore((s) => s.startRadio);
+  const handleStartRadio = (song: Track) => {
+    setQueue([song]);
+    startRadio(song);
+  };
   const playSong = (song: Track) => {
     // Queue only the chosen song from search. Smart Queue will continue playback
     // based on the verified song and user taste profile, preventing search query contamination.
@@ -825,6 +846,7 @@ function SearchContent() {
                       index={i}
                       onPlay={playSong}
                       onAddToPlaylist={(s) => setPlaylistSong(s)}
+                      onStartRadio={handleStartRadio}
                     />
                   ))}
                 </div>
@@ -849,6 +871,7 @@ function SearchContent() {
                           index={i}
                           onPlay={playSong}
                           onAddToPlaylist={(s) => setPlaylistSong(s)}
+                          onStartRadio={handleStartRadio}
                         />
                       ))}
                     </div>

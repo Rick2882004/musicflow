@@ -14,12 +14,10 @@ import {
   Settings,
   Music2,
   Plus,
-  List,
   Compass,
   Search,
   Radio,
   X,
-  Mic,
   User,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -43,13 +41,6 @@ const NAV_GROUPS = [
       { href: "/liked",           icon: Heart,     label: "Liked Songs" },
       { href: "/playlists",       icon: ListMusic, label: "Playlists" },
       { href: "/recently-played", icon: Clock,     label: "Recently Played" },
-    ],
-  },
-  {
-    title: "Session",
-    items: [
-      { href: "/queue",  icon: List, label: "Queue" },
-      { href: "/lyrics", icon: Mic,  label: "Lyrics" },
     ],
   },
 ];

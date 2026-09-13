@@ -9,10 +9,11 @@ import MobileBottomNav from "./MobileBottomNav";
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const isAuthPage = pathname === "/login" || pathname === "/signup";
+  const isNowPlayingPage = pathname === "/now-playing";
 
-  if (isAuthPage) {
+  if (isAuthPage || isNowPlayingPage) {
     return (
-      <div className="min-h-screen text-white" style={{ background: "var(--mf-bg-base)" }}>
+      <div className="min-h-screen text-white overflow-y-auto" style={{ background: "var(--mf-bg-base)" }}>
         {children}
       </div>
     );

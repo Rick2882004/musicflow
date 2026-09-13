@@ -22,11 +22,13 @@ import {
   Mic,
   Laptop,
   Music2,
+  Radio,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import QueueDrawer from "./QueueDrawer";
 import { SafeImage } from "@/components/ui/SafeImage";
 import { useSmartQueue } from "@/hooks/useSmartQueue";
+import { useAIRadio } from "@/hooks/useAIRadio";
+import { useRadioStore } from "@/store/radio-store";
 import { useMediaSession, notifyMediaSessionSeek, updateMediaSessionPosition } from "@/hooks/useMediaSession";
 import { playAudioAnchor, pauseAudioAnchor } from "@/lib/audio-anchor";
 import { markIntentionalUserPause, clearIntentionalUserPause } from "@/lib/playback-intent";
@@ -177,14 +179,14 @@ function IconBtn({
 
 export default function BottomPlayer() {
   useSmartQueue();
+  useAIRadio();
   useMediaSession(); // Canonical Android/iOS MediaSession integration
+  const { radioActive, toggleRadio } = useRadioStore();
   const {
     videoId,
     title,
     artist,
     thumbnail,
-    isQueueOpen,
-    toggleQueue,
     isPlaying,
     setIsPlaying,
     setCurrentTime,
@@ -213,8 +215,6 @@ export default function BottomPlayer() {
       title: s.title,
       artist: s.artist,
       thumbnail: s.thumbnail,
-      isQueueOpen: s.isQueueOpen,
-      toggleQueue: s.toggleQueue,
       isPlaying: s.isPlaying,
       setIsPlaying: s.setIsPlaying,
       setCurrentTime: s.setCurrentTime,
@@ -518,15 +518,28 @@ export default function BottomPlayer() {
       >
         {/* Left Side: Track Info */}
         <div className="flex items-center gap-3.5 min-w-0">
-          <div className="relative shrink-0">
+          <div
+            onClick={() => router.push("/now-playing")}
+            className="relative shrink-0 cursor-pointer group"
+            title="Open Now Playing"
+          >
             <div
-              className="w-12 h-12 rounded-lg overflow-hidden bg-zinc-900 shadow-md border border-white/[0.08]"
+              className="w-12 h-12 rounded-lg overflow-hidden bg-zinc-900 shadow-md border border-white/[0.08] group-hover:border-purple-500/50 transition-colors relative"
             >
               <SafeImage src={art} videoId={videoId} title={title} artist={artist} alt={title} className="w-full h-full object-cover" />
+              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                <Music2 size={16} className="text-white" />
+              </div>
             </div>
           </div>
           <div className="min-w-0 flex-1">
-            <h3 className="text-xs font-bold text-zinc-100 truncate tracking-tight">{title}</h3>
+            <h3
+              onClick={() => router.push("/now-playing")}
+              className="text-xs font-bold text-zinc-100 truncate tracking-tight cursor-pointer hover:text-purple-300 transition-colors"
+              title="Open Now Playing"
+            >
+              {title}
+            </h3>
             <Link
               href={`/artist/${encodeURIComponent(artist)}`}
               className="text-[10px] text-zinc-500 hover:text-purple-400 hover:underline truncate mt-0.5 font-medium block transition-colors"
@@ -545,7 +558,6 @@ export default function BottomPlayer() {
               fill={isLiked ? "#ec4899" : "none"}
               className={isLiked ? "text-pink-400" : ""}
             />
-
           </motion.button>
         </div>
 
@@ -589,6 +601,14 @@ export default function BottomPlayer() {
 
             <IconBtn onClick={toggleRepeat} active={isRepeat} label="Repeat">
               <Repeat size={13} />
+            </IconBtn>
+
+            <IconBtn
+              onClick={toggleRadio}
+              active={radioActive}
+              label={radioActive ? "AI Radio (Active)" : "AI Radio"}
+            >
+              <Radio size={13} className={radioActive ? "animate-pulse text-purple-400" : ""} />
             </IconBtn>
           </div>
 
@@ -742,8 +762,8 @@ export default function BottomPlayer() {
             </AnimatePresence>
           </div>
 
-          {/* Queue Drawer Button */}
-          <IconBtn onClick={toggleQueue} active={isQueueOpen} label="Play Queue">
+          {/* Up Next / Queue Button -> Open Dedicated Now Playing Page */}
+          <IconBtn onClick={() => router.push("/now-playing")} label="Now Playing & Queue">
             <List size={13} />
           </IconBtn>
 
@@ -772,7 +792,7 @@ export default function BottomPlayer() {
 
       <div
         className="md:hidden fixed bottom-[60px] left-2 right-2 h-12 rounded-lg bg-[#14141c] border border-white/[0.08] flex items-center justify-between px-2.5 z-40 select-none cursor-pointer shadow-lg"
-        onClick={() => setIsMobileExpanded(true)}
+        onClick={() => router.push("/now-playing")}
       >
         <div className="flex items-center gap-2.5 min-w-0">
           <div className="w-9 h-9 rounded-lg overflow-hidden shrink-0 bg-zinc-900 border border-white/5">
@@ -930,6 +950,15 @@ export default function BottomPlayer() {
                   >
                     <Repeat size={18} />
                   </button>
+
+                  <button
+                    onClick={toggleRadio}
+                    className={cn("p-2 transition-colors", radioActive ? "text-purple-400 font-bold" : "text-zinc-650")}
+                    title={radioActive ? "AI Radio (Active)" : "AI Radio"}
+                    aria-label="AI Radio"
+                  >
+                    <Radio size={18} className={radioActive ? "animate-pulse" : ""} />
+                  </button>
                 </div>
 
                 {/* Mobile Volume Control Slider */}
@@ -960,8 +989,8 @@ export default function BottomPlayer() {
                   </div>
                   <button
                     onClick={() => {
-                      toggleQueue();
                       setIsMobileExpanded(false);
+                      router.push("/now-playing");
                     }}
                     className="flex items-center gap-1.5 hover:text-white"
                   >
@@ -1059,8 +1088,6 @@ export default function BottomPlayer() {
         )}
       </AnimatePresence>
 
-      {/* Queue Drawer Component */}
-      {isQueueOpen && <QueueDrawer />}
     </>
   );
 }

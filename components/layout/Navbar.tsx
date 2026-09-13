@@ -40,6 +40,7 @@ const PAGE_LABELS: Record<string, string> = {
   "/playlists":        "Playlists",
   "/recently-played":  "History",
   "/queue":            "Queue",
+  "/now-playing":      "Now Playing",
   "/settings":         "Settings",
   "/profile":          "Profile",
   "/genres":           "Genres",
