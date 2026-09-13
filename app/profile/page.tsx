@@ -5,12 +5,14 @@ import ProtectedRoute from "../../src/components/auth/ProtectedRoute";
 import { useAuth } from "../../src/context/AuthContext";
 import { usePlayerStore } from "@/store/player-store";
 import { useShallow } from "zustand/react/shallow";
-import { Edit2, Check, Mail, Award, Flame, Settings, Sparkles, Clock, Star, Music, Disc, Activity } from "lucide-react";
+import { Edit2, Check, Mail, Award, Flame, Settings, Sparkles, Clock, Star, Music } from "lucide-react";
 import { Track } from "@/types/music";
 import { useHasMounted } from "@/hooks/useHasMounted";
 import { SafeImage } from "@/components/ui/SafeImage";
 import { WrappedModal } from "@/components/ui/WrappedModal";
 import { calculateListeningStats } from "@/lib/analytics";
+import { MusicDNACard } from "@/components/music-dna/MusicDNACard";
+import { ListeningStatsDashboard } from "@/components/analytics/ListeningStatsDashboard";
 
 export default function ProfilePage() {
   const { user } = useAuth();
@@ -260,58 +262,18 @@ export default function ProfilePage() {
           </div>
         </section>
 
-        {/* 2. Stats Dashboard & Info Grid */}
+        {/* 2. Music DNA */}
+        <MusicDNACard />
+
+        {/* 3. Advanced Listening Statistics Dashboard */}
+        <ListeningStatsDashboard />
+
+        {/* 4. Theme Settings & Achievements */}
         <section className="w-full">
           <div className="grid grid-cols-1 lg:grid-cols-[1fr_1.5fr] gap-6">
             
-            {/* Left Column: Stats & Settings */}
+            {/* Left Column: Theme Settings */}
             <div className="space-y-4">
-              <div>
-                <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-1">Overview</p>
-                <h2 className="text-base font-bold text-white tracking-tight leading-none">Listening Metrics</h2>
-              </div>
-
-              {/* Metrics cards */}
-              <div className="grid grid-cols-2 gap-2.5">
-                <div className="p-3.5 rounded-xl bg-[#121216] border border-white/[0.06] flex flex-col justify-between h-[76px]">
-                  <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider flex items-center gap-1.5">
-                    <Music size={11} className="text-[var(--mf-accent)]" /> Tracks Played
-                  </span>
-                  <span className="text-lg font-bold text-white font-mono">{stats.songsPlayed}</span>
-                </div>
-                <div className="p-3.5 rounded-xl bg-[#121216] border border-white/[0.06] flex flex-col justify-between h-[76px]">
-                  <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider flex items-center gap-1.5">
-                    <Clock size={11} className="text-indigo-400" /> Listening Time
-                  </span>
-                  <span className="text-lg font-bold text-white font-mono">{stats.listeningHours} hrs</span>
-                </div>
-                <div className="p-3.5 rounded-xl bg-[#121216] border border-white/[0.06] flex flex-col justify-between h-[76px]">
-                  <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider flex items-center gap-1.5">
-                    <Disc size={11} className="text-teal-400" /> Top Genre
-                  </span>
-                  <span className="text-xs font-bold text-zinc-200 truncate">{stats.favoriteGenre}</span>
-                </div>
-                <div className="p-3.5 rounded-xl bg-[#121216] border border-white/[0.06] flex flex-col justify-between h-[76px]">
-                  <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider flex items-center gap-1.5">
-                    <Star size={11} className="text-pink-400" /> Top Artist
-                  </span>
-                  <span className="text-xs font-bold text-zinc-200 truncate">{stats.favoriteArtist}</span>
-                </div>
-                <div className="p-3.5 rounded-xl bg-[#121216] border border-white/[0.06] flex flex-col justify-between h-[76px]">
-                  <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider flex items-center gap-1.5">
-                    <Flame size={11} className="text-orange-400" /> Current Streak
-                  </span>
-                  <span className="text-lg font-bold text-white font-mono">{stats.listeningStreak} days</span>
-                </div>
-                <div className="p-3.5 rounded-xl bg-[#121216] border border-white/[0.06] flex flex-col justify-between h-[76px]">
-                  <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider flex items-center gap-1.5">
-                    <Activity size={11} className="text-rose-400" /> Completion Rate
-                  </span>
-                  <span className="text-lg font-bold text-white font-mono">{stats.completionRate}%</span>
-                </div>
-              </div>
-
-              {/* Theme Settings Selector */}
               <div className="p-4 rounded-xl bg-[#121216] border border-white/[0.06] space-y-3">
                 <div className="flex items-center gap-3">
                   <Settings size={14} className="text-zinc-400" />
@@ -333,13 +295,10 @@ export default function ProfilePage() {
                   <option value="amoled">Amoled Black</option>
                 </select>
               </div>
-
             </div>
 
-            {/* Right Column: Achievements & Activity */}
+            {/* Right Column: Achievements */}
             <div className="space-y-4">
-              
-              {/* Achievements */}
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-1">Progression</p>
                 <h2 className="text-base font-bold text-white tracking-tight leading-none">Achievements</h2>
@@ -363,7 +322,6 @@ export default function ProfilePage() {
                   );
                 })}
               </div>
-
             </div>
 
           </div>

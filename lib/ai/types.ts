@@ -27,6 +27,10 @@ export interface UserTasteProfile {
   completedTrackIds: string[];
   replayTrackIds: string[];
   totalInteractions: number;
+  familiarityRatio?: number;
+  discoveryRatio?: number;
+  diversityScore?: number;
+  dominantVibe?: string;
 }
 
 export interface ScoredRecommendation extends Track {

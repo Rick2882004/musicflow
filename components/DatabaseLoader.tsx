@@ -8,6 +8,7 @@ import {
   loadPlaylists,
 } from "@/lib/supabase-load";
 import { usePlayerStore } from "@/store/player-store";
+import { useSessionStore } from "@/store/session-store";
 
 export default function DatabaseLoader() {
   const { user } = useAuth();
@@ -17,6 +18,12 @@ export default function DatabaseLoader() {
   const setPlaylists = usePlayerStore((s) => s.setPlaylists);
 
   useEffect(() => {
+    if (user?.uid) {
+      useSessionStore.getState().rehydrateForUser(user.uid);
+    } else {
+      useSessionStore.getState().rehydrateForUser("guest");
+    }
+
     async function loadData() {
       // Do not wipe local store if user is not logged in
       if (!user) return;

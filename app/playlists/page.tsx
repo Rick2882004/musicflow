@@ -7,10 +7,11 @@ import { usePlayerStore } from "@/store/player-store";
 import { useShallow } from "zustand/react/shallow";
 import { GuestSyncBanner } from "@/components/ui/GuestSyncBanner";
 import { motion, AnimatePresence, type Variants } from "framer-motion";
-import { ListMusic, Plus, Search, Play, Music, MoreHorizontal, X } from "lucide-react";
+import { ListMusic, Plus, Search, Play, Music, MoreHorizontal, X, Sparkles } from "lucide-react";
 import { Playlist } from "@/types/music";
 import { useHasMounted } from "@/hooks/useHasMounted";
 import { SafeImage } from "@/components/ui/SafeImage";
+import { AIPlaylistGeneratorModal } from "@/components/playlist/AIPlaylistGeneratorModal";
 
 const QUICK_COLLECTIONS = [
   { name: "Workout", emoji: "⚡", bg: "from-orange-500/10 to-transparent", hoverBorder: "group-hover:border-orange-500/30" },
@@ -46,6 +47,7 @@ export default function PlaylistsPage() {
   const [name,       setName]       = useState("");
   const [search,     setSearch]     = useState("");
   const [isCreating, setIsCreating] = useState(false);
+  const [isAIGeneratorOpen, setIsAIGeneratorOpen] = useState(false);
   const [activeFilter, setActiveFilter] = useState<"all" | "created" | "shared" | "recent">("all");
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [isFocused, setIsFocused] = useState(false);
@@ -94,12 +96,23 @@ export default function PlaylistsPage() {
               </p>
             </div>
 
-            <button
-              onClick={() => setIsCreating(!isCreating)}
-              className="px-5 py-2.5 rounded-full bg-white hover:bg-zinc-200 text-black font-bold text-xs flex items-center gap-2 active:scale-95 transition-all cursor-pointer shadow-md self-start sm:self-auto"
-            >
-              <Plus size={14} /> Create Playlist
-            </button>
+            <div className="flex items-center gap-2.5 self-start sm:self-auto">
+              <button
+                onClick={() => setIsAIGeneratorOpen(true)}
+                className="px-4 py-2.5 rounded-full bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold text-xs flex items-center gap-1.5 active:scale-95 transition-all cursor-pointer shadow-lg shadow-purple-900/30"
+              >
+                <Sparkles size={14} className="text-purple-200" />
+                <span>Generate with AI</span>
+              </button>
+
+              <button
+                onClick={() => setIsCreating(!isCreating)}
+                className="px-4 py-2.5 rounded-full bg-white hover:bg-zinc-200 text-black font-bold text-xs flex items-center gap-1.5 active:scale-95 transition-all cursor-pointer shadow-md"
+              >
+                <Plus size={14} />
+                <span>Create Playlist</span>
+              </button>
+            </div>
           </div>
         </section>
 
@@ -343,6 +356,12 @@ export default function PlaylistsPage() {
         >
           <Plus size={20} />
         </button>
+
+        {/* AI Playlist Generator Modal */}
+        <AIPlaylistGeneratorModal
+          isOpen={isAIGeneratorOpen}
+          onClose={() => setIsAIGeneratorOpen(false)}
+        />
 
       </main>
   );

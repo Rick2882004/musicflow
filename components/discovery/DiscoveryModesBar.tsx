@@ -39,16 +39,73 @@ export function DiscoveryModesBar() {
   const router = useRouter();
   const [loadingMode, setLoadingMode] = useState<string | null>(null);
 
-  const { setTrack, setQueue } = usePlayerStore(
+  const { setTrack, setQueue, likedSongs, recentSongs, skips } = usePlayerStore(
     useShallow((s) => ({
       setTrack: s.setTrack,
       setQueue: s.setQueue,
+      likedSongs: s.likedSongs,
+      recentSongs: s.recentSongs,
+      skips: s.skips,
     }))
   );
 
   const handleDiscoveryMode = async (mode: string) => {
     setLoadingMode(mode);
     try {
+      if (mode === "surprise") {
+        const res = await fetch("/api/ai/explore/surprise", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            likedSongs,
+            recentTracks: recentSongs,
+            skips,
+            limit: 20,
+          }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          const results: Track[] = data.tracks || [];
+          if (results.length > 0) {
+            setQueue(results);
+            const first = results[0];
+            setTrack(first.videoId, first.title, first.artist, first.thumbnail, 0);
+            return;
+          }
+        }
+      }
+
+      // Map other modes to Smart Mixes or fallbacks
+      const mixMapping: Record<string, string> = {
+        "quick-mix": "workout",
+        "deep-focus": "focus",
+        "mood": "chill",
+      };
+
+      const targetMixId = mixMapping[mode];
+      if (targetMixId) {
+        const res = await fetch("/api/ai/mixes", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            mixId: targetMixId,
+            likedSongs,
+            recentSongs,
+            skips,
+          }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.mix && data.mix.tracks && data.mix.tracks.length > 0) {
+            setQueue(data.mix.tracks);
+            const first = data.mix.tracks[0];
+            setTrack(first.videoId, first.title, first.artist, first.thumbnail, 0);
+            return;
+          }
+        }
+      }
+
+      // Fallback search
       const query = getDiscoveryQuery(mode);
       const res = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
       if (res.ok) {

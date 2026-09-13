@@ -15,13 +15,15 @@ import {
   Users,
   Bookmark,
   Check,
+  Headphones,
 } from "lucide-react";
 import type { Track } from "@/types/music";
 import { useHasMounted } from "@/hooks/useHasMounted";
 import { SafeImage } from "@/components/ui/SafeImage";
 import { TrackRow } from "@/components/ui/TrackRow";
+import { ListeningSessionsList } from "@/components/listening-sessions/ListeningSessionsList";
 
-type LibrarySegment = "all" | "playlists" | "liked" | "artists" | "albums" | "history";
+type LibrarySegment = "all" | "playlists" | "liked" | "artists" | "albums" | "history" | "sessions";
 
 export default function LibraryPage() {
   const mounted = useHasMounted();
@@ -132,6 +134,7 @@ export default function LibraryPage() {
                 { id: "artists", label: `Artists (${followedArtists.length})`, icon: Users },
                 { id: "albums", label: `Albums (${savedAlbums.length})`, icon: Bookmark },
                 { id: "history", label: "History", icon: History },
+                { id: "sessions", label: "Sessions", icon: Headphones },
               ].map((seg) => {
                 const Icon = seg.icon;
                 const active = activeSegment === seg.id;
@@ -573,6 +576,11 @@ export default function LibraryPage() {
                 </div>
               )}
             </div>
+          )}
+
+          {/* 9. Sessions Segment */}
+          {activeSegment === "sessions" && (
+            <ListeningSessionsList />
           )}
         </section>
       </main>

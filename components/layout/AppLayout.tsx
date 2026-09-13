@@ -5,9 +5,15 @@ import { Sidebar } from "./Sidebar";
 import BottomPlayer from "../player/BottomPlayer";
 import Navbar from "./Navbar";
 import MobileBottomNav from "./MobileBottomNav";
+import { usePlayerStore } from "@/store/player-store";
+import { useHasMounted } from "@/hooks/useHasMounted";
+import { cn } from "@/lib/utils";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const mounted = useHasMounted();
+  const title = usePlayerStore((s) => s.title);
+  const hasActiveTrack = mounted && Boolean(title);
   const isAuthPage = pathname === "/login" || pathname === "/signup";
   const isNowPlayingPage = pathname === "/now-playing";
 
@@ -38,7 +44,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           <Navbar />
 
           {/* Scrollable Main Body */}
-          <div className="flex-1 overflow-y-auto scrollbar-none relative pb-36 md:pb-28">
+          <div
+            className={cn(
+              "flex-1 overflow-y-auto scrollbar-none relative",
+              hasActiveTrack ? "pb-32 md:pb-[88px]" : "pb-20 md:pb-6"
+            )}
+          >
             {children}
           </div>
         </div>

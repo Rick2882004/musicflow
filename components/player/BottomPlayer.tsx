@@ -178,7 +178,12 @@ export default function BottomPlayer() {
     playbackSpeed,
     setPlaybackSpeed,
     sleepTimer,
+    sleepTimerType,
+    sleepTimerEndsAt,
+    sleepTimerSecondsRemaining,
     setSleepTimer,
+    setSleepTimerRemainingSeconds,
+    cancelSleepTimer,
     volume,
     setVolume,
     isMuted,
@@ -206,7 +211,12 @@ export default function BottomPlayer() {
       playbackSpeed: s.playbackSpeed,
       setPlaybackSpeed: s.setPlaybackSpeed,
       sleepTimer: s.sleepTimer,
+      sleepTimerType: s.sleepTimerType,
+      sleepTimerEndsAt: s.sleepTimerEndsAt,
+      sleepTimerSecondsRemaining: s.sleepTimerSecondsRemaining,
       setSleepTimer: s.setSleepTimer,
+      setSleepTimerRemainingSeconds: s.setSleepTimerRemainingSeconds,
+      cancelSleepTimer: s.cancelSleepTimer,
       volume: s.volume,
       setVolume: s.setVolume,
       isMuted: s.isMuted,
@@ -384,28 +394,47 @@ export default function BottomPlayer() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
-  // Sleep Timer Countdown (minute interval)
+  // Sleep Timer Countdown & Auto-Pause Effect
   useEffect(() => {
-    if (sleepTimer === null) return;
-    if (sleepTimer <= 0) {
-      if (player && isPlaying) {
-        logBgDiag("call-pauseVideo", { source: "BottomPlayer:sleepTimer" });
-        markIntentionalUserPause();
-        pauseAudioAnchor();
-        player.pauseVideo();
-        setIsPlaying(false);
-      }
-      setSleepTimer(null);
-      return;
+    if (!sleepTimerType) return;
+
+    if (sleepTimerType === "minutes" && sleepTimerEndsAt) {
+      const updateTimer = () => {
+        const remaining = Math.max(0, Math.ceil((sleepTimerEndsAt - Date.now()) / 1000));
+        setSleepTimerRemainingSeconds(remaining);
+        if (remaining <= 0) {
+          logBgDiag("call-pauseVideo", { source: "BottomPlayer:sleepTimerExpired" });
+          markIntentionalUserPause();
+          pauseAudioAnchor();
+          const p = usePlayerStore.getState().player;
+          if (p && p.pauseVideo) p.pauseVideo();
+          setIsPlaying(false);
+          cancelSleepTimer();
+        }
+      };
+
+      updateTimer();
+      const interval = setInterval(updateTimer, 1000);
+      return () => clearInterval(interval);
     }
-    const interval = setInterval(() => {
-      const current = usePlayerStore.getState().sleepTimer;
-      if (current !== null) {
-        setSleepTimer(current > 1 ? current - 1 : null);
-      }
-    }, 60000);
-    return () => clearInterval(interval);
-  }, [sleepTimer, player, isPlaying, setSleepTimer, setIsPlaying]);
+
+    if (sleepTimerType === "end-of-song") {
+      const checkEndOfSong = () => {
+        const store = usePlayerStore.getState();
+        if (store.duration > 0 && store.currentTime >= store.duration - 0.75) {
+          logBgDiag("call-pauseVideo", { source: "BottomPlayer:sleepTimerEndOfSong" });
+          markIntentionalUserPause();
+          pauseAudioAnchor();
+          if (store.player && store.player.pauseVideo) store.player.pauseVideo();
+          setIsPlaying(false);
+          cancelSleepTimer();
+        }
+      };
+
+      const interval = setInterval(checkEndOfSong, 500);
+      return () => clearInterval(interval);
+    }
+  }, [sleepTimerType, sleepTimerEndsAt, cancelSleepTimer, setIsPlaying, setSleepTimerRemainingSeconds]);
 
   // Polling for track progress — ONLY when actively playing
   useEffect(() => {
@@ -428,12 +457,15 @@ export default function BottomPlayer() {
   }, [player, isPlaying, setCurrentTime, setDuration]);
 
   const speedOptions = [0.5, 1.0, 1.25, 1.5, 2.0];
-  const timerOptions = [
+  const timerOptions: { label: string; value: number | null; type?: "minutes" | "end-of-song" }[] = [
     { label: "Off", value: null },
-    { label: "5 min", value: 5 },
-    { label: "15 min", value: 15 },
-    { label: "30 min", value: 30 },
-    { label: "60 min", value: 60 },
+    { label: "5 min", value: 5, type: "minutes" },
+    { label: "10 min", value: 10, type: "minutes" },
+    { label: "15 min", value: 15, type: "minutes" },
+    { label: "30 min", value: 30, type: "minutes" },
+    { label: "45 min", value: 45, type: "minutes" },
+    { label: "60 min", value: 60, type: "minutes" },
+    { label: "End of song", value: 0, type: "end-of-song" },
   ];
 
   if (!mounted || !title) return null;
@@ -656,17 +688,23 @@ export default function BottomPlayer() {
               title="Sleep timer"
               aria-label="Sleep timer"
               className={cn(
-                "p-2 rounded-xl transition-all duration-150 flex items-center gap-1 active:scale-95 border border-transparent outline-none",
+                "p-2 rounded-xl transition-all duration-150 flex items-center gap-1.5 active:scale-95 border border-transparent outline-none",
                 "focus-visible:ring-1 focus-visible:ring-purple-400/50",
-                sleepTimer !== null
-                  ? "text-purple-400 bg-purple-500/10 border-purple-500/20"
+                (sleepTimer !== null || sleepTimerType !== null)
+                  ? "text-purple-300 bg-purple-500/15 border-purple-500/30 shadow-[0_0_12px_rgba(168,85,247,0.15)]"
                   : "text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.04]"
               )}
             >
-              <Timer size={14} />
-              {sleepTimer !== null && (
-                <span className="text-[9px] font-black">{sleepTimer}m</span>
-              )}
+              <Timer size={14} className={cn((sleepTimer !== null || sleepTimerType !== null) && "text-purple-400 animate-pulse")} />
+              {sleepTimerType === "end-of-song" ? (
+                <span className="text-[10px] font-bold text-purple-300 tracking-tight">End of song</span>
+              ) : sleepTimerSecondsRemaining !== null && sleepTimerSecondsRemaining > 0 ? (
+                <span className="text-[10px] font-mono font-bold tabular-nums text-purple-300">
+                  {Math.floor(sleepTimerSecondsRemaining / 60)}:{(sleepTimerSecondsRemaining % 60).toString().padStart(2, "0")}
+                </span>
+              ) : sleepTimer !== null && sleepTimer > 0 ? (
+                <span className="text-[10px] font-bold text-purple-300">{sleepTimer}m</span>
+              ) : null}
             </button>
             <AnimatePresence>
               {showTimerMenu && (
@@ -675,26 +713,39 @@ export default function BottomPlayer() {
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, y: 8, scale: 0.95 }}
                   transition={{ duration: 0.12 }}
-                  className="absolute bottom-full mb-3 right-0 rounded-2xl p-1.5 w-24 space-y-0.5 z-50"
+                  className="absolute bottom-full mb-3 right-0 rounded-2xl p-1.5 w-32 space-y-0.5 z-50 shadow-2xl border border-white/[0.08]"
                   style={dropdownStyle}
                 >
-                  {timerOptions.map((opt) => (
-                    <button
-                      key={opt.label}
-                      onClick={() => {
-                        setSleepTimer(opt.value);
-                        setShowTimerMenu(false);
-                      }}
-                      className={cn(
-                        "w-full text-center py-1.5 text-[11px] rounded-[10px] transition font-semibold",
-                        sleepTimer === opt.value
-                          ? "text-white bg-purple-500/20 text-purple-300"
-                          : "text-zinc-400 hover:text-white hover:bg-white/[0.05]"
-                      )}
-                    >
-                      {opt.label}
-                    </button>
-                  ))}
+                  <p className="px-2 py-1 text-[9px] font-bold text-zinc-500 uppercase tracking-wider">
+                    Sleep Timer
+                  </p>
+                  {timerOptions.map((opt) => {
+                    const isSelected =
+                      opt.type === "end-of-song"
+                        ? sleepTimerType === "end-of-song"
+                        : opt.value === null
+                        ? sleepTimer === null && sleepTimerType === null
+                        : sleepTimer === opt.value && sleepTimerType === "minutes";
+
+                    return (
+                      <button
+                        key={opt.label}
+                        onClick={() => {
+                          setSleepTimer(opt.value, opt.type);
+                          setShowTimerMenu(false);
+                        }}
+                        className={cn(
+                          "w-full text-left px-2.5 py-1.5 text-[11px] rounded-[10px] transition font-semibold flex items-center justify-between",
+                          isSelected
+                            ? "text-white bg-purple-500/25 text-purple-200 font-bold"
+                            : "text-zinc-400 hover:text-white hover:bg-white/[0.05]"
+                        )}
+                      >
+                        <span>{opt.label}</span>
+                        {isSelected && <span className="w-1.5 h-1.5 rounded-full bg-purple-400" />}
+                      </button>
+                    );
+                  })}
                 </motion.div>
               )}
             </AnimatePresence>

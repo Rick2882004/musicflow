@@ -1,5 +1,6 @@
 import HomeHero from "../src/components/home/HomeHero";
 import HomeRecommendations from "../src/components/home/HomeRecommendations";
+import { SmartMixesSection } from "@/components/mixes/SmartMixesSection";
 
 export default function HomePage() {
   return (
@@ -7,7 +8,10 @@ export default function HomePage() {
       {/* 1. Greeting & Continue Listening / Quick Picks */}
       <HomeHero />
 
-      {/* 2. Personalized Home V2 Sections */}
+      {/* 2. Smart Mixes (AI Crafted) */}
+      <SmartMixesSection />
+
+      {/* 3. Personalized Home V2 Sections */}
       <HomeRecommendations />
     </div>
   );

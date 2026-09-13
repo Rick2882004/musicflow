@@ -10,6 +10,7 @@ import { playAudioAnchor } from "@/lib/audio-anchor";
 import { clearIntentionalUserPause } from "@/lib/playback-intent";
 import { logBgDiag } from "@/lib/bg-diagnostics";
 import { isFakeAlbumId } from "@/lib/canonical-music";
+import { SessionTracker } from "@/lib/listening-sessions/session-tracker";
 
 interface PlayerState {
   videoId: string;
@@ -33,6 +34,9 @@ interface PlayerState {
   isQueueOpen: boolean;
   playbackSpeed: number;
   sleepTimer: number | null; // minutes remaining, or null
+  sleepTimerType: "minutes" | "end-of-song" | null;
+  sleepTimerEndsAt: number | null; // timestamp in ms
+  sleepTimerSecondsRemaining: number | null;
   volume: number;
   isMuted: boolean;
   smartQueueEnabled: boolean;
@@ -88,12 +92,20 @@ interface PlayerState {
   ) => void;
   setQueue: (tracks: Track[]) => void;
   reorderQueue: (startIndex: number, endIndex: number) => void;
+  playNext: (track: Track) => void;
+  addToQueue: (track: Track) => void;
+  insertTracksNext: (tracks: Track[]) => void;
+  removeQueueDuplicates: () => void;
+  avoidArtist: (artistName: string) => void;
+  clearUpcomingQueue: () => void;
   nextTrack: () => void;
   prevTrack: () => void;
   clearQueue: () => void;
   
   setPlaybackSpeed: (speed: number) => void;
-  setSleepTimer: (minutes: number | null) => void;
+  setSleepTimer: (minutes: number | null, type?: "minutes" | "end-of-song") => void;
+  setSleepTimerRemainingSeconds: (seconds: number | null) => void;
+  cancelSleepTimer: () => void;
   setVolume: (volume: number) => void;
   setIsMuted: (isMuted: boolean) => void;
   trackSkip: (videoId: string) => void;
@@ -124,6 +136,9 @@ export const usePlayerStore = create<PlayerState>()(
       isQueueOpen: false,
       playbackSpeed: 1.0,
       sleepTimer: null,
+      sleepTimerType: null,
+      sleepTimerEndsAt: null,
+      sleepTimerSecondsRemaining: null,
       volume: 80,
       isMuted: false,
       smartQueueEnabled: true,
@@ -203,9 +218,10 @@ export const usePlayerStore = create<PlayerState>()(
 
       trackSkip: (videoId: string) => {
         if (!videoId) return;
-        const { skips } = get();
+        const { skips, title, artist, thumbnail, currentTime, duration } = get();
         const updated = [videoId, ...skips.filter((id) => id !== videoId)].slice(0, 50);
         set({ skips: updated });
+        SessionTracker.onTrackEnd({ videoId, title, artist, thumbnail }, currentTime, duration, true);
       },
 
       toggleFollowArtist: (artist) => {
@@ -256,6 +272,28 @@ export const usePlayerStore = create<PlayerState>()(
         playAudioAnchor();
         const cachedArt = getCachedArtwork(title, artist, videoId) || thumbnail;
         const track: Track = { videoId, title, artist, thumbnail: cachedArt };
+
+        const prevVideoId = get().videoId;
+        const prevCurrentTime = get().currentTime;
+        const prevDuration = get().duration;
+        if (prevVideoId && prevVideoId !== videoId) {
+          const prevTrack = { videoId: prevVideoId, title: get().title, artist: get().artist, thumbnail: get().thumbnail };
+          const isPremature = prevCurrentTime > 0 && prevCurrentTime < 30 && prevDuration > 60;
+          SessionTracker.onTrackEnd(prevTrack, prevCurrentTime, prevDuration, isPremature);
+          const { history } = get();
+          if (history.length > 0 && history[0].track.videoId === prevVideoId) {
+            const updatedHistory = [...history];
+            const completion = prevDuration > 0 ? Math.min(100, Math.round((prevCurrentTime / prevDuration) * 100)) : 100;
+            updatedHistory[0] = {
+              ...updatedHistory[0],
+              playbackDuration: Math.round(prevCurrentTime),
+              completionPercentage: completion,
+            };
+            set({ history: updatedHistory });
+          }
+        }
+        SessionTracker.onTrackStart(track);
+
         get().addRecentSong(track);
         get().addHistoryEntry(track, 0, 0);
 
@@ -343,6 +381,82 @@ export const usePlayerStore = create<PlayerState>()(
         }
 
         set({ queue: result, currentIndex: newIndex });
+      },
+
+      playNext: (track) => {
+        const { queue, currentIndex } = get();
+        if (!track || !track.videoId) return;
+        if (queue.length === 0) {
+          set({ queue: [track], currentIndex: 0 });
+          return;
+        }
+        const before = queue.slice(0, currentIndex + 1);
+        const after = queue.slice(currentIndex + 1).filter((t) => t.videoId !== track.videoId);
+        set({ queue: [...before, track, ...after] });
+      },
+
+      addToQueue: (track) => {
+        const { queue } = get();
+        if (!track || !track.videoId) return;
+        if (queue.length === 0) {
+          set({ queue: [track], currentIndex: 0 });
+          return;
+        }
+        if (queue[queue.length - 1]?.videoId === track.videoId) return;
+        set({ queue: [...queue, track] });
+      },
+
+      insertTracksNext: (tracks) => {
+        const { queue, currentIndex } = get();
+        if (!tracks || tracks.length === 0) return;
+        const validTracks = tracks.filter((t) => t && t.videoId);
+        if (validTracks.length === 0) return;
+        if (queue.length === 0) {
+          set({ queue: validTracks, currentIndex: 0 });
+          return;
+        }
+        const insertIds = new Set(validTracks.map((t) => t.videoId));
+        const before = queue.slice(0, currentIndex + 1);
+        const after = queue.slice(currentIndex + 1).filter((t) => !insertIds.has(t.videoId));
+        set({ queue: [...before, ...validTracks, ...after] });
+      },
+
+      removeQueueDuplicates: () => {
+        const { queue, currentIndex } = get();
+        if (queue.length <= currentIndex + 1) return;
+        const before = queue.slice(0, currentIndex + 1);
+        const upcoming = queue.slice(currentIndex + 1);
+        const seenIds = new Set(before.map((t) => t.videoId));
+        const seenKeys = new Set(before.map((t) => `${(t.title || "").toLowerCase().trim()}|${(t.artist || "").toLowerCase().trim()}`));
+        const dedupedUpcoming: Track[] = [];
+
+        for (const t of upcoming) {
+          const key = `${(t.title || "").toLowerCase().trim()}|${(t.artist || "").toLowerCase().trim()}`;
+          if (!seenIds.has(t.videoId) && !seenKeys.has(key)) {
+            seenIds.add(t.videoId);
+            seenKeys.add(key);
+            dedupedUpcoming.push(t);
+          }
+        }
+        set({ queue: [...before, ...dedupedUpcoming] });
+      },
+
+      avoidArtist: (artistName) => {
+        if (!artistName) return;
+        const normalized = artistName.toLowerCase().trim();
+        const { queue, currentIndex, skips } = get();
+        const before = queue.slice(0, currentIndex + 1);
+        const upcoming = queue.slice(currentIndex + 1).filter(
+          (t) => !(t.artist || "").toLowerCase().includes(normalized)
+        );
+        const artistSkipKey = `artist:${normalized}`;
+        const nextSkips = [artistSkipKey, ...skips.filter((s) => s !== artistSkipKey)].slice(0, 50);
+        set({ queue: [...before, ...upcoming], skips: nextSkips });
+      },
+
+      clearUpcomingQueue: () => {
+        const { queue, currentIndex } = get();
+        set({ queue: queue.slice(0, currentIndex + 1) });
       },
 
       toggleLike: async (song) => {
@@ -521,9 +635,23 @@ export const usePlayerStore = create<PlayerState>()(
         playAudioAnchor();
         const { queue, currentIndex, isShuffle, videoId, currentTime, duration } = get();
 
-        // AI Signal: Detect premature skip (< 30s into a track with normal duration > 60s)
-        if (videoId && currentTime > 0 && currentTime < 30 && duration > 60) {
+        const isSkip = Boolean(videoId && currentTime > 0 && currentTime < 30 && duration > 60);
+        if (isSkip) {
           get().trackSkip(videoId);
+        } else if (videoId) {
+          const playedTrack = { videoId, title: get().title, artist: get().artist, thumbnail: get().thumbnail };
+          SessionTracker.onTrackEnd(playedTrack, currentTime, duration, false);
+          const { history } = get();
+          if (history.length > 0 && history[0].track.videoId === videoId) {
+            const updatedHistory = [...history];
+            const completion = duration > 0 ? Math.min(100, Math.round((currentTime / duration) * 100)) : 100;
+            updatedHistory[0] = {
+              ...updatedHistory[0],
+              playbackDuration: Math.round(currentTime),
+              completionPercentage: completion,
+            };
+            set({ history: updatedHistory });
+          }
         }
 
         if (queue.length === 0) return;
@@ -565,7 +693,46 @@ export const usePlayerStore = create<PlayerState>()(
         }
       },
 
-      setSleepTimer: (minutes) => set({ sleepTimer: minutes }),
+      setSleepTimer: (minutes, type = "minutes") => {
+        if (minutes === null) {
+          set({
+            sleepTimer: null,
+            sleepTimerType: null,
+            sleepTimerEndsAt: null,
+            sleepTimerSecondsRemaining: null,
+          });
+          return;
+        }
+        if (type === "end-of-song") {
+          set({
+            sleepTimer: 0,
+            sleepTimerType: "end-of-song",
+            sleepTimerEndsAt: null,
+            sleepTimerSecondsRemaining: null,
+          });
+          return;
+        }
+        const endsAt = Date.now() + minutes * 60 * 1000;
+        set({
+          sleepTimer: minutes,
+          sleepTimerType: "minutes",
+          sleepTimerEndsAt: endsAt,
+          sleepTimerSecondsRemaining: minutes * 60,
+        });
+      },
+
+      setSleepTimerRemainingSeconds: (seconds) => {
+        set({ sleepTimerSecondsRemaining: seconds });
+      },
+
+      cancelSleepTimer: () => {
+        set({
+          sleepTimer: null,
+          sleepTimerType: null,
+          sleepTimerEndsAt: null,
+          sleepTimerSecondsRemaining: null,
+        });
+      },
       setVolume: (volume) => {
         set({ volume });
         const { player } = get();

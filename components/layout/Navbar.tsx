@@ -19,6 +19,7 @@ import { auth } from "../../src/lib/firebase";
 import { useAuth } from "../../src/context/AuthContext";
 import { SafeImage } from "@/components/ui/SafeImage";
 import { usePlayerStore } from "@/store/player-store";
+import { useSessionStore } from "@/store/session-store";
 import { motion, AnimatePresence } from "framer-motion";
 import dynamic from "next/dynamic";
 
@@ -69,6 +70,7 @@ export default function Navbar() {
 
   const logout = async () => {
     usePlayerStore.getState().resetUserLibrary();
+    useSessionStore.getState().clearUserSessions();
     await signOut(auth);
     setAvatarOpen(false);
     router.push("/login");

@@ -22,6 +22,7 @@ import Link from "next/link";
 import PopularArtists from "../../src/components/home/PopularArtists";
 import { SafeImage } from "@/components/ui/SafeImage";
 import { DiscoveryModesBar } from "@/components/discovery/DiscoveryModesBar";
+import { SmartMixesSection } from "@/components/mixes/SmartMixesSection";
 
 const GENRES = [
   { name: "Bollywood", emoji: "🎬", color: "hover:border-red-500/30 hover:bg-red-500/5 hover:text-red-300" },
@@ -489,6 +490,11 @@ export default function ExplorePage() {
       ) : activeCategory === "music" ? (
         /* Featured & Moods View */
         <>
+          {/* Smart Mixes */}
+          <div className="px-4 md:px-10">
+            <SmartMixesSection className="px-0 md:px-0" />
+          </div>
+
           {/* Quick Genres Grid */}
           <section className="px-4 md:px-10 space-y-6">
             <div className="flex items-end justify-between">

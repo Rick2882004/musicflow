@@ -30,6 +30,9 @@ import {
   FileText,
   Film,
   Sliders,
+  Sparkles,
+  UserX,
+  Plus,
 } from "lucide-react";
 import { SafeImage } from "@/components/ui/SafeImage";
 import { cn } from "@/lib/utils";
@@ -75,6 +78,10 @@ export default function NowPlayingPage() {
     setQueue,
     reorderQueue,
     clearQueue,
+    playNext,
+    insertTracksNext,
+    removeQueueDuplicates,
+    avoidArtist,
     nextTrack,
     prevTrack,
     isShuffle,
@@ -90,6 +97,8 @@ export default function NowPlayingPage() {
     playbackSpeed,
     setPlaybackSpeed,
     sleepTimer,
+    sleepTimerType,
+    sleepTimerSecondsRemaining,
     setSleepTimer,
     addPlaylist,
     addSongToPlaylist,
@@ -112,6 +121,10 @@ export default function NowPlayingPage() {
       setQueue: s.setQueue,
       reorderQueue: s.reorderQueue,
       clearQueue: s.clearQueue,
+      playNext: s.playNext,
+      insertTracksNext: s.insertTracksNext,
+      removeQueueDuplicates: s.removeQueueDuplicates,
+      avoidArtist: s.avoidArtist,
       nextTrack: s.nextTrack,
       prevTrack: s.prevTrack,
       isShuffle: s.isShuffle,
@@ -127,6 +140,8 @@ export default function NowPlayingPage() {
       playbackSpeed: s.playbackSpeed,
       setPlaybackSpeed: s.setPlaybackSpeed,
       sleepTimer: s.sleepTimer,
+      sleepTimerType: s.sleepTimerType,
+      sleepTimerSecondsRemaining: s.sleepTimerSecondsRemaining,
       setSleepTimer: s.setSleepTimer,
       addPlaylist: s.addPlaylist,
       addSongToPlaylist: s.addSongToPlaylist,
@@ -333,17 +348,128 @@ export default function NowPlayingPage() {
     }
   };
 
+  const [queueActionLoading, setQueueActionLoading] = useState<string | null>(null);
+
+  const handleContinueVibe = async () => {
+    if (!currentTrack || !currentTrack.title) return;
+    setQueueActionLoading("continue-vibe");
+    try {
+      const res = await fetch("/api/ai/queue/actions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "continue-vibe",
+          currentTrack,
+          recentTracks: queue.slice(0, currentIndex + 1),
+        }),
+      });
+      const data = await res.json();
+      if (data.tracks && data.tracks.length > 0) {
+        insertTracksNext(data.tracks);
+        showNotif(`✨ Added ${data.tracks.length} vibe tracks`);
+      } else {
+        showNotif("Could not find matching tracks");
+      }
+    } catch {
+      showNotif("Failed to continue vibe");
+    } finally {
+      setQueueActionLoading(null);
+    }
+  };
+
+  const handleDiscoverMore = async () => {
+    if (!currentTrack || !currentTrack.title) return;
+    setQueueActionLoading("discover-more");
+    try {
+      const res = await fetch("/api/ai/queue/actions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "discover-more",
+          currentTrack,
+          likedSongs,
+        }),
+      });
+      const data = await res.json();
+      if (data.tracks && data.tracks.length > 0) {
+        insertTracksNext(data.tracks);
+        showNotif(`🧭 Added ${data.tracks.length} discovery tracks`);
+      } else {
+        showNotif("No new discoveries found");
+      }
+    } catch {
+      showNotif("Failed to discover more");
+    } finally {
+      setQueueActionLoading(null);
+    }
+  };
+
+  const handleDeduplicate = () => {
+    const beforeCount = queue.length;
+    removeQueueDuplicates();
+    setTimeout(() => {
+      const afterCount = usePlayerStore.getState().queue.length;
+      const diff = beforeCount - afterCount;
+      if (diff > 0) {
+        showNotif(`🧹 Removed ${diff} duplicate ${diff === 1 ? "track" : "tracks"}`);
+      } else {
+        showNotif("No duplicates found in queue");
+      }
+    }, 50);
+  };
+
+  const handlePlaySongNext = (e: React.MouseEvent, song: Track) => {
+    e.stopPropagation();
+    playNext(song);
+    showNotif(`Playing next: "${song.title}"`);
+  };
+
+  const handleMoreLikeThis = async (e: React.MouseEvent, song: Track) => {
+    e.stopPropagation();
+    setQueueActionLoading(`more-${song.videoId}`);
+    try {
+      const res = await fetch("/api/ai/queue/actions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "more-like-this",
+          track: song,
+        }),
+      });
+      const data = await res.json();
+      if (data.tracks && data.tracks.length > 0) {
+        insertTracksNext(data.tracks);
+        showNotif(`Added ${data.tracks.length} tracks similar to "${song.title}"`);
+      } else {
+        showNotif("No similar tracks found");
+      }
+    } catch {
+      showNotif("Failed to fetch similar tracks");
+    } finally {
+      setQueueActionLoading(null);
+    }
+  };
+
+  const handleAvoidArtist = (e: React.MouseEvent, artistName: string) => {
+    e.stopPropagation();
+    avoidArtist(artistName);
+    showNotif(`Avoided songs by ${artistName}`);
+  };
+
   const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
   const progressStyle = `linear-gradient(to right, rgb(168 85 247) 0%, rgb(168 85 247) ${progress}%, rgb(39 39 42) ${progress}%, rgb(39 39 42) 100%)`;
   const volumeStyle = `linear-gradient(to right, rgba(255,255,255,0.7) ${isMuted ? 0 : volume}%, rgba(255,255,255,0.08) ${isMuted ? 0 : volume}%)`;
 
   const speedOptions = [0.5, 1.0, 1.25, 1.5, 2.0];
-  const timerOptions = [
+  const timerOptions: { label: string; value: number | null; type?: "minutes" | "end-of-song" }[] = [
     { label: "Off", value: null },
-    { label: "5 min", value: 5 },
-    { label: "15 min", value: 15 },
-    { label: "30 min", value: 30 },
-    { label: "60 min", value: 60 },
+    { label: "5 min", value: 5, type: "minutes" },
+    { label: "10 min", value: 10, type: "minutes" },
+    { label: "15 min", value: 15, type: "minutes" },
+    { label: "30 min", value: 30, type: "minutes" },
+    { label: "45 min", value: 45, type: "minutes" },
+    { label: "60 min", value: 60, type: "minutes" },
+    { label: "End of song", value: 0, type: "end-of-song" },
   ];
 
   const eqPresets = [
@@ -926,6 +1052,36 @@ export default function NowPlayingPage() {
                           </div>
                         )}
 
+                        {/* Smart Queue Actions Toolbar */}
+                        <div className="flex items-center gap-1.5 py-1 px-0.5 overflow-x-auto scrollbar-none">
+                          <button
+                            onClick={handleContinueVibe}
+                            disabled={queueActionLoading !== null}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-bold bg-purple-500/15 hover:bg-purple-500/25 border border-purple-500/30 text-purple-200 transition-all shrink-0 active:scale-95 disabled:opacity-50 cursor-pointer shadow-sm"
+                            title="Continue current acoustic vibe with fresh catalog tracks"
+                          >
+                            <Sparkles size={12} className={cn(queueActionLoading === "continue-vibe" && "animate-spin text-purple-400")} />
+                            <span>Continue Vibe</span>
+                          </button>
+                          <button
+                            onClick={handleDiscoverMore}
+                            disabled={queueActionLoading !== null}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-bold bg-indigo-500/15 hover:bg-indigo-500/25 border border-indigo-500/30 text-indigo-200 transition-all shrink-0 active:scale-95 disabled:opacity-50 cursor-pointer shadow-sm"
+                            title="Discover new songs with fresh artists"
+                          >
+                            <Radio size={12} className={cn(queueActionLoading === "discover-more" && "animate-spin text-indigo-400")} />
+                            <span>Discover More</span>
+                          </button>
+                          <button
+                            onClick={handleDeduplicate}
+                            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-[11px] font-medium bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] text-zinc-300 transition-all shrink-0 active:scale-95 cursor-pointer"
+                            title="Remove duplicate songs from upcoming queue"
+                          >
+                            <Trash2 size={12} />
+                            <span>Remove Duplicates</span>
+                          </button>
+                        </div>
+
                         {/* Upcoming Tracks */}
                         <div className="space-y-1.5 pt-1">
                           <div className="flex items-center justify-between px-1 text-[10px] font-black uppercase tracking-wider text-zinc-400">
@@ -988,6 +1144,35 @@ export default function NowPlayingPage() {
                                     </span>
 
                                     <div className="hidden group-hover:flex items-center gap-0.5">
+                                      <button
+                                        type="button"
+                                        onClick={(e) => handlePlaySongNext(e, song)}
+                                        className="p-1 text-zinc-400 hover:text-purple-300 rounded transition cursor-pointer"
+                                        title="Play Next"
+                                        aria-label="Play Next"
+                                      >
+                                        <Plus size={12} />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={(e) => handleMoreLikeThis(e, song)}
+                                        className="p-1 text-zinc-400 hover:text-indigo-300 rounded transition cursor-pointer"
+                                        title="More Like This"
+                                        aria-label="More Like This"
+                                      >
+                                        <Sparkles size={11} className={cn(queueActionLoading === `more-${song.videoId}` && "animate-spin text-indigo-400")} />
+                                      </button>
+                                      {song.artist && (
+                                        <button
+                                          type="button"
+                                          onClick={(e) => handleAvoidArtist(e, song.artist)}
+                                          className="p-1 text-zinc-400 hover:text-amber-400 rounded transition cursor-pointer"
+                                          title={`Avoid artist: ${song.artist}`}
+                                          aria-label="Avoid Artist"
+                                        >
+                                          <UserX size={11} />
+                                        </button>
+                                      )}
                                       <button
                                         type="button"
                                         onClick={(e) => handleMoveUp(e, actualIndex)}
@@ -1407,13 +1592,21 @@ export default function NowPlayingPage() {
                 }}
                 className={cn(
                   "px-2.5 py-1 rounded-full border transition flex items-center gap-1 cursor-pointer active:scale-95 text-[10px] font-bold",
-                  sleepTimer !== null
+                  (sleepTimer !== null || sleepTimerType !== null)
                     ? "bg-purple-500/20 text-purple-300 border-purple-500/30"
                     : "bg-white/[0.04] text-zinc-400 border-white/[0.08]"
                 )}
               >
-                <Timer size={11} />
-                <span>{sleepTimer !== null ? `${sleepTimer}m` : "SLEEP"}</span>
+                <Timer size={11} className={cn((sleepTimer !== null || sleepTimerType !== null) && "text-purple-400 animate-pulse")} />
+                <span>
+                  {sleepTimerType === "end-of-song"
+                    ? "END SONG"
+                    : sleepTimerSecondsRemaining !== null && sleepTimerSecondsRemaining > 0
+                    ? `${Math.floor(sleepTimerSecondsRemaining / 60)}:${(sleepTimerSecondsRemaining % 60).toString().padStart(2, "0")}`
+                    : sleepTimer !== null
+                    ? `${sleepTimer}m`
+                    : "SLEEP"}
+                </span>
               </button>
               <AnimatePresence>
                 {showTimerMenu && (
@@ -1421,26 +1614,34 @@ export default function NowPlayingPage() {
                     initial={{ opacity: 0, y: 8, scale: 0.95 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 8, scale: 0.95 }}
-                    className="absolute bottom-full mb-2 left-0 rounded-2xl p-1.5 w-26 space-y-0.5 z-40"
+                    className="absolute bottom-full mb-2 left-0 rounded-2xl p-1.5 w-30 space-y-0.5 z-40 shadow-xl"
                     style={dropdownStyle}
                   >
-                    {timerOptions.map((opt) => (
-                      <button
-                        key={opt.label}
-                        onClick={() => {
-                          setSleepTimer(opt.value);
-                          setShowTimerMenu(false);
-                        }}
-                        className={cn(
-                          "w-full text-center py-1 text-[10px] rounded-xl transition font-semibold cursor-pointer",
-                          sleepTimer === opt.value
-                            ? "text-white bg-purple-600/30"
-                            : "text-zinc-400 hover:text-white hover:bg-white/[0.06]"
-                        )}
-                      >
-                        {opt.label}
-                      </button>
-                    ))}
+                    {timerOptions.map((opt) => {
+                      const isSelected =
+                        opt.type === "end-of-song"
+                          ? sleepTimerType === "end-of-song"
+                          : opt.value === null
+                          ? sleepTimer === null && sleepTimerType === null
+                          : sleepTimer === opt.value && sleepTimerType === "minutes";
+                      return (
+                        <button
+                          key={opt.label}
+                          onClick={() => {
+                            setSleepTimer(opt.value, opt.type);
+                            setShowTimerMenu(false);
+                          }}
+                          className={cn(
+                            "w-full text-center py-1 text-[10px] rounded-xl transition font-semibold cursor-pointer",
+                            isSelected
+                              ? "text-white bg-purple-600/30 font-bold text-purple-200"
+                              : "text-zinc-400 hover:text-white hover:bg-white/[0.06]"
+                          )}
+                        >
+                          {opt.label}
+                        </button>
+                      );
+                    })}
                   </motion.div>
                 )}
               </AnimatePresence>
@@ -1660,6 +1861,33 @@ export default function NowPlayingPage() {
                       </div>
                     )}
 
+                    {/* Smart Queue Actions Toolbar */}
+                    <div className="flex items-center gap-1.5 py-1 px-0.5 overflow-x-auto scrollbar-none">
+                      <button
+                        onClick={handleContinueVibe}
+                        disabled={queueActionLoading !== null}
+                        className="flex items-center gap-1 px-2.5 py-1 rounded-xl text-[10px] font-bold bg-purple-500/15 hover:bg-purple-500/25 border border-purple-500/30 text-purple-200 transition-all shrink-0 active:scale-95 disabled:opacity-50 cursor-pointer"
+                      >
+                        <Sparkles size={11} className={cn(queueActionLoading === "continue-vibe" && "animate-spin text-purple-400")} />
+                        <span>Continue Vibe</span>
+                      </button>
+                      <button
+                        onClick={handleDiscoverMore}
+                        disabled={queueActionLoading !== null}
+                        className="flex items-center gap-1 px-2.5 py-1 rounded-xl text-[10px] font-bold bg-indigo-500/15 hover:bg-indigo-500/25 border border-indigo-500/30 text-indigo-200 transition-all shrink-0 active:scale-95 disabled:opacity-50 cursor-pointer"
+                      >
+                        <Radio size={11} className={cn(queueActionLoading === "discover-more" && "animate-spin text-indigo-400")} />
+                        <span>Discover More</span>
+                      </button>
+                      <button
+                        onClick={handleDeduplicate}
+                        className="flex items-center gap-1 px-2 py-1 rounded-xl text-[10px] font-medium bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] text-zinc-300 transition-all shrink-0 active:scale-95 cursor-pointer"
+                      >
+                        <Trash2 size={11} />
+                        <span>Clean</span>
+                      </button>
+                    </div>
+
                     {/* Upcoming Tracks */}
                     <div className="space-y-1 pt-1">
                       <div className="flex items-center justify-between px-1 text-[9px] font-black uppercase tracking-wider text-zinc-400">
@@ -1711,10 +1939,33 @@ export default function NowPlayingPage() {
                                 </div>
                               </div>
 
-                              <div className="flex items-center gap-1 shrink-0">
-                                <span className="text-[10px] font-mono text-zinc-500 tabular-nums">
-                                  {formatDur(song.duration)}
-                                </span>
+                              <div className="flex items-center gap-0.5 shrink-0">
+                                <button
+                                  type="button"
+                                  onClick={(e) => handlePlaySongNext(e, song)}
+                                  className="p-1 text-zinc-400 hover:text-purple-300 transition"
+                                  title="Play Next"
+                                >
+                                  <Plus size={12} />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={(e) => handleMoreLikeThis(e, song)}
+                                  className="p-1 text-zinc-400 hover:text-indigo-300 transition"
+                                  title="More Like This"
+                                >
+                                  <Sparkles size={11} className={cn(queueActionLoading === `more-${song.videoId}` && "animate-spin text-indigo-400")} />
+                                </button>
+                                {song.artist && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => handleAvoidArtist(e, song.artist)}
+                                    className="p-1 text-zinc-400 hover:text-amber-400 transition"
+                                    title="Avoid Artist"
+                                  >
+                                    <UserX size={11} />
+                                  </button>
+                                )}
                                 <button
                                   type="button"
                                   onClick={(e) => handleRemoveTrack(e, actualIndex)}

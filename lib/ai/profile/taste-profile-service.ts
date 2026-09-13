@@ -128,17 +128,36 @@ export function buildUserTasteProfile(signals: UserSignals): UserTasteProfile {
     .map(([language, weight]) => ({ language, weight: Math.round(weight * 10) / 10 }))
     .sort((a, b) => b.weight - a.weight);
 
+  // 4. Calculate Personalization Signals (Familiarity vs Discovery)
+  const totalTrackPlays = history.length > 0 ? history.length : recentSongs.length;
+  let familiarPlays = 0;
+  for (const [vid, count] of trackPlayCounts.entries()) {
+    const isLiked = likedSongs.some((s) => s.videoId === vid);
+    if (count >= 2 || isLiked) familiarPlays += count;
+  }
+  const familiarityRatio = totalTrackPlays > 0 ? Math.min(1, Math.round((familiarPlays / totalTrackPlays) * 100) / 100) : 0.5;
+  const discoveryRatio = Math.round((1 - familiarityRatio) * 100) / 100;
+  const uniqueArtistCount = topArtists.length;
+  const diversityScore = totalTrackPlays > 0 ? Math.min(100, Math.round((uniqueArtistCount / totalTrackPlays) * 100)) : 50;
+
+  const preferredMoods = topGenres.some((g) => g.genre.includes("Romantic"))
+    ? ["Romantic", "Melancholy", "Soulful"]
+    : ["Chill", "Energetic"];
+  const dominantVibe = `${preferredMoods[0]} • ${topGenres[0]?.genre || "Eclectic"}`;
+
   return {
     topArtists,
     topGenres,
     topLanguages,
-    preferredMoods: topGenres.some((g) => g.genre.includes("Romantic"))
-      ? ["Romantic", "Melancholy", "Soulful"]
-      : ["Chill", "Energetic"],
+    preferredMoods,
     preferredEras: ["Modern Hits", "2010s", "90s Classics"],
     skippedTrackIds: Array.from(skippedIds),
     completedTrackIds: Array.from(completedIds),
     replayTrackIds,
     totalInteractions: likedSongs.length + recentSongs.length + history.length,
+    familiarityRatio,
+    discoveryRatio,
+    diversityScore,
+    dominantVibe,
   };
 }

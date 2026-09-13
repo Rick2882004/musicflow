@@ -3,7 +3,7 @@
 import { usePlayerStore } from "@/store/player-store";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useHasMounted } from "@/hooks/useHasMounted";
 import {
@@ -50,29 +50,39 @@ const NAV_GROUPS = [
 export function Sidebar() {
   const pathname = usePathname();
   const mounted = useHasMounted();
-  const { playlists, addPlaylist } = usePlayerStore(
+  const { playlists, addPlaylist, title } = usePlayerStore(
     useShallow((s) => ({
       playlists: s.playlists,
       addPlaylist: s.addPlaylist,
+      title: s.title,
     }))
   );
 
-  const [isCollapsed, setIsCollapsed] = useState(() => {
-    if (typeof window !== "undefined") {
-      try {
-        return localStorage.getItem("musicflow-sidebar-collapsed") === "true";
-      } catch {
-        return false;
+  const hasActiveTrack = mounted && Boolean(title);
+
+  const [isCollapsed, setIsCollapsed] = useState(false);
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("musicflow-sidebar-collapsed");
+      if (saved === "true") {
+        setTimeout(() => {
+          setIsCollapsed(true);
+        }, 0);
       }
+    } catch {
+      // Fallback
     }
-    return false;
-  });
+  }, []);
+
   const [showAddPlaylist, setShowAddPlaylist] = useState(false);
   const [newPlaylistName, setNewPlaylistName] = useState("");
 
   const toggleCollapse = () => {
+    console.log("[Sidebar] toggleCollapse called! current:", isCollapsed);
     setIsCollapsed((prev) => {
       const next = !prev;
+      console.log("[Sidebar] setIsCollapsed updater called! next:", next);
       try {
         localStorage.setItem("musicflow-sidebar-collapsed", String(next));
       } catch {
@@ -99,82 +109,68 @@ export function Sidebar() {
       )}
       style={{ width: isCollapsed ? "68px" : "240px" }}
     >
-      <div className="flex flex-col h-full overflow-hidden">
+      <div className="flex flex-col h-full min-h-0 overflow-hidden">
         {/* ── Brand & Collapse Header ── */}
-        <div className="h-16 flex items-center justify-between px-3.5 border-b border-white/[0.04]">
-          <Link
-            href="/"
-            aria-label="MusicFlow Home"
-            title="MusicFlow"
-            className={cn(
-              "flex items-center gap-2.5 rounded-xl py-1.5 transition-opacity hover:opacity-90 group",
-              isCollapsed && "mx-auto justify-center"
-            )}
-          >
-            {/* Ambient Logo Emblem */}
-            <div
-              className="w-8 h-8 rounded-[10px] flex items-center justify-center shrink-0 shadow-[0_2px_12px_rgba(124,58,237,0.35)] border border-purple-400/30 transition-transform duration-200 group-hover:scale-105"
-              style={{
-                background: "linear-gradient(135deg, #7C3AED 0%, #A78BFA 100%)",
-              }}
-            >
-              <Music2 className="w-4 h-4 text-white" />
+        <div className="h-16 shrink-0 flex items-center justify-between px-3.5 border-b border-white/[0.04]">
+          {!isCollapsed ? (
+            <>
+              <Link
+                href="/"
+                aria-label="MusicFlow Home"
+                title="MusicFlow"
+                className="flex items-center gap-2.5 rounded-xl py-1.5 transition-opacity hover:opacity-90 group"
+              >
+                {/* Ambient Logo Emblem */}
+                <div
+                  className="w-8 h-8 rounded-[10px] flex items-center justify-center shrink-0 shadow-[0_2px_12px_rgba(124,58,237,0.35)] border border-purple-400/30 transition-transform duration-200 group-hover:scale-105"
+                  style={{
+                    background: "linear-gradient(135deg, #7C3AED 0%, #A78BFA 100%)",
+                  }}
+                >
+                  <Music2 className="w-4 h-4 text-white" />
+                </div>
+
+                <div className="flex flex-col min-w-0">
+                  <span className="text-[15px] font-extrabold tracking-tight text-white leading-none">
+                    MusicFlow
+                  </span>
+                  <span className="text-[9px] font-semibold text-purple-400/80 tracking-wider uppercase mt-0.5">
+                    Studio
+                  </span>
+                </div>
+              </Link>
+
+              <button
+                id="btn-collapse-sidebar"
+                type="button"
+                onClick={toggleCollapse}
+                aria-label="Collapse sidebar"
+                title="Collapse sidebar"
+                className="p-2 rounded-xl text-zinc-400 hover:text-zinc-100 hover:bg-white/[0.08] transition-colors focus-visible:ring-1 focus-visible:ring-purple-400/50 cursor-pointer"
+              >
+                <PanelLeftClose size={17} />
+              </button>
+            </>
+          ) : (
+            <div className="w-full flex items-center justify-center">
+              <button
+                id="btn-expand-sidebar"
+                type="button"
+                onClick={toggleCollapse}
+                aria-label="Expand sidebar"
+                title="Expand sidebar"
+                className="p-2 rounded-xl text-zinc-400 hover:text-white hover:bg-white/[0.08] transition-colors focus-visible:ring-1 focus-visible:ring-purple-400/50 cursor-pointer"
+              >
+                <PanelLeftOpen size={18} />
+              </button>
             </div>
-
-            {!isCollapsed && (
-              <div className="flex flex-col min-w-0">
-                <span className="text-[15px] font-extrabold tracking-tight text-white leading-none">
-                  MusicFlow
-                </span>
-                <span className="text-[9px] font-semibold text-purple-400/80 tracking-wider uppercase mt-0.5">
-                  Studio
-                </span>
-              </div>
-            )}
-          </Link>
-
-          {!isCollapsed && (
-            <button
-              id="btn-collapse-sidebar"
-              type="button"
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                toggleCollapse();
-              }}
-              aria-label="Collapse sidebar"
-              title="Collapse sidebar"
-              className="p-2 rounded-xl text-zinc-400 hover:text-zinc-100 hover:bg-white/[0.08] transition-colors focus-visible:ring-1 focus-visible:ring-purple-400/50 cursor-pointer"
-            >
-              <PanelLeftClose size={17} />
-            </button>
           )}
         </div>
-
-        {/* Collapsed expand button */}
-        {isCollapsed && (
-          <div className="flex justify-center py-2.5 border-b border-white/[0.04]">
-            <button
-              id="btn-expand-sidebar"
-              type="button"
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                toggleCollapse();
-              }}
-              aria-label="Expand sidebar"
-              title="Expand sidebar"
-              className="p-2 rounded-xl text-zinc-400 hover:text-zinc-100 hover:bg-white/[0.08] transition-colors focus-visible:ring-1 focus-visible:ring-purple-400/50 cursor-pointer"
-            >
-              <PanelLeftOpen size={18} />
-            </button>
-          </div>
-        )}
 
         {/* ── Scrollable Navigation Body ── */}
         <nav
           aria-label="Sidebar Navigation"
-          className="flex-1 overflow-y-auto scrollbar-none px-2.5 py-3 space-y-5"
+          className="flex-1 min-h-0 overflow-y-auto scrollbar-none px-2.5 py-3 space-y-5"
         >
           {NAV_GROUPS.map((group) => (
             <div key={group.title} className="space-y-1">
@@ -283,7 +279,10 @@ export function Sidebar() {
             ) : (
               <div className="flex justify-center py-1">
                 <button
-                  onClick={() => setShowAddPlaylist(true)}
+                  onClick={() => {
+                    setIsCollapsed(false);
+                    setShowAddPlaylist(true);
+                  }}
                   className="w-8 h-8 rounded-lg flex items-center justify-center text-zinc-500 hover:text-white hover:bg-white/[0.05] transition-colors"
                   title="Create Playlist"
                   aria-label="Create Playlist"
@@ -334,12 +333,7 @@ export function Sidebar() {
             </AnimatePresence>
 
             {/* Playlist Items List */}
-            <div
-              className={cn(
-                "space-y-0.5 overflow-y-auto scrollbar-none",
-                !isCollapsed ? "max-h-[140px]" : "max-h-[120px]"
-              )}
-            >
+            <div className="space-y-0.5">
               {mounted ? (
                 playlists.length > 0 ? (
                   playlists.map((pl: Playlist) => {
@@ -414,8 +408,8 @@ export function Sidebar() {
           </div>
         </nav>
 
-        {/* ── Footer — Profile & Settings ── */}
-        <div className="p-2 border-t border-white/[0.05] space-y-0.5 mt-auto bg-black/20">
+        {/* ── Fixed/Sticky Sidebar Footer — Profile & Settings ── */}
+        <div className="shrink-0 p-2 border-t border-white/[0.06] space-y-0.5 bg-[#07070a]/90 backdrop-blur-md">
           <Link
             href="/profile"
             aria-label="Profile"
@@ -425,11 +419,13 @@ export function Sidebar() {
               "focus-visible:ring-1 focus-visible:ring-purple-400/50",
               isCollapsed
                 ? "justify-center w-10 h-10 mx-auto"
-                : "gap-3 px-3 py-2"
+                : "gap-3 px-3 py-2",
+              pathname === "/profile"
+                ? "bg-purple-500/[0.08] text-white font-semibold"
+                : "text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.04]"
             )}
             style={{
-              background: pathname === "/profile" ? "rgba(168, 85, 247, 0.08)" : undefined,
-              color: pathname === "/profile" ? "#ffffff" : "var(--mf-text-muted)",
+              boxShadow: pathname === "/profile" ? "inset 0 1px 0 rgba(255, 255, 255, 0.06)" : undefined,
             }}
           >
             {pathname === "/profile" && (
@@ -444,7 +440,7 @@ export function Sidebar() {
                   : "text-zinc-400 group-hover:text-zinc-200"
               )}
             />
-            {!isCollapsed && <span>Profile</span>}
+            {!isCollapsed && <span className="truncate">Profile</span>}
           </Link>
 
           <Link
@@ -456,11 +452,13 @@ export function Sidebar() {
               "focus-visible:ring-1 focus-visible:ring-purple-400/50",
               isCollapsed
                 ? "justify-center w-10 h-10 mx-auto"
-                : "gap-3 px-3 py-2"
+                : "gap-3 px-3 py-2",
+              pathname === "/settings"
+                ? "bg-purple-500/[0.08] text-white font-semibold"
+                : "text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.04]"
             )}
             style={{
-              background: pathname === "/settings" ? "rgba(168, 85, 247, 0.08)" : undefined,
-              color: pathname === "/settings" ? "#ffffff" : "var(--mf-text-muted)",
+              boxShadow: pathname === "/settings" ? "inset 0 1px 0 rgba(255, 255, 255, 0.06)" : undefined,
             }}
           >
             {pathname === "/settings" && (
@@ -475,9 +473,18 @@ export function Sidebar() {
                   : "text-zinc-400 group-hover:text-zinc-200"
               )}
             />
-            {!isCollapsed && <span>Settings</span>}
+            {!isCollapsed && <span className="truncate">Settings</span>}
           </Link>
         </div>
+
+        {/* ── Bottom Player Clearance Spacer (Reserves exactly 72px when player is active) ── */}
+        <div
+          className={cn(
+            "shrink-0 pointer-events-none transition-[height] duration-200 ease-out",
+            hasActiveTrack ? "h-[72px]" : "h-0"
+          )}
+          aria-hidden="true"
+        />
       </div>
     </aside>
   );

@@ -191,3 +191,196 @@ export async function computeAISmartQueue(
     coherenceScore: Math.min(coherence, 99),
   };
 }
+
+export async function getMoreLikeThis(
+  track: Track,
+  limit = 5,
+  avoidArtists: string[] = []
+): Promise<Track[]> {
+  if (!track || !track.title) return [];
+  const cleanTitle = normalizeTrackTitle(track.title);
+  const rawArtist = (track.artist || "").trim();
+  const cleanArtist = rawArtist.toLowerCase();
+
+  const mappedSimilar = cleanArtist && SIMILAR_ARTISTS[cleanArtist]
+    ? SIMILAR_ARTISTS[cleanArtist]
+    : [];
+
+  const avoidSet = new Set(avoidArtists.map((a) => a.toLowerCase().trim()));
+
+  const queries: string[] = [];
+  if (rawArtist) {
+    queries.push(`${rawArtist} Similar Songs`);
+  }
+  if (mappedSimilar.length > 0) {
+    queries.push(`${mappedSimilar[0]} Top Songs`);
+  }
+  queries.push(`${cleanTitle} similar music`);
+
+  const rawCandidates: Track[] = [];
+  const searchPromises = queries.map(async (q) => {
+    try {
+      return await searchSongs(q);
+    } catch {
+      return [];
+    }
+  });
+
+  const results = await Promise.allSettled(searchPromises);
+  for (const res of results) {
+    if (res.status === "fulfilled" && Array.isArray(res.value)) {
+      rawCandidates.push(...res.value);
+    }
+  }
+
+  const verifiedTracks: Track[] = [];
+  const seenIds = new Set<string>();
+  if (track.videoId) seenIds.add(track.videoId);
+  const seenTitles = new Set<string>();
+  if (cleanTitle) seenTitles.add(cleanTitle);
+
+  for (const cand of rawCandidates) {
+    if (!cand || !cand.title || !cand.artist) continue;
+    if (cand.videoId && seenIds.has(cand.videoId)) continue;
+    if (avoidSet.has((cand.artist || "").toLowerCase().trim())) continue;
+
+    const tNorm = normalizeTrackTitle(cand.title);
+    if (seenTitles.has(tNorm)) continue;
+
+    const check = await verifyPlayableTrack(cand);
+    if (check.valid && check.verifiedTrack) {
+      seenIds.add(check.verifiedTrack.videoId);
+      seenTitles.add(tNorm);
+      verifiedTracks.push(check.verifiedTrack);
+      if (verifiedTracks.length >= limit) break;
+    }
+  }
+
+  return verifiedTracks;
+}
+
+export async function getContinueVibe(
+  currentTrack: Track,
+  recentTracks: Track[] = [],
+  avoidArtists: string[] = []
+): Promise<Track[]> {
+  if (!currentTrack || !currentTrack.title) return [];
+  const avoidSet = new Set(avoidArtists.map((a) => a.toLowerCase().trim()));
+  const rawCandidates: Track[] = [];
+
+  const artists = [currentTrack.artist, ...recentTracks.slice(-2).map((t) => t.artist)]
+    .filter(Boolean)
+    .filter((a, i, arr) => arr.indexOf(a) === i)
+    .filter((a) => !avoidSet.has(a.toLowerCase().trim()));
+
+  const queries = artists.map((a) => `${a} Mix`);
+  queries.push(`${currentTrack.title} Vibe`);
+
+  const searchPromises = queries.map(async (q) => {
+    try {
+      return await searchSongs(q);
+    } catch {
+      return [];
+    }
+  });
+
+  const results = await Promise.allSettled(searchPromises);
+  for (const res of results) {
+    if (res.status === "fulfilled" && Array.isArray(res.value)) {
+      rawCandidates.push(...res.value);
+    }
+  }
+
+  const verified: Track[] = [];
+  const seenIds = new Set<string>([currentTrack.videoId, ...recentTracks.map((t) => t.videoId)]);
+  const seenTitles = new Set<string>([normalizeTrackTitle(currentTrack.title)]);
+
+  for (const cand of rawCandidates) {
+    if (!cand || !cand.title || !cand.artist) continue;
+    if (cand.videoId && seenIds.has(cand.videoId)) continue;
+    if (avoidSet.has((cand.artist || "").toLowerCase().trim())) continue;
+
+    const tNorm = normalizeTrackTitle(cand.title);
+    if (seenTitles.has(tNorm)) continue;
+
+    const check = await verifyPlayableTrack(cand);
+    if (check.valid && check.verifiedTrack) {
+      seenIds.add(check.verifiedTrack.videoId);
+      seenTitles.add(tNorm);
+      verified.push(check.verifiedTrack);
+      if (verified.length >= 8) break;
+    }
+  }
+
+  return verified;
+}
+
+export async function getDiscoveryMore(
+  currentTrack: Track,
+  profile: UserTasteProfile,
+  avoidArtists: string[] = []
+): Promise<Track[]> {
+  const avoidSet = new Set(avoidArtists.map((a) => a.toLowerCase().trim()));
+  const rawCandidates: Track[] = [];
+
+  try {
+    const { getDiscoveryFeed } = await import("@/lib/ai/discovery/discovery-engine");
+    const feed = await getDiscoveryFeed({
+      currentPage: "browse",
+      currentTrack,
+      userTaste: profile,
+      recentTracks: currentTrack.videoId ? [currentTrack] : [],
+      signals: { skips: avoidArtists.map((a) => `artist:${a.toLowerCase().trim()}`) },
+      limit: 20,
+    });
+
+    if (feed.sections) {
+      for (const s of feed.sections) {
+        rawCandidates.push(...s.tracks);
+      }
+    }
+  } catch {
+    // fallback
+  }
+
+  if (rawCandidates.length < 6) {
+    const genre = profile.topGenres[0]?.genre || "Trending";
+    const queries = [`${genre} fresh discoveries`, "Underground Hits 2026", "Emerging Artists Radio"];
+    for (const q of queries) {
+      try {
+        const found = await searchSongs(q);
+        rawCandidates.push(...found);
+      } catch {
+        // ignore
+      }
+    }
+  }
+
+  const verified: Track[] = [];
+  const seenIds = new Set<string>(currentTrack.videoId ? [currentTrack.videoId] : []);
+  const seenArtists = new Set<string>(currentTrack.artist ? [currentTrack.artist.toLowerCase().trim()] : []);
+  const seenTitles = new Set<string>(currentTrack.title ? [normalizeTrackTitle(currentTrack.title)] : []);
+
+  for (const cand of rawCandidates) {
+    if (!cand || !cand.title || !cand.artist) continue;
+    if (cand.videoId && seenIds.has(cand.videoId)) continue;
+    const aNorm = cand.artist.toLowerCase().trim();
+    if (avoidSet.has(aNorm)) continue;
+    // Strict discovery anti-fatigue: max 1 per artist
+    if (seenArtists.has(aNorm)) continue;
+
+    const tNorm = normalizeTrackTitle(cand.title);
+    if (seenTitles.has(tNorm)) continue;
+
+    const check = await verifyPlayableTrack(cand);
+    if (check.valid && check.verifiedTrack) {
+      seenIds.add(check.verifiedTrack.videoId);
+      seenArtists.add(aNorm);
+      seenTitles.add(tNorm);
+      verified.push(check.verifiedTrack);
+      if (verified.length >= 8) break;
+    }
+  }
+
+  return verified;
+}
